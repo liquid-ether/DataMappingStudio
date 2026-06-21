@@ -16,15 +16,22 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v0.2.0** (Domain core & metadata model) |
+| Current version | **v0.3.0** (Local metadata-driven SQLite store) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 61 passing |
+| Tests | `dotnet test DataMappingStudio.slnx` — 75 passing |
 
-**Domain model (`App.Domain`)** — implemented: the column catalog (`ColumnCatalogEntry`,
-`ColumnKind`, `CatalogValueType`, SQL-annotation parser `ColumnType`), `app_config`, the rule/mapping
-expression AST (`RuleExpression` + nodes, JSON-serialized "tree + original text"), the lineage data
-model, value normalization, the seven normalized entities with shared sync/governance stamps, and
-canonical `TableNames`.
+**Domain model (`App.Domain`)** — the column catalog (`ColumnCatalogEntry`, `ColumnKind`,
+`CatalogValueType`, SQL-annotation parser `ColumnType`), `app_config`, the rule/mapping expression
+AST (`RuleExpression` + nodes, JSON-serialized "tree + original text"), the lineage data model, value
+normalization, the seven normalized entities with shared sync/governance stamps, and canonical
+`TableNames`. Generic data carriers: `Row`, `ChangeLogEntry`.
+
+**Local store (`App.Infrastructure.Local`)** — a thin generic repository over
+`Microsoft.Data.Sqlite` (no EF Core): the catalog (`ICatalog`/`SqliteCatalog`) drives table/column
+creation and runtime `ALTER TABLE ADD COLUMN`; the store (`ILocalStore`/`SqliteLocalStore`) reads
+the catalog to build parameterized SQL, normalizes values, and emits one change-log entry per changed
+field; the append-only change log (`IAuditLog`/`SqliteAuditLog`) **is** the audit trail with a
+monotonic `ClientSeq`.
 
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the changelog.
 

@@ -7,6 +7,32 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-21
+
+The generic, metadata-driven local SQLite store — the working copy every analyst edits. No EF Core.
+
+### Added
+- **Generic data carriers** in `App.Domain`: `Row` (catalog-shaped, indexer-bound, canonical string
+  values) and `ChangeLogEntry`/`ChangeOperation` (the audit tuple).
+- **Application abstractions**: `ICatalog`, `ILocalStore`, `IAuditLog` (interfaces live in
+  `App.Application` per the layered architecture).
+- **`SqliteCatalog`** (`column_catalog` meta table): seed (idempotent), read by table/all, and
+  runtime `AddColumn` that records the column and applies `ALTER TABLE … ADD COLUMN` so it appears in
+  editors with no code change; rejects invalid entries.
+- **`SqliteLocalStore`**: catalog-driven `CREATE TABLE`/`ALTER TABLE`, dynamic reads into `Row`,
+  value normalization on write, diff-driven upsert that writes one change-log entry per changed field
+  (Insert/Update ops), row-version bump, and soft delete (Delete op, hidden from default reads).
+- **`SqliteAuditLog`** (`local_change_log` meta table): append-only change log = audit trail, with a
+  monotonic per-writer `ClientSeq`; query by table/row and "pending since seq".
+- **`LocalDatabase`** connection holder (WAL, FK on) and safe dynamic-SQL helpers
+  (`SqliteExtensions`, `SqlIdentifier` whitelist+quoting); DI `AddLocalStore(path)`.
+- 16 integration tests against real temp-file SQLite (round-trip, per-field change logging,
+  row-version, normalization, unknown-column rejection, soft delete, monotonic ClientSeq, runtime
+  add-column, DI wiring with ValidateOnBuild). 75 total.
+
+### Security
+- Bumped `SQLitePCLRaw.bundle_e_sqlite3` to 3.0.3 to clear advisory GHSA-2m69-gcr7-jv3q.
+
 ## [0.2.0] - 2026-06-21
 
 The domain core & metadata model — the foundation every later layer builds on. Zero external

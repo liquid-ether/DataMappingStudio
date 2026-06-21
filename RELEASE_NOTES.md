@@ -7,6 +7,34 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-21
+
+The remote store, deterministic fold, field-level merge and publish/sync — the git-like sharing layer.
+
+### Added
+- **Pluggable remote formats** (`IRemoteFormat` + `IRemoteFormatProvider`): **Parquet** (default,
+  Parquet.Net untyped serializer), **CSV** (RFC 4180-ish, zero-dependency), **Excel** (ClosedXML);
+  `RemoteValueConverter` maps canonical strings ↔ native typed columns. `RemoteTable`/`RemoteColumn`
+  carriers in the domain.
+- **Per-writer append-only logs** (`FileRemoteStore`): `_changes/<writer>.<ext>`, atomic appends,
+  read-all/read-writer/writers; `ChangeLogSchema` maps entries ↔ tabular rows. `AtomicWrite` helper.
+- **Deterministic fold** (`ChangeFold` → `FoldedState`/`FoldedRow`): stable order (ChangedAtUtc, then
+  ChangeId), last-write-per-cell, delete-aware; incremental `Apply` on a seed.
+- **Snapshot builder** (`SnapshotBuilder`): materialized `<table>.<ext>` + `_meta/<table>.json`
+  per-writer ClientSeq sidecars, incremental refold from the existing snapshot, atomic temp+rename.
+- **3-way field-level merge** (`FieldMergeEngine`): clean vs converged vs conflict, with
+  keep-mine / keep-theirs / edit resolution; `PublishService` (append-then-refold, snapshot rebuild).
+- **Auto-refresh planner** (`AutoRefreshPlanner`): fast-forwards remote changes for untouched cells,
+  flags locally-edited+remotely-changed cells — never clobbering unpublished edits.
+- 27 new tests (114 total): format round-trips (incl. nulls/empty/quoting), multi-writer logs, fold
+  determinism, snapshot full-vs-incremental + atomicity + delete exclusion, merge + resolution,
+  publish (clean / conflict-blocked / resolved), auto-refresh.
+
+### Notes
+- The auto-refresh `IHostedService` wrapper (timer that applies the planner to the local store) is
+  deferred to the sync UI phase (v0.9.0): applying a fast-forward needs a non-logging "adopt
+  canonical" path on the local store. The planner logic + its guarantees are complete and tested.
+
 ## [0.4.0] - 2026-06-21
 
 The rule/expression engine and lineage engine — the logic behind Mapping Studio, ported from the

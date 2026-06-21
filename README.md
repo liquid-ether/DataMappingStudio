@@ -16,15 +16,24 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v0.4.0** (Rule/expression & lineage engine) |
+| Current version | **v0.5.0** (Remote store, fold, merge & publish/sync) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 87 passing |
+| Tests | `dotnet test DataMappingStudio.slnx` — 114 passing |
 
 **Engine (`App.Application`)** — the rule/expression engine and lineage engine ported from the
 mockup: `ExpressionTokenizer`, `FunctionLibrary` (function/keyword metadata + autocomplete),
 `ExpressionClassifier` (syntax-highlight classification), `RuleExpressionBuilder` (text →
 dictionary-linked AST with free-text fallback), and `LineageEngine` (field-level graph, upstream
 closure, "Built from" tree) over a domain-agnostic `LineageScenario`.
+
+**Remote store & sync (`App.Infrastructure.Remote` + `App.Application.Sync`)** — pluggable
+`IRemoteFormat` providers (**Parquet** default, **CSV**, **Excel**) behind `IRemoteFormatProvider`;
+per-writer append-only logs (`FileRemoteStore`, atomic appends); the deterministic **fold**
+(`ChangeFold`) producing canonical `FoldedState`; materialized **snapshots** with `_meta` sidecars,
+incremental refold, and atomic temp+rename (`SnapshotBuilder`); the generic **3-way field-level
+merge** (`FieldMergeEngine`) with conflict detection + keep-mine/keep-theirs/edit; the
+**`PublishService`** (append-then-refold); and the **`AutoRefreshPlanner`** (fast-forward untouched
+cells, flag locally-edited+remotely-changed — never clobbers unpublished edits).
 
 **Domain model (`App.Domain`)** — the column catalog (`ColumnCatalogEntry`, `ColumnKind`,
 `CatalogValueType`, SQL-annotation parser `ColumnType`), `app_config`, the rule/mapping expression

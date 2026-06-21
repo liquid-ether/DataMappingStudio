@@ -1,6 +1,7 @@
 using App.Application.Abstractions;
 using App.Application.Expressions;
 using App.Application.Lineage;
+using App.Application.Sync;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -21,6 +22,10 @@ public static class DependencyInjection
         services.TryAddSingleton<ExpressionClassifier>();
         services.TryAddSingleton<RuleExpressionBuilder>();
         services.TryAddSingleton<ILineageEngine, LineageEngine>();
+
+        // Sync engines (pure; the remote store + publish service are wired by AddRemoteStore).
+        services.TryAddSingleton<FieldMergeEngine>();
+        services.TryAddSingleton<AutoRefreshPlanner>();
 
         return services;
     }

@@ -16,9 +16,15 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v0.1.0** (Phase 0 — scaffolding) |
+| Current version | **v0.2.0** (Domain core & metadata model) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 9 passing (smoke) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 61 passing |
+
+**Domain model (`App.Domain`)** — implemented: the column catalog (`ColumnCatalogEntry`,
+`ColumnKind`, `CatalogValueType`, SQL-annotation parser `ColumnType`), `app_config`, the rule/mapping
+expression AST (`RuleExpression` + nodes, JSON-serialized "tree + original text"), the lineage data
+model, value normalization, the seven normalized entities with shared sync/governance stamps, and
+canonical `TableNames`.
 
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the changelog.
 

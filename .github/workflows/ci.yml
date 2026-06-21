@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build-test:
+    # Windows runner is required: App.Desktop is a WPF (net10.0-windows) project.
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore DataMappingStudio.slnx
+
+      - name: Build
+        run: dotnet build DataMappingStudio.slnx -c Release --no-restore
+
+      - name: Test (with coverage)
+        run: dotnet test DataMappingStudio.slnx -c Release --no-build --collect:"XPlat Code Coverage" --results-directory ./TestResults
+
+      - name: Pester (PowerShell build scripts)
+        shell: pwsh
+        run: |
+          if (Test-Path tests/Build.Tests) {
+            Install-Module Pester -Force -Scope CurrentUser -SkipPublisherCheck
+            Invoke-Pester -Path tests/Build.Tests -CI
+          } else {
+            Write-Host "No Pester suite yet (added in Phase 9 / v0.10.0)."
+          }
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: ./TestResults/**/coverage.cobertura.xml
+          if-no-files-found: ignore

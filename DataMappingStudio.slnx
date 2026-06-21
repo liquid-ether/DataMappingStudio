@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/App.Application/App.Application.csproj" />
+    <Project Path="src/App.Desktop/App.Desktop.csproj" />
+    <Project Path="src/App.Domain/App.Domain.csproj" />
+    <Project Path="src/App.Importer/App.Importer.csproj" />
+    <Project Path="src/App.Infrastructure.Local/App.Infrastructure.Local.csproj" />
+    <Project Path="src/App.Infrastructure.Remote/App.Infrastructure.Remote.csproj" />
+    <Project Path="src/App.UI/App.UI.csproj" />
+    <Project Path="src/App.Web/App.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/App.Application.Tests/App.Application.Tests.csproj" />
+    <Project Path="tests/App.Domain.Tests/App.Domain.Tests.csproj" />
+    <Project Path="tests/App.E2E.Tests/App.E2E.Tests.csproj" />
+    <Project Path="tests/App.Importer.Tests/App.Importer.Tests.csproj" />
+    <Project Path="tests/App.Infrastructure.Local.Tests/App.Infrastructure.Local.Tests.csproj" />
+    <Project Path="tests/App.Infrastructure.Remote.Tests/App.Infrastructure.Remote.Tests.csproj" />
+    <Project Path="tests/App.UI.Tests/App.UI.Tests.csproj" />
+  </Folder>
+</Solution>

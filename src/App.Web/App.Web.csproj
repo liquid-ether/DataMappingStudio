@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\App.UI\App.UI.csproj" />
+    <ProjectReference Include="..\App.Application\App.Application.csproj" />
+    <ProjectReference Include="..\App.Infrastructure.Local\App.Infrastructure.Local.csproj" />
+    <ProjectReference Include="..\App.Infrastructure.Remote\App.Infrastructure.Remote.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,46 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+publish/
+*.user
+*.suo
+
+# .NET
+project.lock.json
+project.fragment.lock.json
+*.binlog
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+*.trx
+
+# Rider / VS / VS Code
+.vs/
+.idea/
+*.userprefs
+
+# Playwright
+**/playwright/.cache/
+**/.playwright/
+playwright-report/
+test-results/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Local app data / SQLite working copies produced at runtime
+*.db
+*.db-shm
+*.db-wal
+.local/
+_changes/
+_meta/
+
+# Node (Playwright browsers helper, if used)
+node_modules/

@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<!-- saved from url=(0064)file:///C:/Users/Mathieu/Downloads/mapping-lineage-studio_2.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapping Studio — mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link href="./Mapping Studio — mockup_files/css2" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16212b; --ink-soft:#4a5a67; --ink-faint:#7e909c;
+    --app-bg:#eef2f3; --panel:#fff; --panel-2:#f6f9fa;
+    --line:#dbe3e7; --line-strong:#c4d0d6;
+    --target:#b4541d; --target-bg:#fbeee4; --target-line:#eccab0;
+    --srcA:#0e7c86; --srcA-bg:#e2f1f2; --srcA-line:#bfe0e2;
+    --srcB:#2f5bd0; --srcB-bg:#e6ecfb; --srcB-line:#c9d6f6;
+    --srcG:#1f8a55; --srcG-bg:#e4f3ea; --srcG-line:#bfe2cd;
+    --calc:#6a4ee0; --calc-bg:#ece7fb; --calc-line:#d4c9f6;
+    --bad:#c0392b; --good:#1f8a55; --focus:#0e7c86; --r:8px; --fs-eyebrow:11px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--app-bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;
+    font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+
+  .ms-top{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:16px;
+    padding:11px 22px;background:#0f1b24;color:#dfe8ec;border-bottom:1px solid #08121a}
+  .ms-brand{display:flex;align-items:baseline;gap:9px;font-weight:600;letter-spacing:.02em}
+  .ms-brand .glyph{font-family:"IBM Plex Mono",monospace;color:#3ec7c2;font-weight:600;
+    border:1px solid #2b4650;border-radius:5px;padding:1px 6px;font-size:12px}
+  .ms-tabs{display:flex;gap:4px;margin-left:8px}
+  .ms-tabs button{background:transparent;color:#9fb0b9;border:0;border-radius:6px;cursor:pointer;
+    font:inherit;font-size:13px;font-weight:600;padding:6px 13px}
+  .ms-tabs button[aria-selected="true"]{background:#1b2c37;color:#eef4f6}
+  .ms-spacer{flex:1}
+  .ms-lang{display:flex;border:1px solid #2b4650;border-radius:6px;overflow:hidden}
+  .ms-lang button{background:transparent;color:#9fb0b9;border:0;cursor:pointer;font:inherit;font-size:12px;padding:5px 11px;font-weight:600}
+  .ms-lang button[aria-pressed="true"]{background:#13aca6;color:#04221f}
+  .ms-publish{background:#3ec7c2;color:#04221f;border:0;border-radius:6px;font:inherit;font-weight:600;font-size:13px;padding:7px 15px;cursor:pointer}
+  .ms-publish:hover{background:#52d6d1}
+
+  .ms-wrap{max-width:1180px;margin:0 auto;padding:18px 22px 80px}
+  .view{display:none} .view.on{display:block}
+
+  /* toolbar */
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .search{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line-strong);
+    border-radius:8px;padding:7px 11px;min-width:240px;flex:1;max-width:360px}
+  .search input{border:0;outline:none;font:inherit;font-size:13px;width:100%;background:transparent;color:var(--ink)}
+  .search .mag{color:var(--ink-faint);font-family:"IBM Plex Mono",monospace}
+  .filt{display:flex;align-items:center;gap:7px;color:var(--ink-soft);font-size:13px}
+  .filt select,.add select{font:inherit;font-size:13px;border:1px solid var(--line-strong);border-radius:7px;padding:6px 8px;background:#fff;color:var(--ink)}
+  .count{margin-left:auto;color:var(--ink-faint);font-size:12px}
+
+  .gridbox{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:auto}
+  table.grid{width:100%;border-collapse:collapse;font-size:13px;min-width:880px}
+  table.grid thead th{position:sticky;top:0;z-index:2;background:var(--panel-2);text-align:left;
+    font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);
+    font-weight:600;padding:9px 10px;border-bottom:1px solid var(--line-strong)}
+  table.grid td{padding:0;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.grid tr:hover td{background:#fafcfc}
+  tr.grp td{background:#eef3f4;border-bottom:1px solid var(--line-strong)}
+  .grp-cell{padding:6px 10px;font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.06em;
+    font-weight:700;color:var(--target);display:flex;align-items:center;gap:8px}
+  .grp-cell .tline{font-family:"IBM Plex Mono",monospace}
+  .grp-cell .srcs{display:flex;gap:5px;margin-left:6px}
+  .grp-cell .schip{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;color:#fff;border-radius:4px;padding:1px 5px;text-transform:none;letter-spacing:0}
+
+  .cell{padding:8px 10px;min-height:36px;display:flex;align-items:center;gap:6px}
+  .cell.editable{cursor:text;border-radius:5px}
+  .cell.editable:hover{box-shadow:inset 0 0 0 1px var(--line-strong)}
+  .cell.pickable{cursor:pointer}
+  .muted{color:var(--ink-faint)}
+  .kind-badge{font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.05em;font-weight:600;
+    border-radius:5px;padding:3px 8px;cursor:pointer;white-space:nowrap;border:1px solid transparent}
+  .kind-badge.field{background:var(--target-bg);color:var(--target);border-color:var(--target-line)}
+  .kind-badge.calc{background:var(--calc-bg);color:var(--calc);border-color:var(--calc-line)}
+  .kind-badge.join{background:var(--srcB-bg);color:var(--srcB);border-color:var(--srcB-line)}
+  .kind-badge.filter{background:var(--srcA-bg);color:#0a5a62;border-color:var(--srcA-line)}
+  .fld{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--target)}
+  .type-badge{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:2px 8px;cursor:pointer}
+  .rowx{color:var(--ink-faint);cursor:pointer;font-family:"IBM Plex Mono",monospace;padding:0 4px}
+  .rowx:hover{color:var(--bad)}
+  col.c-kind{width:88px} col.c-tgt{width:180px} col.c-fld{width:170px} col.c-type{width:84px} col.c-x{width:34px}
+
+  .expr-render{font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.85}
+  .chip{border-radius:4px;padding:1px 5px;font-weight:600;white-space:nowrap}
+  .chip.a{background:var(--srcA-bg);color:#0a5a62}
+  .chip.b{background:var(--srcB-bg);color:#23409a}
+  .chip.g{background:var(--srcG-bg);color:#15663f}
+  .chip.tsrc,.chip.self{background:var(--target-bg);color:var(--target)}
+  .fn{color:#11343f;font-weight:600}.kw{color:#6a4ee0;font-weight:600}
+  .lit{color:#a15a12}.punc{color:var(--ink-faint)}
+  .unresolved{color:var(--bad);text-decoration:underline wavy var(--bad);text-underline-offset:3px;cursor:help}
+
+  .ed-input,.ed-select{font:inherit;font-size:13px;border:1px solid var(--focus);border-radius:5px;padding:6px 8px;width:100%;outline:none;background:#fff;color:var(--ink)}
+  .ed-input.mono{font-family:"IBM Plex Mono",monospace;font-size:12.5px}
+  .ed-wrap{position:relative;flex:1;width:100%}
+  .ac{position:absolute;z-index:50;top:calc(100% + 3px);left:0;min-width:260px;max-width:340px;background:#fff;
+    border:1px solid var(--line-strong);border-radius:8px;box-shadow:0 10px 28px rgba(16,33,43,.16);overflow:auto;max-height:240px}
+  .ac-grp{font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);padding:7px 11px 3px;font-weight:600}
+  .ac-item{display:flex;align-items:center;gap:9px;padding:6px 11px;cursor:pointer;font-size:13px}
+  .ac-item:hover,.ac-item.active{background:var(--panel-2)}
+  .ac-item .tag{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;color:#fff;border-radius:4px;padding:1px 5px;flex:none}
+  .ac-item .tag.a{background:var(--srcA)}.ac-item .tag.b{background:var(--srcB)}.ac-item .tag.g{background:var(--srcG)}
+  .ac-item .tag.tsrc,.ac-item .tag.self{background:var(--target)}.ac-item .tag.fn{background:#11343f}
+  .ac-item .lbl{font-family:"IBM Plex Mono",monospace;font-size:12.5px}
+  .ac-item .meta{margin-left:auto;color:var(--ink-faint);font-size:11px}
+
+  .add{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px dashed var(--line-strong);
+    color:var(--ink-soft);border-radius:7px;padding:7px 12px;font:inherit;font-size:13px;font-weight:500;cursor:pointer}
+  .add:hover{border-color:var(--focus);color:var(--focus)}
+  .add .plus{font-family:"IBM Plex Mono",monospace;font-weight:600}
+  .addbar{display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap}
+  .addbar .lab{color:var(--ink-faint);font-size:13px}
+
+  /* lineage */
+  .lin-top{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .lin-pick{display:flex;align-items:center;gap:8px;color:var(--ink-soft);font-size:13px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-left:auto;font-size:12px;color:var(--ink-soft)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .lin-layout{display:grid;grid-template-columns:1fr 300px;gap:14px}
+  @media(max-width:880px){.lin-layout{grid-template-columns:1fr}}
+  .lin-canvas{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:auto;
+    background-image:radial-gradient(var(--line) .6px,transparent .6px);background-size:18px 18px}
+  .lin-side{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px 15px}
+  .lin-side h3{margin:0 0 4px;font-size:13px}
+  .lin-side .sel{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--target);font-size:13px}
+  .lin-side .sub{color:var(--ink-faint);font-size:12px;margin:2px 0 12px}
+  .tree{font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.7}
+  .tree .ln{white-space:pre;display:flex;align-items:center;gap:6px}
+  .tree .lf{color:var(--ink-faint)}
+  .tree .nf{font-weight:600}
+  .badge-leaf{font-family:"IBM Plex Sans";font-size:9px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--ink-faint);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+  .unres-note{margin-top:10px;font-size:12px;color:var(--bad);display:flex;align-items:center;gap:6px}
+
+  svg text{font-family:"IBM Plex Mono",monospace}
+  .ds-card{fill:#fff;stroke:var(--line-strong)}
+  .ds-head-t{fill:var(--target-bg);stroke:var(--target-line)}
+  .ds-head-tbl{fill:var(--srcA-bg);stroke:var(--srcA-line)}
+  .node{cursor:pointer}
+  .node rect{fill:#fff;stroke:var(--line);rx:4}
+  .node text{font-size:11px;fill:var(--ink)}
+  .edge{fill:none;stroke:var(--line-strong);stroke-width:1.2}
+  .dim{opacity:.16}
+  .hl-edge{stroke:var(--target);stroke-width:2.4}
+  .hl-node rect{stroke:var(--target);stroke-width:2;fill:var(--target-bg)}
+
+  :focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:4px}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+  <div class="ms-top">
+    <div class="ms-brand"><span class="glyph">⇲</span><span data-i18n="brand">Mapping Studio</span></div>
+    <div class="ms-tabs" role="tablist">
+      <button data-tab="map" aria-selected="true" data-i18n="tabMap">Mappings</button>
+      <button data-tab="lin" aria-selected="false" data-i18n="tabLin">Lineage</button>
+    </div>
+    <div class="ms-spacer"></div>
+    <div class="ms-lang" role="group" aria-label="Language">
+      <button data-lang="en" aria-pressed="true">EN</button>
+      <button data-lang="fr" aria-pressed="false">FR</button>
+    </div>
+    <button class="ms-publish" data-i18n="publish">Publish</button>
+  </div>
+
+  <div class="ms-wrap">
+    <!-- ============ MAPPINGS ============ -->
+    <section class="view on" id="view-map">
+      <div class="toolbar">
+        <label class="search"><span class="mag">⌕</span>
+          <input id="search" type="text" data-ph="searchPh" placeholder="Search target, field, or expression"></label>
+        <span class="filt"><span data-i18n="targetFilter">Target</span>
+          <select id="targetFilter"><option value="*">All</option><option value="CUSTOMER_360">CUSTOMER_360</option><option value="MARKETING_SEGMENTS">MARKETING_SEGMENTS</option></select></span>
+        <span class="count" id="rowCount">15 mappings</span>
+      </div>
+      <div class="gridbox">
+        <table class="grid">
+          <colgroup><col class="c-kind"><col class="c-tgt"><col class="c-fld"><col><col class="c-type"><col class="c-x"></colgroup>
+          <thead><tr>
+            <th data-i18n="colKind">Kind</th>
+            <th data-i18n="colTargetTbl">Target</th>
+            <th data-i18n="colField">Field</th>
+            <th data-i18n="colExpr">Expression</th>
+            <th data-i18n="colType">Type</th><th></th>
+          </tr></thead>
+          <tbody id="mapBody"><tr class="grp"><td colspan="6"><div class="grp-cell"><span class="tline">▸ CUSTOMER_360</span><span class="srcs"><span class="schip" style="background:var(--srcA)">a:CRM_ACCOUNTS</span><span class="schip" style="background:var(--srcB)">b:BILLING</span></span></div></td></tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge join" data-kind="" data-i="0">Join</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="0"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell muted">—</div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="0"><span class="chip a">a.acct_id</span> <span class="punc">=</span> <span class="chip b">b.account_ref</span></div></td>
+      <td><div class="cell muted">—</div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="0" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge filter" data-kind="" data-i="1">Filter</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="1"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell muted">—</div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="1"><span class="chip a">a.status</span> <span class="kw">IN</span> <span class="punc">(</span><span class="lit">'ACTIVE'</span><span class="punc">,</span><span class="lit">'PENDING'</span><span class="punc">)</span></div></td>
+      <td><div class="cell muted">—</div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="1" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge field" data-kind="" data-i="2">Field</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="2"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="2"><span class="fld">customer_id</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="2"><span class="chip a">a.acct_id</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="2">text</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="2" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge field" data-kind="" data-i="3">Field</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="3"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="3"><span class="fld">full_name</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="3"><span class="fn">CONCAT</span><span class="punc">(</span><span class="chip a">a.first_name</span><span class="punc">,</span><span class="lit">' '</span><span class="punc">,</span><span class="chip a">a.last_name</span><span class="punc">)</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="3">text</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="3" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge field" data-kind="" data-i="4">Field</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="4"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="4"><span class="fld">email</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="4"><span class="chip a">a.email</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="4">text</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="4" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge field" data-kind="" data-i="5">Field</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="5"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="5"><span class="fld">region</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="5"><span class="chip a">a.region</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="5">text</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="5" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge field" data-kind="" data-i="6">Field</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="6"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="6"><span class="fld">lifetime_value</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="6"><span class="fn">COALESCE</span><span class="punc">(</span><span class="chip b">b.mrr</span><span class="punc">,</span><span class="punc">)</span> <span class="punc">*</span> </div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="6">number</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="6" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge field" data-kind="" data-i="7">Field</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="7"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="7"><span class="fld">plan</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="7"><span class="chip b">b.plan</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="7">text</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="7" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge field" data-kind="" data-i="8">Field</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="8"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="8"><span class="fld">plan_label</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="8"><span class="unresolved" title="unresolved reference">b.plan_label</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="8">text</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="8" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge calc" data-kind="" data-i="9">Calculated</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="9"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="9"><span class="fld">risk_band</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="9"><span class="fn">CASE</span> <span class="fn">WHEN</span> <span class="chip self">lifetime_value</span> <span class="punc">&gt;=</span>  <span class="fn">THEN</span> <span class="lit">'HIGH'</span> <span class="fn">WHEN</span> <span class="chip self">lifetime_value</span> <span class="punc">&gt;=</span>  <span class="fn">THEN</span> <span class="lit">'MED'</span> <span class="fn">ELSE</span> <span class="lit">'LOW'</span> <span class="fn">END</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="9">text</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="9" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge calc" data-kind="" data-i="10">Calculated</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="10"><span class="mono" style="font-size:12px;color:var(--ink-soft)">CUSTOMER_360</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="10"><span class="fld">is_high_value</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="10"><span class="fn">IF</span><span class="punc">(</span><span class="chip self">lifetime_value</span> <span class="punc">&gt;=</span> <span class="punc">,</span> <span class="punc">,</span> <span class="punc">)</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="10">bool</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="10" title="remove">✕</span></div></td>
+    </tr><tr class="grp"><td colspan="6"><div class="grp-cell"><span class="tline">▸ MARKETING_SEGMENTS</span><span class="srcs"><span class="schip" style="background:var(--target)">c:CUSTOMER_360</span></span></div></td></tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge filter" data-kind="" data-i="11">Filter</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="11"><span class="mono" style="font-size:12px;color:var(--ink-soft)">MARKETING_SEGMENTS</span></div></td>
+      <td><div class="cell muted">—</div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="11"><span class="chip tsrc">c.is_high_value</span> <span class="punc">=</span> </div></td>
+      <td><div class="cell muted">—</div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="11" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge field" data-kind="" data-i="12">Field</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="12"><span class="mono" style="font-size:12px;color:var(--ink-soft)">MARKETING_SEGMENTS</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="12"><span class="fld">base_risk</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="12"><span class="chip tsrc">c.risk_band</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="12">text</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="12" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge field" data-kind="" data-i="13">Field</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="13"><span class="mono" style="font-size:12px;color:var(--ink-soft)">MARKETING_SEGMENTS</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="13"><span class="fld">segment_code</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="13"><span class="fn">UPPER</span><span class="punc">(</span><span class="chip tsrc">c.plan</span><span class="punc">)</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="13">text</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="13" title="remove">✕</span></div></td>
+    </tr><tr>
+      <td><div class="cell pickable"><span class="kind-badge calc" data-kind="" data-i="14">Calculated</span></div></td>
+      <td><div class="cell pickable" data-tgt="" data-i="14"><span class="mono" style="font-size:12px;color:var(--ink-soft)">MARKETING_SEGMENTS</span></div></td>
+      <td><div class="cell editable" data-edit="field" data-i="14"><span class="fld">priority</span></div></td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="14"><span class="fn">IF</span><span class="punc">(</span><span class="chip tsrc">c.risk_band</span> <span class="punc">=</span> <span class="lit">'HIGH'</span> <span class="kw">AND</span> <span class="chip tsrc">c.is_high_value</span> <span class="punc">=</span> <span class="punc">,</span> <span class="lit">'P1'</span><span class="punc">,</span> <span class="lit">'P2'</span><span class="punc">)</span></div></td>
+      <td><div class="cell pickable"><span class="type-badge" data-type="" data-i="14">text</span></div></td>
+      <td><div class="cell"><span class="rowx" data-delrow="" data-i="14" title="remove">✕</span></div></td>
+    </tr></tbody>
+        </table>
+      </div>
+      <div class="addbar">
+        <span class="lab" data-i18n="addTo">Add to</span>
+        <select id="addTarget"><option value="CUSTOMER_360">CUSTOMER_360</option><option value="MARKETING_SEGMENTS">MARKETING_SEGMENTS</option></select>
+        <button class="add" data-add="field"><span class="plus">+</span><span data-i18n="kField">Field</span></button>
+        <button class="add" data-add="calc"><span class="plus">+</span><span data-i18n="kCalc">Calculated</span></button>
+        <button class="add" data-add="join"><span class="plus">+</span><span data-i18n="kJoin">Join</span></button>
+        <button class="add" data-add="filter"><span class="plus">+</span><span data-i18n="kFilter">Filter</span></button>
+      </div>
+    </section>
+
+    <!-- ============ LINEAGE ============ -->
+    <section class="view" id="view-lin">
+      <div class="lin-top">
+        <span class="lin-pick"><span data-i18n="trace">Trace</span>
+          <select id="linPick"><optgroup label="CUSTOMER_360"><option value="CUSTOMER_360§customer_id">customer_id</option><option value="CUSTOMER_360§full_name">full_name</option><option value="CUSTOMER_360§email">email</option><option value="CUSTOMER_360§region">region</option><option value="CUSTOMER_360§lifetime_value">lifetime_value</option><option value="CUSTOMER_360§plan">plan</option><option value="CUSTOMER_360§plan_label">plan_label</option><option value="CUSTOMER_360§risk_band">risk_band</option><option value="CUSTOMER_360§is_high_value">is_high_value</option></optgroup><optgroup label="MARKETING_SEGMENTS"><option value="MARKETING_SEGMENTS§base_risk">base_risk</option><option value="MARKETING_SEGMENTS§segment_code">segment_code</option><option value="MARKETING_SEGMENTS§priority">priority</option></optgroup></select></span>
+        <div class="legend">
+          <span><i style="background:var(--srcA)"></i><span data-i18n="lgSource">Source table</span></span>
+          <span><i style="background:var(--target)"></i><span data-i18n="lgTarget">Target entry</span></span>
+          <span><i style="background:var(--target);opacity:.5"></i><span data-i18n="lgPath">Lineage path</span></span>
+        </div>
+      </div>
+      <div class="lin-layout">
+        <div class="lin-canvas" id="linCanvas"><svg viewBox="0 0 902 316" width="902" height="316" xmlns="http://www.w3.org/2000/svg"><path class="edge dim" d="M236,66 C285.5,66 296.5,66 346,66"></path><path class="edge dim" d="M236,90 C285.5,90 296.5,90 346,90"></path><path class="edge dim" d="M236,114 C285.5,114 296.5,90 346,90"></path><path class="edge dim" d="M236,138 C285.5,138 296.5,114 346,114"></path><path class="edge dim" d="M236,162 C285.5,162 296.5,138 346,138"></path><path class="edge hl-edge" d="M236,248 C285.5,248 296.5,162 346,162"></path><path class="edge dim" d="M236,272 C285.5,272 296.5,186 346,186"></path><path class="edge hl-edge" d="M556,162 C461.5,162 440.5,234 346,234"></path><path class="edge hl-edge" d="M556,162 C461.5,162 440.5,234 346,234"></path><path class="edge hl-edge" d="M556,162 C461.5,162 440.5,258 346,258"></path><path class="edge dim" d="M556,234 C605.5,234 616.5,66 666,66"></path><path class="edge dim" d="M556,186 C605.5,186 616.5,90 666,90"></path><path class="edge hl-edge" d="M556,234 C605.5,234 616.5,114 666,114"></path><path class="edge hl-edge" d="M556,258 C605.5,258 616.5,114 666,114"></path><g class=""><rect class="ds-card" x="346" y="24" width="210" height="254" rx="9"></rect><rect class="ds-head-t" x="346" y="24" width="210" height="30" rx="9"></rect><rect class="ds-head-t" x="346" y="45" width="210" height="9"></rect><text x="357" y="43" font-size="11.5" font-weight="600" fill="#b4541d">CUSTOMER_360</text></g><g class="node dim" data-node="CUSTOMER_360§customer_id">
+        <rect x="354" y="57" width="194" height="18" rx="4"></rect>
+        <text x="361" y="69.5">customer_id</text></g><g class="node dim" data-node="CUSTOMER_360§full_name">
+        <rect x="354" y="81" width="194" height="18" rx="4"></rect>
+        <text x="361" y="93.5">full_name</text></g><g class="node dim" data-node="CUSTOMER_360§email">
+        <rect x="354" y="105" width="194" height="18" rx="4"></rect>
+        <text x="361" y="117.5">email</text></g><g class="node dim" data-node="CUSTOMER_360§region">
+        <rect x="354" y="129" width="194" height="18" rx="4"></rect>
+        <text x="361" y="141.5">region</text></g><g class="node hl-node" data-node="CUSTOMER_360§lifetime_value">
+        <rect x="354" y="153" width="194" height="18" rx="4"></rect>
+        <text x="361" y="165.5">lifetime_value</text></g><g class="node dim" data-node="CUSTOMER_360§plan">
+        <rect x="354" y="177" width="194" height="18" rx="4"></rect>
+        <text x="361" y="189.5">plan</text></g><g class="node dim" data-node="CUSTOMER_360§plan_label">
+        <rect x="354" y="201" width="194" height="18" rx="4"></rect>
+        <text x="361" y="213.5">plan_label</text></g><g class="node hl-node" data-node="CUSTOMER_360§risk_band">
+        <rect x="354" y="225" width="194" height="18" rx="4"></rect>
+        <text x="361" y="237.5">risk_band</text></g><g class="node hl-node" data-node="CUSTOMER_360§is_high_value">
+        <rect x="354" y="249" width="194" height="18" rx="4"></rect>
+        <text x="361" y="261.5">is_high_value</text></g><g class=""><rect class="ds-card" x="666" y="24" width="210" height="110" rx="9"></rect><rect class="ds-head-t" x="666" y="24" width="210" height="30" rx="9"></rect><rect class="ds-head-t" x="666" y="45" width="210" height="9"></rect><text x="677" y="43" font-size="11.5" font-weight="600" fill="#b4541d">MARKETING_SEGMENTS</text></g><g class="node dim" data-node="MARKETING_SEGMENTS§base_risk">
+        <rect x="674" y="57" width="194" height="18" rx="4"></rect>
+        <text x="681" y="69.5">base_risk</text></g><g class="node dim" data-node="MARKETING_SEGMENTS§segment_code">
+        <rect x="674" y="81" width="194" height="18" rx="4"></rect>
+        <text x="681" y="93.5">segment_code</text></g><g class="node hl-node" data-node="MARKETING_SEGMENTS§priority">
+        <rect x="674" y="105" width="194" height="18" rx="4"></rect>
+        <text x="681" y="117.5">priority</text></g><g class=" dim"><rect class="ds-card" x="26" y="24" width="210" height="158" rx="9"></rect><rect class="ds-head-tbl" x="26" y="24" width="210" height="30" rx="9"></rect><rect class="ds-head-tbl" x="26" y="45" width="210" height="9"></rect><text x="37" y="43" font-size="11.5" font-weight="600" fill="#0a5a62">CRM_ACCOUNTS</text></g><g class="node dim" data-node="CRM_ACCOUNTS§acct_id">
+        <rect x="34" y="57" width="194" height="18" rx="4"></rect>
+        <text x="41" y="69.5">acct_id</text></g><g class="node dim" data-node="CRM_ACCOUNTS§first_name">
+        <rect x="34" y="81" width="194" height="18" rx="4"></rect>
+        <text x="41" y="93.5">first_name</text></g><g class="node dim" data-node="CRM_ACCOUNTS§last_name">
+        <rect x="34" y="105" width="194" height="18" rx="4"></rect>
+        <text x="41" y="117.5">last_name</text></g><g class="node dim" data-node="CRM_ACCOUNTS§email">
+        <rect x="34" y="129" width="194" height="18" rx="4"></rect>
+        <text x="41" y="141.5">email</text></g><g class="node dim" data-node="CRM_ACCOUNTS§region">
+        <rect x="34" y="153" width="194" height="18" rx="4"></rect>
+        <text x="41" y="165.5">region</text></g><g class=""><rect class="ds-card" x="26" y="206" width="210" height="86" rx="9"></rect><rect class="ds-head-tbl" x="26" y="206" width="210" height="30" rx="9"></rect><rect class="ds-head-tbl" x="26" y="227" width="210" height="9"></rect><text x="37" y="225" font-size="11.5" font-weight="600" fill="#0a5a62">BILLING</text></g><g class="node hl-node" data-node="BILLING§mrr">
+        <rect x="34" y="239" width="194" height="18" rx="4"></rect>
+        <text x="41" y="251.5">mrr</text></g><g class="node dim" data-node="BILLING§plan">
+        <rect x="34" y="263" width="194" height="18" rx="4"></rect>
+        <text x="41" y="275.5">plan</text></g></svg></div>
+        <aside class="lin-side" id="linSide"><h3>Built from</h3>
+    <div class="sel">MARKETING_SEGMENTS.priority</div>
+    <div class="sub">MARKETING_SEGMENTS</div>
+    <div class="tree"><div class="ln"><span class="lf"></span><span class="nf" style="color:#b4541d">MARKETING_SEGMENTS.priority</span></div><div class="ln"><span class="lf">  └ </span><span class="nf" style="color:#b4541d">CUSTOMER_360.risk_band</span></div><div class="ln"><span class="lf">    └ </span><span class="nf" style="color:#b4541d">CUSTOMER_360.lifetime_value</span></div><div class="ln"><span class="lf">      └ </span><span class="nf" style="color:#0a5a62">BILLING.mrr</span> <span class="badge-leaf">source</span></div><div class="ln"><span class="lf">    └ </span><span class="nf" style="color:#b4541d">CUSTOMER_360.lifetime_value</span></div><div class="ln"><span class="lf">      └ </span><span class="nf" style="color:#0a5a62">BILLING.mrr</span> <span class="badge-leaf">source</span></div><div class="ln"><span class="lf">  └ </span><span class="nf" style="color:#b4541d">CUSTOMER_360.is_high_value</span></div><div class="ln"><span class="lf">    └ </span><span class="nf" style="color:#b4541d">CUSTOMER_360.lifetime_value</span></div><div class="ln"><span class="lf">      └ </span><span class="nf" style="color:#0a5a62">BILLING.mrr</span> <span class="badge-leaf">source</span></div></div>
+    <div class="unres-note">⚠ 1 unresolved reference excluded</div></aside>
+      </div>
+    </section>
+  </div>
+
+<script>
+/* ---------------- i18n ---------------- */
+const I18N={
+ en:{brand:"Mapping Studio",publish:"Publish",tabMap:"Mappings",tabLin:"Lineage",
+   searchPh:"Search target, field, or expression",targetFilter:"Target",
+   colKind:"Kind",colTargetTbl:"Target",colField:"Field",colExpr:"Expression",colType:"Type",
+   addTo:"Add to",kField:"Field",kCalc:"Calculated",kJoin:"Join",kFilter:"Filter",
+   acFields:"Fields",acFunctions:"Functions",
+   trace:"Trace",lgSource:"Source table",lgTarget:"Target entry",lgPath:"Lineage path",
+   rows:n=>`${n} mappings`,unresolvedNote:n=>`${n} unresolved reference${n>1?"s":""} excluded`,
+   builtFrom:"Built from",leaf:"source",noUp:"Direct from a source — no upstream lineage."},
+ fr:{brand:"Studio de mappage",publish:"Publier",tabMap:"Mappages",tabLin:"Traçabilité",
+   searchPh:"Rechercher cible, champ ou expression",targetFilter:"Cible",
+   colKind:"Type",colTargetTbl:"Cible",colField:"Champ",colExpr:"Expression",colType:"Type",
+   addTo:"Ajouter à",kField:"Champ",kCalc:"Calculé",kJoin:"Jointure",kFilter:"Filtre",
+   acFields:"Champs",acFunctions:"Fonctions",
+   trace:"Tracer",lgSource:"Table source",lgTarget:"Entrée cible",lgPath:"Chemin de traçabilité",
+   rows:n=>`${n} mappages`,unresolvedNote:n=>`${n} référence${n>1?"s":""} non résolue${n>1?"s":""} exclue${n>1?"s":""}`,
+   builtFrom:"Construit à partir de",leaf:"source",noUp:"Directement issu d’une source — aucune traçabilité en amont."}
+};
+let lang="en"; const t=k=>I18N[lang][k];
+
+const KINDS=["field","calc","join","filter"];
+const KIND_LABEL=()=>({field:t("kField"),calc:t("kCalc"),join:t("kJoin"),filter:t("kFilter")});
+const TYPES=["text","number","date","bool"];
+const FUNCS=["CONCAT","IF","CASE","WHEN","THEN","ELSE","END","COALESCE","NULLIF","TRIM","UPPER","LOWER","CAST","SUBSTR","LOOKUP","ROUND","DATEDIFF","CONTAINS"];
+const KEYWORDS=["AND","OR","NOT","IS","NULL","IN","LIKE","BETWEEN"];
+
+/* ---------------- model ---------------- */
+const TABLES={
+  CRM_ACCOUNTS:["acct_id","first_name","last_name","email","status","region","created_at"],
+  BILLING:["account_ref","mrr","plan","balance","last_payment"]
+};
+const state={
+  targets:[
+    {name:"CUSTOMER_360",sources:[
+      {alias:"a",cls:"a",name:"CRM_ACCOUNTS",kind:"table",fields:TABLES.CRM_ACCOUNTS},
+      {alias:"b",cls:"b",name:"BILLING",kind:"table",fields:TABLES.BILLING}]},
+    {name:"MARKETING_SEGMENTS",sources:[
+      {alias:"c",cls:"tsrc",name:"CUSTOMER_360",kind:"target"}]}
+  ],
+  rows:[
+    {kind:"join",target:"CUSTOMER_360",field:"",expr:"a.acct_id = b.account_ref",type:""},
+    {kind:"filter",target:"CUSTOMER_360",field:"",expr:"a.status IN ('ACTIVE','PENDING')",type:""},
+    {kind:"field",target:"CUSTOMER_360",field:"customer_id",expr:"a.acct_id",type:"text"},
+    {kind:"field",target:"CUSTOMER_360",field:"full_name",expr:"CONCAT(a.first_name,' ',a.last_name)",type:"text"},
+    {kind:"field",target:"CUSTOMER_360",field:"email",expr:"a.email",type:"text"},
+    {kind:"field",target:"CUSTOMER_360",field:"region",expr:"a.region",type:"text"},
+    {kind:"field",target:"CUSTOMER_360",field:"lifetime_value",expr:"COALESCE(b.mrr,0) * 12",type:"number"},
+    {kind:"field",target:"CUSTOMER_360",field:"plan",expr:"b.plan",type:"text"},
+    {kind:"field",target:"CUSTOMER_360",field:"plan_label",expr:"b.plan_label",type:"text"},
+    {kind:"calc",target:"CUSTOMER_360",field:"risk_band",expr:"CASE WHEN lifetime_value >= 5000 THEN 'HIGH' WHEN lifetime_value >= 1000 THEN 'MED' ELSE 'LOW' END",type:"text"},
+    {kind:"calc",target:"CUSTOMER_360",field:"is_high_value",expr:"IF(lifetime_value >= 1200, 1, 0)",type:"bool"},
+    {kind:"filter",target:"MARKETING_SEGMENTS",field:"",expr:"c.is_high_value = 1",type:""},
+    {kind:"field",target:"MARKETING_SEGMENTS",field:"base_risk",expr:"c.risk_band",type:"text"},
+    {kind:"field",target:"MARKETING_SEGMENTS",field:"segment_code",expr:"UPPER(c.plan)",type:"text"},
+    {kind:"calc",target:"MARKETING_SEGMENTS",field:"priority",expr:"IF(c.risk_band = 'HIGH' AND c.is_high_value = 1, 'P1', 'P2')",type:"text"}
+  ]
+};
+
+const targetByName=n=>state.targets.find(t=>t.name===n);
+const producedFields=n=>state.rows.filter(r=>r.target===n&&(r.kind==="field"||r.kind==="calc")).map(r=>r.field);
+function providedFields(name){const t=targetByName(name);if(t)return producedFields(name);
+  for(const tg of state.targets){const s=tg.sources.find(s=>s.name===name&&s.kind==="table");if(s)return s.fields;}return [];}
+
+function knownRefsArr(targetName){
+  const tg=targetByName(targetName);const out=[];
+  if(tg)tg.sources.forEach(s=>{const fl=s.kind==="target"?producedFields(s.name):s.fields;
+    fl.forEach(f=>out.push({ref:s.alias+"."+f,cls:s.cls,alias:s.alias,name:s.name}));});
+  producedFields(targetName).forEach(f=>out.push({ref:f,cls:"self",alias:"·",name:targetName}));
+  return out;
+}
+function knownRefsMap(targetName){const m=new Map();knownRefsArr(targetName).forEach(r=>m.set(r.ref,r));return m;}
+
+/* ---------------- expression render ---------------- */
+function esc(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function tokens(expr){return expr.match(/'[^']*'|[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?|>=|<=|!=|[-+*/=<>]|[(),]|\s+/g)||[];}
+function renderExpr(expr,targetName){
+  const known=knownRefsMap(targetName);let out="",unresolved=0;
+  for(const tk of tokens(expr)){
+    if(/^\s+$/.test(tk)){out+=tk;continue;}
+    if(/^'.*'$/.test(tk)){out+=`<span class="lit">${esc(tk)}</span>`;continue;}
+    if(/^[(),]$/.test(tk)||/^(>=|<=|!=|[-+*/=<>])$/.test(tk)){out+=`<span class="punc">${esc(tk)}</span>`;continue;}
+    const up=tk.toUpperCase();
+    if(FUNCS.includes(up)){out+=`<span class="fn">${esc(tk)}</span>`;continue;}
+    if(KEYWORDS.includes(up)){out+=`<span class="kw">${esc(tk)}</span>`;continue;}
+    if(known.has(tk)){out+=`<span class="chip ${known.get(tk).cls}">${esc(tk)}</span>`;continue;}
+    if(/^[A-Za-z_]\w*\.\w+$/.test(tk)){unresolved++;out+=`<span class="unresolved" title="unresolved reference">${esc(tk)}</span>`;continue;}
+    if(/^\d/.test(tk)){out+=`<span class="lit">${esc(tk)}</span>`;continue;}
+    out+=esc(tk);
+  }
+  return {html:out,unresolved};
+}
+
+/* ---------------- mappings grid ---------------- */
+let search="",targetFilter="*";
+const KIND_ORDER={join:0,filter:1,field:2,calc:3};
+
+function visibleRows(){
+  let rows=state.rows.map((r,i)=>({r,i}));
+  if(targetFilter!=="*")rows=rows.filter(x=>x.r.target===targetFilter);
+  if(search){const q=search.toLowerCase();
+    rows=rows.filter(x=>(x.r.target+" "+x.r.field+" "+x.r.expr).toLowerCase().includes(q));}
+  rows.sort((p,q)=>p.r.target<q.r.target?-1:p.r.target>q.r.target?1:
+    (KIND_ORDER[p.r.kind]-KIND_ORDER[q.r.kind])|| (p.i-q.i));
+  return rows;
+}
+function srcChips(targetName){const tg=targetByName(targetName);if(!tg)return"";
+  return `<span class="srcs">`+tg.sources.map(s=>`<span class="schip" style="background:${s.cls==='a'?'var(--srcA)':s.cls==='b'?'var(--srcB)':s.cls==='g'?'var(--srcG)':'var(--target)'}">${esc(s.alias)}:${esc(s.name)}</span>`).join("")+`</span>`;}
+
+function renderGrid(){
+  const rows=visibleRows();const body=document.getElementById("mapBody");
+  let html="",lastT=null;const showGroups=!search;
+  rows.forEach(({r,i})=>{
+    if(showGroups&&r.target!==lastT){lastT=r.target;
+      html+=`<tr class="grp"><td colspan="6"><div class="grp-cell"><span class="tline">▸ ${esc(r.target)}</span>${srcChips(r.target)}</div></td></tr>`;}
+    const isProd=(r.kind==="field"||r.kind==="calc");
+    const kl=KIND_LABEL()[r.kind];
+    html+=`<tr>
+      <td><div class="cell pickable"><span class="kind-badge ${r.kind}" data-kind data-i="${i}">${esc(kl)}</span></div></td>
+      <td><div class="cell pickable" data-tgt data-i="${i}"><span class="mono" style="font-size:12px;color:var(--ink-soft)">${esc(r.target)}</span></div></td>
+      <td>${isProd?`<div class="cell editable" data-edit="field" data-i="${i}"><span class="fld">${esc(r.field||"")}</span></div>`:`<div class="cell muted">—</div>`}</td>
+      <td><div class="cell editable expr-render" data-edit="expr" data-i="${i}">${renderExpr(r.expr,r.target).html}</div></td>
+      <td>${isProd?`<div class="cell pickable"><span class="type-badge" data-type data-i="${i}">${esc(r.type||"text")}</span></div>`:`<div class="cell muted">—</div>`}</td>
+      <td><div class="cell"><span class="rowx" data-delrow data-i="${i}" title="remove">✕</span></div></td>
+    </tr>`;
+  });
+  body.innerHTML=html||`<tr><td colspan="6"><div class="cell muted" style="padding:18px">No mappings match.</div></td></tr>`;
+  document.getElementById("rowCount").textContent=t("rows")(rows.filter(x=>true).length);
+}
+
+function fillTargetSelects(){
+  const opts=state.targets.map(t=>`<option value="${esc(t.name)}">${esc(t.name)}</option>`).join("");
+  const tf=document.getElementById("targetFilter");
+  tf.innerHTML=`<option value="*">${lang==="fr"?"Toutes":"All"}</option>`+opts;tf.value=targetFilter;
+  const at=document.getElementById("addTarget");at.innerHTML=opts;
+}
+
+/* ---------------- inline editors ---------------- */
+let activeEditor=null;
+function closeEditor(commit){if(!activeEditor)return;const {onClose}=activeEditor;activeEditor=null;if(onClose)onClose(commit);renderAll();}
+function plainEditor(cell,value,{mono,onCommit}){
+  closeEditor(false);
+  const wrap=document.createElement("span");wrap.className="ed-wrap";
+  const inp=document.createElement("input");inp.className="ed-input"+(mono?" mono":"");inp.value=value;
+  wrap.appendChild(inp);cell.innerHTML="";cell.appendChild(wrap);inp.focus();inp.select();
+  activeEditor={onClose:c=>{if(c)onCommit(inp.value.trim());}};
+  inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();closeEditor(true);}else if(e.key==="Escape"){e.preventDefault();closeEditor(false);}});
+  inp.addEventListener("blur",()=>closeEditor(true));
+}
+function cycleSelect(cell,value,options,labels,onCommit){
+  closeEditor(false);
+  const sel=document.createElement("select");sel.className="ed-select";
+  options.forEach((o,k)=>{const op=document.createElement("option");op.value=o;op.textContent=labels?labels[k]:o;if(o===value)op.selected=true;sel.appendChild(op);});
+  cell.innerHTML="";cell.appendChild(sel);sel.focus();
+  activeEditor={onClose:c=>{if(c)onCommit(sel.value);}};
+  sel.addEventListener("change",()=>closeEditor(true));
+  sel.addEventListener("blur",()=>closeEditor(true));
+  sel.addEventListener("keydown",e=>{if(e.key==="Escape"){e.preventDefault();closeEditor(false);}});
+}
+function exprEditor(cell,value,targetName,onCommit){
+  closeEditor(false);
+  const wrap=document.createElement("span");wrap.className="ed-wrap";
+  const inp=document.createElement("input");inp.className="ed-input mono";inp.value=value;
+  const ac=document.createElement("div");ac.className="ac";ac.style.display="none";
+  wrap.appendChild(inp);wrap.appendChild(ac);cell.innerHTML="";cell.appendChild(wrap);
+  inp.focus();inp.setSelectionRange(value.length,value.length);
+  const refs=knownRefsArr(targetName);let items=[],active=0;
+  const curTok=()=>{const pos=inp.selectionStart,left=inp.value.slice(0,pos);const m=left.match(/[A-Za-z_][A-Za-z0-9_.]*$/);return {text:m?m[0]:"",start:m?pos-m[0].length:pos,pos};};
+  function build(q){const ql=q.toLowerCase();
+    const f=refs.filter(r=>r.ref.toLowerCase().includes(ql)).slice(0,8);
+    const fn=FUNCS.filter(x=>x.toLowerCase().startsWith(ql)).slice(0,6);
+    const list=[];if(f.length){list.push({grp:t("acFields")});f.forEach(r=>list.push({type:"field",r}));}
+    if(fn.length){list.push({grp:t("acFunctions")});fn.forEach(x=>list.push({type:"fn",fn:x}));}return list;}
+  const real=()=>items.filter(x=>!x.grp);
+  function draw(){const {text}=curTok();items=build(text);
+    if(!real().length||text===""){ac.style.display="none";return;}
+    if(active>real().length-1)active=0;let ri=-1;
+    ac.innerHTML=items.map(x=>{if(x.grp)return `<div class="ac-grp">${esc(x.grp)}</div>`;ri++;const a=ri===active?" active":"";
+      return x.type==="field"
+        ?`<div class="ac-item${a}" data-ri="${ri}"><span class="tag ${x.r.cls}">${esc(x.r.alias)}</span><span class="lbl">${esc(x.r.ref)}</span><span class="meta">${esc(x.r.name)}</span></div>`
+        :`<div class="ac-item${a}" data-ri="${ri}"><span class="tag fn">fn</span><span class="lbl">${esc(x.fn)}()</span></div>`;}).join("");
+    ac.style.display="block";}
+  function accept(ri){const it=real()[ri];if(!it)return;const {start,pos}=curTok();
+    const ins=it.type==="field"?it.r.ref:it.fn+"(";inp.value=inp.value.slice(0,start)+ins+inp.value.slice(pos);
+    const np=start+ins.length;inp.setSelectionRange(np,np);ac.style.display="none";inp.focus();}
+  inp.addEventListener("input",()=>{active=0;draw();});
+  inp.addEventListener("keyup",e=>{if(["ArrowLeft","ArrowRight","Home","End"].includes(e.key))draw();});
+  inp.addEventListener("keydown",e=>{const vis=ac.style.display==="block",ri=real();
+    if(vis&&e.key==="ArrowDown"){e.preventDefault();active=(active+1)%ri.length;draw();}
+    else if(vis&&e.key==="ArrowUp"){e.preventDefault();active=(active-1+ri.length)%ri.length;draw();}
+    else if(vis&&e.key==="Tab"){e.preventDefault();accept(active);}
+    else if(e.key==="Enter"){if(vis&&ri.length){e.preventDefault();accept(active);}else{e.preventDefault();closeEditor(true);}}
+    else if(e.key==="Escape"){e.preventDefault();if(vis)ac.style.display="none";else closeEditor(false);}});
+  ac.addEventListener("mousedown",e=>{const it=e.target.closest(".ac-item");if(it){e.preventDefault();accept(+it.dataset.ri);}});
+  inp.addEventListener("blur",()=>setTimeout(()=>{if(activeEditor)closeEditor(true);},120));
+  activeEditor={onClose:c=>{if(c)onCommit(inp.value.trim());}};
+}
+
+/* ---------------- lineage ---------------- */
+const nid=(ds,f)=>ds+"§"+f;
+function buildLineage(){
+  const nodes=new Map(),edges=[];let unresolved=0;
+  // produced target fields are nodes
+  state.targets.forEach(t=>producedFields(t.name).forEach(f=>nodes.set(nid(t.name,f),{ds:t.name,field:f,kind:"target"})));
+  state.rows.filter(r=>r.kind==="field"||r.kind==="calc").forEach(r=>{
+    const toId=nid(r.target,r.field);const tg=targetByName(r.target);
+    const toks=tokens(r.expr).filter(x=>/^[A-Za-z_]\w*(\.\w+)?$/.test(x));
+    toks.forEach(tk=>{
+      const up=tk.toUpperCase();if(FUNCS.includes(up)||KEYWORDS.includes(up))return;
+      if(tk.includes(".")){const [al,fl]=tk.split(".");const s=tg.sources.find(s=>s.alias===al);
+        if(!s){unresolved++;return;}
+        if(providedFields(s.name).includes(fl)){
+          if(!nodes.has(nid(s.name,fl)))nodes.set(nid(s.name,fl),{ds:s.name,field:fl,kind:s.kind==="target"?"target":"table"});
+          edges.push({from:nid(s.name,fl),to:toId});
+        }else unresolved++;
+      }else{ if(producedFields(r.target).includes(tk)&&tk!==r.field)edges.push({from:nid(r.target,tk),to:toId}); }
+    });
+  });
+  return {nodes,edges,unresolved};
+}
+function dsLevel(name,memo={}){if(name in memo)return memo[name];const t=targetByName(name);
+  if(!t)return memo[name]=0;let mx=0;t.sources.forEach(s=>mx=Math.max(mx,dsLevel(s.name,memo)+1));return memo[name]=mx;}
+
+let linSel=null;
+function layoutLineage(){
+  const {nodes,edges,unresolved}=buildLineage();
+  // group nodes by ds
+  const byDs=new Map();
+  nodes.forEach((n,id)=>{if(!byDs.has(n.ds))byDs.set(n.ds,{ds:n.ds,kind:n.kind,fields:[]});byDs.get(n.ds).fields.push({id,field:n.field});});
+  // levels
+  const memo={};const cols=new Map();
+  byDs.forEach(card=>{const lv=dsLevel(card.ds,memo);if(!cols.has(lv))cols.set(lv,[]);cols.get(lv).push(card);});
+  // layout
+  const colW=320,cardW=210,headH=30,rowH=24,padB=8,gap=24,leftPad=26,topPad=24;
+  const pos={};let maxH=0,maxLv=0;
+  [...cols.keys()].sort((a,b)=>a-b).forEach(lv=>{
+    maxLv=Math.max(maxLv,lv);let y=topPad;const x=leftPad+lv*colW;
+    cols.get(lv).forEach(card=>{
+      const h=headH+card.fields.length*rowH+padB;card._x=x;card._y=y;card._h=h;
+      card.fields.forEach((f,k)=>{pos[f.id]={x,y:y+headH+k*rowH+rowH/2,cardW};});
+      y+=h+gap;});
+    maxH=Math.max(maxH,y);});
+  const W=leftPad+maxLv*colW+cardW+leftPad, H=Math.max(maxH,160);
+  // highlight closure (upstream)
+  let hlN=new Set(),hlE=new Set();
+  if(linSel&&pos[linSel]){const inc={};edges.forEach((e,i)=>{(inc[e.to]=inc[e.to]||[]).push({...e,i});});
+    const stack=[linSel];hlN.add(linSel);
+    while(stack.length){const cur=stack.pop();(inc[cur]||[]).forEach(e=>{hlE.add(e.i);if(!hlN.has(e.from)){hlN.add(e.from);stack.push(e.from);}});}}
+  // svg
+  let svg=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">`;
+  // edges first
+  edges.forEach((e,i)=>{const a=pos[e.from],b=pos[e.to];if(!a||!b)return;
+    const x1=a.x+cardW,y1=a.y,x2=b.x,y2=b.y,cx=(x2-x1)*0.45;
+    const cls="edge"+(hlE.has(i)?" hl-edge":(linSel&&!hlE.has(i)?" dim":""));
+    svg+=`<path class="${cls}" d="M${x1},${y1} C${x1+cx},${y1} ${x2-cx},${y2} ${x2},${y2}"/>`;});
+  // cards + nodes
+  [...cols.values()].flat().forEach(card=>{
+    const headCls=card.kind==="target"?"ds-head-t":"ds-head-tbl";
+    const dim=linSel&&![...hlN].some(id=>id.startsWith(card.ds+"§"))?" dim":"";
+    svg+=`<g class="${dim}">`;
+    svg+=`<rect class="ds-card" x="${card._x}" y="${card._y}" width="${cardW}" height="${card._h}" rx="9"/>`;
+    svg+=`<rect class="${headCls}" x="${card._x}" y="${card._y}" width="${cardW}" height="${headH}" rx="9"/>`;
+    svg+=`<rect class="${headCls}" x="${card._x}" y="${card._y+headH-9}" width="${cardW}" height="9"/>`;
+    const hc=card.kind==="target"?"#b4541d":"#0a5a62";
+    svg+=`<text x="${card._x+11}" y="${card._y+19}" font-size="11.5" font-weight="600" fill="${hc}">${esc(card.ds)}</text>`;
+    svg+=`</g>`;
+    card.fields.forEach((f,k)=>{
+      const ny=card._y+headH+k*rowH;const hl=hlN.has(f.id);const sel=f.id===linSel;
+      const ncls="node"+(sel||hl?" hl-node":(linSel&&!hl?" dim":""));
+      svg+=`<g class="${ncls}" data-node="${esc(f.id)}">
+        <rect x="${card._x+8}" y="${ny+3}" width="${cardW-16}" height="${rowH-6}" rx="4"/>
+        <text x="${card._x+15}" y="${ny+rowH/2+3.5}">${esc(f.field)}</text></g>`;
+    });
+  });
+  svg+=`</svg>`;
+  document.getElementById("linCanvas").innerHTML=svg;
+  renderLinSide(unresolved);
+}
+function renderLinSide(unresolved){
+  const side=document.getElementById("linSide");
+  if(!linSel){side.innerHTML=`<h3>${lang==="fr"?"Traçabilité":"Lineage"}</h3><p class="sub">${lang==="fr"?"Cliquez sur un champ cible pour tracer son origine.":"Click a target field to trace its origin."}</p>`;return;}
+  const [ds,field]=linSel.split("§");
+  const {edges}=buildLineage();const inc={};edges.forEach(e=>{(inc[e.to]=inc[e.to]||[]).push(e.from);});
+  function tree(id,depth,seen){const [d,f]=id.split("§");const ups=(inc[id]||[]).filter(u=>!seen.has(u));
+    const pad="  ".repeat(depth);const leaf=!inc[id]||inc[id].length===0;
+    const isTbl=!targetByName(d);
+    let line=`<div class="ln"><span class="lf">${pad}${depth?"└ ":""}</span><span class="nf" style="color:${isTbl?'#0a5a62':'#b4541d'}">${esc(d)}.${esc(f)}</span>${leaf&&isTbl?` <span class="badge-leaf">${t("leaf")}</span>`:""}</div>`;
+    const ns=new Set(seen);ns.add(id);
+    return line+ups.map(u=>tree(u,depth+1,ns)).join("");}
+  const hasUp=(inc[linSel]||[]).length>0;
+  side.innerHTML=`<h3>${t("builtFrom")}</h3>
+    <div class="sel">${esc(ds)}.${esc(field)}</div>
+    <div class="sub">${esc(ds)}</div>
+    ${hasUp?`<div class="tree">${tree(linSel,0,new Set())}</div>`:`<p class="sub">${t("noUp")}</p>`}
+    ${unresolved?`<div class="unres-note">⚠ ${t("unresolvedNote")(unresolved)}</div>`:""}`;
+}
+function fillLinPick(){
+  const sel=document.getElementById("linPick");
+  let html="";state.targets.forEach(tg=>{html+=`<optgroup label="${esc(tg.name)}">`+
+    producedFields(tg.name).map(f=>`<option value="${esc(nid(tg.name,f))}">${esc(f)}</option>`).join("")+`</optgroup>`;});
+  sel.innerHTML=html;if(linSel)sel.value=linSel;
+}
+
+/* ---------------- render orchestration ---------------- */
+function renderChrome(){
+  document.querySelectorAll("[data-i18n]").forEach(el=>{const k=el.getAttribute("data-i18n");if(I18N[lang][k]!=null)el.textContent=t(k);});
+  document.querySelectorAll("[data-ph]").forEach(el=>el.placeholder=t(el.getAttribute("data-ph")));
+  document.querySelectorAll(".ms-lang button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.lang===lang));
+}
+function renderAll(){renderChrome();fillTargetSelects();renderGrid();fillLinPick();layoutLineage();}
+
+/* ---------------- events ---------------- */
+document.addEventListener("click",e=>{
+  const el=e.target;
+  const lb=el.closest(".ms-lang button");if(lb){lang=lb.dataset.lang;closeEditor(false);return;}
+  const tb=el.closest(".ms-tabs button");if(tb){const tab=tb.dataset.tab;
+    document.querySelectorAll(".ms-tabs button").forEach(b=>b.setAttribute("aria-selected",b===tb));
+    document.getElementById("view-map").classList.toggle("on",tab==="map");
+    document.getElementById("view-lin").classList.toggle("on",tab==="lin");return;}
+
+  const ed=el.closest("[data-edit]");
+  if(ed){const i=+ed.dataset.i,kind=ed.dataset.edit,r=state.rows[i];
+    if(kind==="field")plainEditor(ed,r.field,{mono:true,onCommit:v=>{if(v)r.field=v;}});
+    else if(kind==="expr")exprEditor(ed,r.expr,r.target,v=>{r.expr=v;});return;}
+  const kb=el.closest("[data-kind]");
+  if(kb){const i=+kb.dataset.i;cycleSelect(kb.closest(".cell"),state.rows[i].kind,KINDS,KINDS.map(k=>KIND_LABEL()[k]),v=>{state.rows[i].kind=v;if(v==="join"||v==="filter"){state.rows[i].field="";state.rows[i].type="";}else if(!state.rows[i].type)state.rows[i].type="text";});return;}
+  const tg=el.closest("[data-tgt]");
+  if(tg){const i=+tg.dataset.i;cycleSelect(tg.closest(".cell"),state.rows[i].target,state.targets.map(t=>t.name),null,v=>{state.rows[i].target=v;});return;}
+  const ty=el.closest("[data-type]");
+  if(ty){const i=+ty.dataset.i;cycleSelect(ty.closest(".cell"),state.rows[i].type||"text",TYPES,null,v=>{state.rows[i].type=v;});return;}
+  const dr=el.closest("[data-delrow]");if(dr){state.rows.splice(+dr.dataset.i,1);closeEditor(false);return;}
+
+  const ab=el.closest("[data-add]");
+  if(ab){const k=ab.dataset.add;const tgt=document.getElementById("addTarget").value;
+    const tpl={join:{expr:"a.field = b.field"},filter:{expr:"a.field = 'value'"},
+      field:{field:"new_field",expr:"a.field",type:"text"},calc:{field:"new_indicator",expr:"IF(lifetime_value > 0, 1, 0)",type:"bool"}}[k];
+    state.rows.push(Object.assign({kind:k,target:tgt,field:"",type:""},tpl));closeEditor(false);return;}
+
+  const nd=el.closest("[data-node]");if(nd){linSel=nd.dataset.node;fillLinPick();layoutLineage();return;}
+});
+document.getElementById("search").addEventListener("input",e=>{search=e.target.value;renderGrid();});
+document.getElementById("targetFilter").addEventListener("change",e=>{targetFilter=e.target.value;renderGrid();});
+document.getElementById("linPick").addEventListener("change",e=>{linSel=e.target.value;layoutLineage();});
+
+/* init */
+linSel=nid("MARKETING_SEGMENTS","priority");
+renderAll();
+</script>
+
+
+</body></html>

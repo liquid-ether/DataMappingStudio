@@ -1,0 +1,16 @@
+<Project>
+
+  <!-- Repo-wide defaults. Per-project TargetFramework is intentionally NOT set here
+       because App.Desktop targets net10.0-windows while everything else targets net10.0. -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <Deterministic>true</Deterministic>
+    <Product>Mapping Studio</Product>
+    <Company>ardlsoft</Company>
+  </PropertyGroup>
+
+</Project>

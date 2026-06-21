@@ -1,4 +1,6 @@
 using App.Application.Abstractions;
+using App.Application.Expressions;
+using App.Application.Lineage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -13,6 +15,13 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.TryAddSingleton<IClock, SystemClock>();
+
+        // Rule/expression engine + lineage engine (stateless, safe as singletons).
+        services.TryAddSingleton<FunctionLibrary>();
+        services.TryAddSingleton<ExpressionClassifier>();
+        services.TryAddSingleton<RuleExpressionBuilder>();
+        services.TryAddSingleton<ILineageEngine, LineageEngine>();
+
         return services;
     }
 }

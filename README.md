@@ -16,9 +16,15 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v0.3.0** (Local metadata-driven SQLite store) |
+| Current version | **v0.4.0** (Rule/expression & lineage engine) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 75 passing |
+| Tests | `dotnet test DataMappingStudio.slnx` — 87 passing |
+
+**Engine (`App.Application`)** — the rule/expression engine and lineage engine ported from the
+mockup: `ExpressionTokenizer`, `FunctionLibrary` (function/keyword metadata + autocomplete),
+`ExpressionClassifier` (syntax-highlight classification), `RuleExpressionBuilder` (text →
+dictionary-linked AST with free-text fallback), and `LineageEngine` (field-level graph, upstream
+closure, "Built from" tree) over a domain-agnostic `LineageScenario`.
 
 **Domain model (`App.Domain`)** — the column catalog (`ColumnCatalogEntry`, `ColumnKind`,
 `CatalogValueType`, SQL-annotation parser `ColumnType`), `app_config`, the rule/mapping expression

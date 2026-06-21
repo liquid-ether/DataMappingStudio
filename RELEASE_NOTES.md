@@ -7,6 +7,31 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-21
+
+The rule/expression engine and lineage engine — the logic behind Mapping Studio, ported from the
+approved mockup and tested against its exact expressions and lineage results.
+
+### Added
+- **`ExpressionTokenizer`** — faithful port of the mockup's tokenizer regex (plus numeric literals,
+  which the mockup regex silently dropped).
+- **`FunctionLibrary`** — predefined functions and keywords as metadata (`FunctionDefinition` with
+  signature + EN/FR descriptions); `IsFunction`/`IsKeyword`/`Matching` for completion and validation.
+- **`ExpressionClassifier`** — classifies tokens for highlighting (functions, keywords, literals,
+  known field chips with colour class, unresolved `alias.field`), port of `renderExpr`; unresolved
+  counting.
+- **`ResolutionContext`/`KnownReference`** — the scope of references available to an expression.
+- **`RuleExpressionBuilder`** — builds a stored `RuleExpression` (dictionary-linked field references,
+  unresolved kept unlinked-and-flagged, blank/free-form → `RawTextNode`); `FunctionsUsed`.
+- **`LineageEngine`** over a domain-agnostic **`LineageScenario`** — field-level graph build
+  (`buildLineage` port), upstream highlight closure, and the "Built from" tree, cycle-guarded.
+- 14 tests using the mockup scenario verbatim (incl. the `MARKETING_SEGMENTS.priority → CUSTOMER_360
+  → BILLING.mrr` chain and the single unresolved `b.plan_label`). 87 total.
+
+### Changed
+- `RuleExpression.HasUnresolved` now flags only a whole-expression raw-text root or unresolved field
+  references (inner operator/punctuation raw fragments no longer count).
+
 ## [0.3.0] - 2026-06-21
 
 The generic, metadata-driven local SQLite store — the working copy every analyst edits. No EF Core.

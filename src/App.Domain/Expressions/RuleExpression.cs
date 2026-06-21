@@ -35,7 +35,9 @@ public sealed record RuleExpression(ExpressionNode Root, string SourceText)
     public IEnumerable<FieldReferenceNode> UnresolvedReferences()
         => FieldReferences().Where(static r => !r.IsResolved);
 
-    /// <summary>True when the tree contains any unparsed text or unresolved reference.</summary>
-    public bool HasUnresolved
-        => Root.DescendantsAndSelf().Any(static n => n is RawTextNode) || UnresolvedReferences().Any();
+    /// <summary>
+    /// True when the whole expression is unparsed free text (a <see cref="RawTextNode"/> root) or any
+    /// field reference is unresolved. Inner raw fragments (operators, punctuation) do not count.
+    /// </summary>
+    public bool HasUnresolved => Root is RawTextNode || UnresolvedReferences().Any();
 }

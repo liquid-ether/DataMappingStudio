@@ -25,8 +25,9 @@ public static class DependencyInjection
         services.AddScoped<IReferenceResolver>(sp => sp.GetRequiredService<ReferenceService>());
         services.AddScoped<IComputedEvaluator>(sp => sp.GetRequiredService<ReferenceService>());
 
-        // Mapping Studio rows persist to the local store's mapping table (so edits sync/publish).
+        // Mapping Studio rows + target/source alias structure persist to the local store (so edits sync).
         services.AddScoped<IMappingRepository, MappingRepository>();
+        services.AddScoped<IMappingTargetRepository, MappingTargetRepository>();
         return services;
     }
 }

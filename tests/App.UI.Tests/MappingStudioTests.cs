@@ -18,11 +18,15 @@ public class MappingStudioTests : BunitContext
         Services.AddSingleton<LanguageState>();
         Services.AddSingleton<ILocalStore>(new FakeLocalStore());
         Services.AddSingleton<IMappingRepository, MappingRepository>();
+        Services.AddSingleton<IMappingTargetRepository, MappingTargetRepository>();
         Services.AddSingleton<MappingStudioState>();
     }
 
     private static IReadOnlyList<KnownReference> Customer360Refs()
-        => new MappingStudioState(new MappingRepository(new FakeLocalStore())).KnownReferences("CUSTOMER_360");
+    {
+        FakeLocalStore store = new();
+        return new MappingStudioState(new MappingRepository(store), new MappingTargetRepository(store)).KnownReferences("CUSTOMER_360");
+    }
 
     [Fact]
     public void Expression_view_highlights_functions_fields_and_literals()

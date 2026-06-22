@@ -7,6 +7,26 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-22
+
+Full Mapping Studio persistence, single-file desktop packaging, and an installation guide.
+
+### Added
+- **Target/source (alias) persistence**: new `mapping_target` + `mapping_source` catalog tables and
+  `MappingTargetRepository` (`IMappingTargetRepository`) read/write the lineage alias structure to the
+  local store; `MappingStudioState` loads it (seeding the demo on first run) so the whole studio model —
+  rows *and* targets/sources — is persisted and syncs.
+- **Single-file desktop packaging**: `App.Desktop` publishes to one self-contained
+  `MappingStudio.exe` (win-x64; .NET + WPF + WebView2 loader + SQLite native bundled; the WebView host
+  page is embedded and extracted to `%LOCALAPPDATA%\MappingStudio` at first run). New
+  `build/publish-desktop.ps1` (single exe) and `build/publish-web.ps1` (self-contained web host).
+- **Configurable shared folder**: the desktop reads `MAPPINGSTUDIO_REMOTE`; the web host reads
+  `RemoteFolder` (config/env) — both default to a local per-user folder.
+- **[INSTALL.md](INSTALL.md)**: step-by-step install for analysts (desktop), IT (shared OneDrive/
+  SharePoint folder), the web host, Excel import, and building from source, with troubleshooting.
+- Desktop data now lives under `%LOCALAPPDATA%\MappingStudio` (runs from anywhere, incl. Program Files).
+- Tests: target/source persistence round-trip + write-through (170 total). Single-file publish verified.
+
 ## [1.1.0] - 2026-06-22
 
 Mapping Studio edits now persist to the local store, so they flow into the change log and publish/sync

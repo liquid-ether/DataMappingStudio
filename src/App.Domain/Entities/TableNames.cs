@@ -14,6 +14,10 @@ public static class TableNames
     public const string LookupValue = "lookup_value";
     public const string Classification = "classification";
 
+    // Mapping Studio alias structure (which sources, with which aliases, feed each target).
+    public const string MappingTarget = "mapping_target";
+    public const string MappingSource = "mapping_source";
+
     // Meta tables (generic, folded like any other table).
     public const string ColumnCatalog = "column_catalog";
     public const string AuditLog = "audit_log";

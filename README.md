@@ -16,9 +16,15 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.1.0** — feature-complete + persistent Mapping Studio |
+| Current version | **v1.2.0** — fully persistent + packaged |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 169 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 170 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Install | see **[INSTALL.md](INSTALL.md)** — single-file desktop `.exe`, web host, shared-folder setup |
+
+The **Mapping Studio is fully persisted** now — both the mapping rows and the target/source (alias)
+structure live in the local store and sync. The desktop app packages to a **single self-contained
+`MappingStudio.exe`** (`build/publish-desktop.ps1`); the shared (synced) folder is configurable via the
+`MAPPINGSTUDIO_REMOTE` env var (desktop) / `RemoteFolder` config (web).
 
 **Mapping Studio persistence (`App.Application.Mappings`)** — the studio is now backed by the local
 store: `MappingRepository` reads/writes rows to the `mapping` table via `ILocalStore`, so every

@@ -93,6 +93,18 @@ public static class DefaultCatalog
             .Col("is_tokenized", CatalogValueType.Boolean, "Tokenized", "Tokenisé")
             .Col("notes", CatalogValueType.Text, "Notes", "Notes");
 
+        // Mapping Studio target/source (alias) structure — persisted so the lineage context syncs too.
+        b.Table(TableNames.MappingTarget)
+            .Col("name", CatalogValueType.Text, "Name", "Nom", required: true);
+
+        b.Table(TableNames.MappingSource)
+            .Col("target", CatalogValueType.Text, "Target", "Cible", required: true)
+            .Col("alias", CatalogValueType.Text, "Alias", "Alias", required: true)
+            .Col("cls", CatalogValueType.Text, "Class", "Classe")
+            .Col("source_name", CatalogValueType.Text, "Source", "Source", required: true)
+            .Col("is_target", CatalogValueType.Boolean, "Is target", "Est une cible")
+            .Col("fields", CatalogValueType.Text, "Fields", "Champs");
+
         return b.Build();
     }
 

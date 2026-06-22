@@ -36,7 +36,7 @@ public sealed class MappingRow
 /// the change log and publish/sync (Architecture §6/§8). The target/source (alias) structure used for
 /// lineage context is seeded configuration for now. On first run (empty table) the demo is seeded.
 /// </summary>
-public sealed class MappingStudioState(IMappingRepository repository)
+public sealed class MappingStudioState(IMappingRepository repository, IMappingTargetRepository targetRepository)
 {
     private const string WriterId = "analyst";
 
@@ -49,17 +49,17 @@ public sealed class MappingStudioState(IMappingRepository repository)
     };
 
     private readonly List<MappingRow> _rows = [];
+    private readonly List<LineageTarget> _targets = [];
     private bool _loaded;
 
-    public List<LineageTarget> Targets { get; } =
-    [
-        new("CUSTOMER_360",
-        [
-            LineageSource.Table("a", "a", "CRM_ACCOUNTS", ["acct_id", "first_name", "last_name", "email", "status", "region", "created_at"]),
-            LineageSource.Table("b", "b", "BILLING", ["account_ref", "mrr", "plan", "balance", "last_payment"]),
-        ]),
-        new("MARKETING_SEGMENTS", [LineageSource.Target("c", "tsrc", "CUSTOMER_360")]),
-    ];
+    public IReadOnlyList<LineageTarget> Targets
+    {
+        get
+        {
+            EnsureLoaded();
+            return _targets;
+        }
+    }
 
     public IReadOnlyList<MappingRow> Rows
     {
@@ -132,6 +132,22 @@ public sealed class MappingStudioState(IMappingRepository repository)
         }
 
         _loaded = true;
+
+        // Target/source (alias) structure — seed the demo on first run, then load from the store.
+        List<LineageTarget> targets = targetRepository.GetAll().ToList();
+        if (targets.Count == 0)
+        {
+            foreach (LineageTarget target in DemoTargets())
+            {
+                targetRepository.Save(target, WriterId);
+            }
+
+            targets = targetRepository.GetAll().ToList();
+        }
+
+        _targets.AddRange(targets);
+
+        // Mapping rows.
         List<MappingRecord> existing = repository.GetAll().ToList();
         if (existing.Count == 0)
         {
@@ -140,12 +156,22 @@ public sealed class MappingStudioState(IMappingRepository repository)
                 _rows.Add(seed);
                 repository.Save(seed.ToRecord(), WriterId);
             }
-
-            return;
         }
-
-        _rows.AddRange(existing.Select(MappingRow.FromRecord));
+        else
+        {
+            _rows.AddRange(existing.Select(MappingRow.FromRecord));
+        }
     }
+
+    private static IEnumerable<LineageTarget> DemoTargets() =>
+    [
+        new("CUSTOMER_360",
+        [
+            LineageSource.Table("a", "a", "CRM_ACCOUNTS", ["acct_id", "first_name", "last_name", "email", "status", "region", "created_at"]),
+            LineageSource.Table("b", "b", "BILLING", ["account_ref", "mrr", "plan", "balance", "last_payment"]),
+        ]),
+        new("MARKETING_SEGMENTS", [LineageSource.Target("c", "tsrc", "CUSTOMER_360")]),
+    ];
 
     private static IEnumerable<MappingRow> DemoRows() =>
     [

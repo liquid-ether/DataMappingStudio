@@ -23,15 +23,24 @@ public partial class DesktopApp : System.Windows.Application
     {
         base.OnStartup(e);
 
+        // Per-user data (SQLite working copy + the default remote folder) lives under %LOCALAPPDATA%,
+        // so the app runs from anywhere (incl. Program Files) without needing write access beside the exe.
+        string dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MappingStudio");
+        Directory.CreateDirectory(dataDir);
+        string hostPage = ExtractHostPage(dataDir);
+
+        // The shared (synced) folder. Set the MAPPINGSTUDIO_REMOTE environment variable to your
+        // OneDrive/SharePoint-synced folder to collaborate; otherwise a private local folder is used.
+        string remoteFolder = Environment.GetEnvironmentVariable("MAPPINGSTUDIO_REMOTE") is { Length: > 0 } shared
+            ? shared
+            : Path.Combine(dataDir, "remote");
+
         ServiceCollection services = new();
         services.AddWpfBlazorWebView();
-
-        string dataDir = Path.Combine(AppContext.BaseDirectory, "App_Data");
-        Directory.CreateDirectory(dataDir);
         services
             .AddApplication()
             .AddLocalStore(Path.Combine(dataDir, "local.db"))
-            .AddRemoteStore(Path.Combine(dataDir, "remote"))
+            .AddRemoteStore(remoteFolder)
             .AddAppUi();
 
         ServiceProvider provider = services.BuildServiceProvider();
@@ -40,6 +49,21 @@ public partial class DesktopApp : System.Windows.Application
         provider.GetRequiredService<ICatalog>().Seed(DefaultCatalog.Entries());
         provider.GetRequiredService<ILocalStore>().EnsureSchema();
 
-        new MainWindow(provider).Show();
+        new MainWindow(provider, hostPage).Show();
+    }
+
+    /// <summary>Extracts the embedded WebView host page next to the per-user data (single-file friendly).</summary>
+    private static string ExtractHostPage(string dataDir)
+    {
+        string wwwroot = Path.Combine(dataDir, "wwwroot");
+        Directory.CreateDirectory(wwwroot);
+        string path = Path.Combine(wwwroot, "index.html");
+
+        using Stream resource = typeof(DesktopApp).Assembly.GetManifestResourceStream("index.html")
+            ?? throw new InvalidOperationException("Embedded host page 'index.html' was not found.");
+        using FileStream file = File.Create(path);
+        resource.CopyTo(file);
+
+        return path;
     }
 }

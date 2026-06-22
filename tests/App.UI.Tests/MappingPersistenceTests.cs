@@ -6,6 +6,9 @@ namespace App.UI.Tests;
 
 public class MappingPersistenceTests
 {
+    private static MappingStudioState Studio(FakeLocalStore store)
+        => new(new MappingRepository(store), new MappingTargetRepository(store));
+
     [Fact]
     public void Repository_round_trips_a_mapping_record()
     {
@@ -47,7 +50,7 @@ public class MappingPersistenceTests
         FakeLocalStore store = new();
         MappingRepository repo = new(store);
 
-        MappingStudioState studio = new(repo);
+        MappingStudioState studio = Studio(store);
         _ = studio.Rows; // triggers load + seed-if-empty
 
         Assert.Equal(15, repo.GetAll().Count); // demo persisted to the store
@@ -58,26 +61,40 @@ public class MappingPersistenceTests
     {
         FakeLocalStore store = new();
 
-        MappingStudioState first = new(new MappingRepository(store));
+        MappingStudioState first = Studio(store);
         int seeded = first.Rows.Count;
         first.AddRow(MappingKind.Field, "CUSTOMER_360");
 
         // A fresh studio over the same store loads the persisted rows (no re-seed).
-        MappingStudioState second = new(new MappingRepository(store));
+        MappingStudioState second = Studio(store);
         Assert.Equal(seeded + 1, second.Rows.Count);
+    }
+
+    [Fact]
+    public void Target_source_alias_structure_persists_and_round_trips()
+    {
+        FakeLocalStore store = new();
+        _ = Studio(store).Targets; // seeds targets + sources to the store
+
+        MappingStudioState reloaded = Studio(store);
+        App.Application.Lineage.LineageTarget customer = reloaded.Targets.Single(t => t.Name == "CUSTOMER_360");
+
+        Assert.Equal(2, customer.Sources.Count);
+        Assert.Contains(customer.Sources, s => s.Alias == "a" && s.Name == "CRM_ACCOUNTS" && s.Fields.Contains("acct_id"));
+        Assert.True(reloaded.Targets.Single(t => t.Name == "MARKETING_SEGMENTS").Sources.Single().IsTarget);
     }
 
     [Fact]
     public void In_place_edit_is_written_through_to_the_store()
     {
         FakeLocalStore store = new();
-        MappingStudioState studio = new(new MappingRepository(store));
+        MappingStudioState studio = Studio(store);
         MappingRow row = studio.Rows.First(r => r.Field == "email");
 
         row.Expression = "UPPER(a.email)";
         studio.Save(row);
 
-        MappingStudioState reloaded = new(new MappingRepository(store));
+        MappingStudioState reloaded = Studio(store);
         Assert.Equal("UPPER(a.email)", reloaded.Rows.Single(r => r.Id == row.Id).Expression);
     }
 }

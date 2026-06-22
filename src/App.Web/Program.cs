@@ -13,11 +13,17 @@ var builder = WebApplication.CreateBuilder(args);
 string dataDir = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 Directory.CreateDirectory(dataDir);
 
+// The shared (synced) folder; set "RemoteFolder" (appsettings.json or the RemoteFolder env var) to a
+// OneDrive/SharePoint-synced folder to collaborate, otherwise a local folder under App_Data is used.
+string remoteFolder = builder.Configuration["RemoteFolder"] is { Length: > 0 } shared
+    ? shared
+    : Path.Combine(dataDir, "remote");
+
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services
     .AddApplication()
     .AddLocalStore(Path.Combine(dataDir, "local.db"))
-    .AddRemoteStore(Path.Combine(dataDir, "remote"))
+    .AddRemoteStore(remoteFolder)
     .AddAppUi();
 
 WebApplication app = builder.Build();

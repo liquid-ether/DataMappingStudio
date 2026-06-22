@@ -20,10 +20,24 @@
     <UseWPF>true</UseWPF>
     <!-- Required so the RCL static web assets (_content/App.UI) and the WebView host page resolve. -->
     <StaticWebAssetsEnabled>true</StaticWebAssetsEnabled>
+
+    <!-- Single-file, self-contained packaging (applied at publish; harmless for normal builds).
+         Bundles native deps (WebView2 loader, e_sqlite3) into the one exe via self-extract.
+         The WebView2 *runtime* ships with Windows 10/11, so no separate install is needed. -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <SatelliteResourceLanguages>en;fr</SatelliteResourceLanguages>
+    <ApplicationTitle>Mapping Studio</ApplicationTitle>
+    <AssemblyName>MappingStudio</AssemblyName>
+    <!-- Keep the publish folder to a single exe: no loose doc/symbol files. -->
+    <CopyDocumentationFilesFromPackages>false</CopyDocumentationFilesFromPackages>
+    <CopyDebugSymbolFilesFromPackages>false</CopyDebugSymbolFilesFromPackages>
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The WebView host page is embedded (extracted to %LOCALAPPDATA% at startup) so the published
+         app is a genuine single file; all other web assets are embedded in the bundled RCL assemblies. -->
+    <EmbeddedResource Include="wwwroot\index.html" LogicalName="index.html" />
   </ItemGroup>
 
 </Project>

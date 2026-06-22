@@ -1,7 +1,8 @@
-﻿@page "/"
+@page "/"
+@inject LanguageState Lang
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Mapping Studio</PageTitle>
 
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
+<h1 class="page-title">@Lang.T("brand")</h1>
+<p>@Lang.T("welcome")</p>
+<p><a class="add" href="t/widget">@Lang.T("navDemo")</a></p>

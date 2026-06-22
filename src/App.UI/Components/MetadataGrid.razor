@@ -1,0 +1,212 @@
+@implements IDisposable
+@inject ICatalog Catalog
+@inject ILocalStore Store
+@inject LanguageState Lang
+
+@* Metadata-driven editor: columns and rows render from the column catalog, so a new column appears
+   with no code change (Architecture §4). Inline edit + add-row + add-column + required validation. *@
+<div class="toolbar">
+    <h2 class="page-title">@Title</h2>
+    <span class="count">@_rows.Count</span>
+</div>
+
+<div class="gridbox">
+    <table class="grid">
+        <thead>
+            <tr>
+                @foreach (ColumnCatalogEntry col in _columns)
+                {
+                    <th>@Lang.Label(col.LabelEn, col.LabelFr)@(col.IsRequired ? new MarkupString("<span class=\"req\">*</span>") : default)</th>
+                }
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (_rows.Count == 0 && _draft is null)
+            {
+                <tr><td colspan="@(_columns.Count + 1)"><div class="cell muted">@Lang.T("noRows")</div></td></tr>
+            }
+            @foreach (Row row in _rows)
+            {
+                <tr @key="row.Id">
+                    @foreach (ColumnCatalogEntry col in _columns)
+                    {
+                        <td>
+                            <div class="cell editable">
+                                <input class="gi @(IsInvalid(row, col) ? "invalid" : null)"
+                                       value="@row[col.ColumnName]"
+                                       @onchange="e => CommitCell(row, col, e.Value?.ToString())" />
+                            </div>
+                        </td>
+                    }
+                    <td><div class="cell"><span class="rowx" title="remove" @onclick="() => DeleteRow(row)">✕</span></div></td>
+                </tr>
+            }
+            @if (_draft is not null)
+            {
+                <tr @key="@("draft")">
+                    @foreach (ColumnCatalogEntry col in _columns)
+                    {
+                        <td>
+                            <div class="cell editable">
+                                <input class="gi" placeholder="@Lang.Label(col.LabelEn, col.LabelFr)"
+                                       value="@_draft[col.ColumnName]"
+                                       @onchange="e => _draft[col.ColumnName] = Blank(e.Value?.ToString())" />
+                            </div>
+                        </td>
+                    }
+                    <td><div class="cell"></div></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (_error is not null)
+{
+    <div class="err">@_error</div>
+}
+
+<div class="addbar">
+    @if (_draft is null)
+    {
+        <button class="add" type="button" @onclick="StartDraft"><span class="plus">+</span> @Lang.T("addRow")</button>
+    }
+    else
+    {
+        <button class="ms-publish" type="button" @onclick="SaveDraft">@Lang.T("save")</button>
+        <button class="add" type="button" @onclick="CancelDraft">@Lang.T("cancel")</button>
+    }
+
+    @if (_addingColumn)
+    {
+        <input class="ed-input" style="width:160px" placeholder="@Lang.T("columnName")" @bind="_newColumnName" />
+        <select class="ed-select" style="width:120px" @bind="_newColumnType">
+            @foreach (CatalogValueType t in Enum.GetValues<CatalogValueType>())
+            {
+                <option value="@t">@t</option>
+            }
+        </select>
+        <button class="ms-publish" type="button" @onclick="ConfirmAddColumn">@Lang.T("save")</button>
+        <button class="add" type="button" @onclick="() => _addingColumn = false">@Lang.T("cancel")</button>
+    }
+    else
+    {
+        <button class="add" type="button" @onclick="() => _addingColumn = true"><span class="plus">+</span> @Lang.T("addColumn")</button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Table { get; set; } = string.Empty;
+
+    [Parameter] public string ChangedBy { get; set; } = "analyst";
+
+    [Parameter] public string? Title { get; set; }
+
+    private IReadOnlyList<ColumnCatalogEntry> _columns = [];
+    private List<Row> _rows = [];
+    private Row? _draft;
+    private string? _error;
+    private bool _addingColumn;
+    private string _newColumnName = string.Empty;
+    private CatalogValueType _newColumnType = CatalogValueType.Text;
+
+    protected override void OnInitialized() => Lang.OnChange += StateHasChanged;
+
+    protected override void OnParametersSet() => Reload();
+
+    public void Dispose() => Lang.OnChange -= StateHasChanged;
+
+    private void Reload()
+    {
+        _columns = Catalog.GetForTable(Table)
+            .Where(e => !e.IsCore && !IsCore(e.ColumnName))
+            .OrderBy(e => e.DisplayOrder).ThenBy(e => e.ColumnName)
+            .ToList();
+        _rows = Store.GetAll(Table).ToList();
+    }
+
+    private void CommitCell(Row row, ColumnCatalogEntry col, string? value)
+    {
+        string? v = Blank(value);
+        if (col.IsRequired && v is null)
+        {
+            row[col.ColumnName] = v; // keep empty so the invalid marker shows; do not persist
+            return;
+        }
+
+        row[col.ColumnName] = v;
+        Store.Upsert(Table, row, NewChangeSet(), ChangedBy);
+    }
+
+    private void StartDraft()
+    {
+        _error = null;
+        _draft = new Row(Table, Guid.NewGuid());
+    }
+
+    private void CancelDraft()
+    {
+        _draft = null;
+        _error = null;
+    }
+
+    private void SaveDraft()
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        if (_columns.Any(c => c.IsRequired && _draft[c.ColumnName] is null))
+        {
+            _error = Lang.T("requiredMissing");
+            return;
+        }
+
+        Store.Upsert(Table, _draft, NewChangeSet(), ChangedBy);
+        _draft = null;
+        _error = null;
+        Reload();
+    }
+
+    private void DeleteRow(Row row)
+    {
+        Store.SoftDelete(Table, row.Id, NewChangeSet(), ChangedBy);
+        Reload();
+    }
+
+    private void ConfirmAddColumn()
+    {
+        string name = _newColumnName.Trim();
+        if (name.Length == 0)
+        {
+            return;
+        }
+
+        Catalog.AddColumn(new ColumnCatalogEntry
+        {
+            TableName = Table,
+            ColumnName = name,
+            ValueType = _newColumnType,
+            LabelEn = name,
+            LabelFr = name,
+            IsUserAdded = true,
+            DisplayOrder = _columns.Count + 1,
+        });
+
+        _addingColumn = false;
+        _newColumnName = string.Empty;
+        Reload();
+    }
+
+    private bool IsInvalid(Row row, ColumnCatalogEntry col) => col.IsRequired && row[col.ColumnName] is null;
+
+    private static bool IsCore(string column) =>
+        column is SyncColumns.Id or SyncColumns.RowVersion or SyncColumns.BaseVersion
+            or SyncColumns.ModifiedAt or SyncColumns.ModifiedBy or SyncColumns.IsDeleted;
+
+    private static string? Blank(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+
+    private static string NewChangeSet() => Guid.NewGuid().ToString();
+}

@@ -16,9 +16,16 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v0.5.0** (Remote store, fold, merge & publish/sync) |
+| Current version | **v0.6.0** (UI foundation: shell + design system + dynamic editor) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 114 passing |
+| Tests | `dotnet test DataMappingStudio.slnx` — 121 passing (+1 E2E skipped unless `DMS_E2E=1`) |
+
+**UI foundation (`App.UI` + `App.Web` + `App.Desktop`)** — the mockup **design system** ported to
+`_content/App.UI/css/app.css` (IBM Plex, dark top bar, grid/cells/badges, lineage styles); the
+`MsTopBar` shell (brand, tabs, instant EN/FR toggle via `LanguageState`, Publish); and the
+cornerstone **`MetadataGrid`** that renders columns + rows from the catalog (inline edit, add-row,
+add-column, required validation). The **Blazor Server `App.Web`** host and the **Blazor Hybrid WPF
+`App.Desktop`** shell both reuse these components verbatim (the §15 web-port proof).
 
 **Engine (`App.Application`)** — the rule/expression engine and lineage engine ported from the
 mockup: `ExpressionTokenizer`, `FunctionLibrary` (function/keyword metadata + autocomplete),
@@ -83,9 +90,13 @@ reporting/                    Power Query workbook + Power BI .pbit templates (P
 
 ```powershell
 dotnet build DataMappingStudio.slnx          # build everything
-dotnet test  DataMappingStudio.slnx          # run all tests
-dotnet run --project src/App.Web             # run the Blazor Server host (UI preview, from Phase 5)
+dotnet test  DataMappingStudio.slnx          # run all tests (browser E2E skips unless DMS_E2E=1)
+dotnet run --project src/App.Web             # run the Blazor Server host, then open the shown URL
+# dotnet run --project src/App.Desktop       # run the Blazor Hybrid WPF shell (Windows desktop)
 ```
+
+Browser E2E (Playwright) is opt-in: `pwsh tests/App.E2E.Tests/bin/<cfg>/net10.0/playwright.ps1 install chromium`,
+then run with `DMS_E2E=1`. CI does this automatically.
 
 ## Roadmap (semver)
 

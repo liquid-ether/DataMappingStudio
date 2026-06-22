@@ -1,0 +1,40 @@
+@implements IDisposable
+@inject LanguageState Lang
+
+@* Dark top bar from the mockup: brand glyph, primary tabs, EN/FR toggle, Publish. *@
+<div class="ms-top">
+    <div class="ms-brand"><span class="glyph">⇲</span><span>@Lang.T("brand")</span></div>
+    <nav class="ms-tabs">
+        @foreach ((string Href, string Key) tab in Tabs)
+        {
+            <NavLink class="@(tab.Href == "" ? "active" : null)" href="@tab.Href" Match="NavLinkMatch.All" ActiveClass="active">@Lang.T(tab.Key)</NavLink>
+        }
+    </nav>
+    <div class="ms-spacer"></div>
+    <div class="ms-lang" role="group" aria-label="Language">
+        <button type="button" aria-pressed="@(!Lang.IsFrench)" @onclick='() => Lang.Set("en")'>EN</button>
+        <button type="button" aria-pressed="@Lang.IsFrench" @onclick='() => Lang.Set("fr")'>FR</button>
+    </div>
+    <button class="ms-publish" type="button" @onclick="OnPublish">@Lang.T("publish")</button>
+</div>
+
+@code {
+    /// <summary>Top-level navigation tabs (href, i18n key).</summary>
+    [Parameter] public IReadOnlyList<(string Href, string Key)> Tabs { get; set; } =
+    [
+        ("applications", "navApplications"),
+        ("sources", "navSources"),
+        ("dictionary", "navDictionary"),
+        ("config", "navConfig"),
+        ("classification", "navClassification"),
+        ("rules", "navRules"),
+        ("mappings", "tabMappings"),
+        ("lineage", "tabLineage"),
+    ];
+
+    [Parameter] public EventCallback OnPublish { get; set; }
+
+    protected override void OnInitialized() => Lang.OnChange += StateHasChanged;
+
+    public void Dispose() => Lang.OnChange -= StateHasChanged;
+}

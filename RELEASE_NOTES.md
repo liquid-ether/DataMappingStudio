@@ -7,6 +7,35 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-21
+
+The UI foundation — the mockup design system, the app shell, and the metadata-driven editor, hosted
+by both Blazor Server and Blazor Hybrid (WPF).
+
+### Added
+- **Design system** (`App.UI/wwwroot/css/app.css`) ported from the approved mockup (CSS tokens, IBM
+  Plex fonts, dark top bar, toolbar/search, grid + cells + kind/type badges, expression chips,
+  autocomplete, and the lineage SVG styles for Phase 7), served as an RCL static asset.
+- **`LanguageState`** — instant EN/FR toggle (mirrors the mockup i18n) plus a bilingual catalog-label
+  helper; registered in `AddAppUi`.
+- **`MsTopBar`** shell component — brand glyph, navigation tabs, EN/FR toggle, Publish.
+- **`MetadataGrid`** — the cornerstone metadata-driven editor: renders columns + rows from the column
+  catalog (so a new column appears with no code change), with inline editing, add-row, runtime
+  add-column, and required-field validation.
+- **`App.Web`** Blazor Server host fully wired (Generic Host DI: Application + Local + Remote + UI,
+  catalog seed + `EnsureSchema` provisioning, interactive render mode, fonts/CSS), with a `Home` page
+  and a generic `/t/{table}` grid page. Verified running (HTTP 200, shell + grid render).
+- **`App.Desktop`** Blazor Hybrid WPF shell — `BlazorWebView` hosting the shared `DesktopRoot`
+  component with its own DI + provisioning.
+- **bUnit** tests (7 new): top bar render + EN/FR toggle + publish callback; grid headers/required
+  marker, runtime add-column, add-row persistence, required-field block. **Playwright** E2E
+  (`WebHostFixture` launches real Kestrel; smoke flow: load → toggle FR → navigate to grid), gated by
+  `DMS_E2E=1` and wired into CI (`playwright install chromium`). 121 passing + 1 E2E skipped locally.
+
+### Changed
+- `App.Desktop` now boots via `OnStartup` DI composition (no `StartupUri`); CI gained a Playwright
+  E2E step.
+
 ## [0.5.0] - 2026-06-21
 
 The remote store, deterministic fold, field-level merge and publish/sync — the git-like sharing layer.

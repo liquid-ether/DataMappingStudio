@@ -1,0 +1,10 @@
+@page "/t/{Table}"
+
+@* Generic metadata-driven editor for any catalog table. Dedicated entity pages arrive in v0.7.0. *@
+<PageTitle>@Table</PageTitle>
+
+<MetadataGrid Table="@Table" Title="@Table" />
+
+@code {
+    [Parameter] public string Table { get; set; } = string.Empty;
+}

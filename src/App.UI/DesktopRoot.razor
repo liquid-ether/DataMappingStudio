@@ -1,0 +1,13 @@
+@namespace App.UI
+
+@* Root component for the Blazor Hybrid desktop shell. Renders the same App.UI components the web host
+   uses, proving one component tree serves both hosts (Architecture §5a). Non-routed for now. *@
+<MsTopBar Tabs="_tabs" />
+
+<div class="ms-wrap">
+    <MetadataGrid Table="widget" Title="Widget" />
+</div>
+
+@code {
+    private readonly IReadOnlyList<(string Href, string Key)> _tabs = [];
+}

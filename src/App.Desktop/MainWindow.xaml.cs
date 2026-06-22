@@ -1,23 +1,14 @@
-﻿using System.Text;
+using System;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace App.Desktop;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
+/// <summary>The Blazor Hybrid shell window: a single <c>BlazorWebView</c> hosting the App.UI root component.</summary>
 public partial class MainWindow : Window
 {
-    public MainWindow()
+    public MainWindow(IServiceProvider services)
     {
         InitializeComponent();
+        webView.Services = services;
     }
 }

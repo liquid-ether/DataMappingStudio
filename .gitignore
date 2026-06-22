@@ -41,6 +41,7 @@ Thumbs.db
 .local/
 _changes/
 _meta/
+App_Data/
 
 # Node (Playwright browsers helper, if used)
 node_modules/

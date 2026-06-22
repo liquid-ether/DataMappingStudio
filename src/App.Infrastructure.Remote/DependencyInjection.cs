@@ -17,7 +17,8 @@ public static class DependencyInjection
     public static IServiceCollection AddRemoteStore(
         this IServiceCollection services,
         string? canonicalFolder = null,
-        string formatName = "parquet")
+        string formatName = "parquet",
+        bool enableAutoRefresh = true)
     {
         // Format providers are always available so format conversion utilities can resolve any of them.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRemoteFormat, ParquetRemoteFormat>());
@@ -35,6 +36,13 @@ public static class DependencyInjection
         services.TryAddSingleton<ISnapshotBuilder>(sp =>
             new SnapshotBuilder(canonicalFolder, sp.GetRequiredService<IRemoteFormatProvider>().Resolve(formatName)));
         services.TryAddSingleton<IPublishService, PublishService>();
+        services.TryAddSingleton<ISyncCoordinator, SyncCoordinator>();
+
+        // Background auto-refresh (no-op-safe; flags conflicts rather than clobbering local edits).
+        if (enableAutoRefresh)
+        {
+            services.AddHostedService<AutoRefreshService>();
+        }
 
         return services;
     }

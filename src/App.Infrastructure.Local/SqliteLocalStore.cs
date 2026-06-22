@@ -202,6 +202,49 @@ public sealed class SqliteLocalStore : ILocalStore
         ]);
     }
 
+    public void AdoptCanonical(string table, Guid rowId, IReadOnlyDictionary<string, string?> values)
+    {
+        if (values.Count == 0)
+        {
+            return;
+        }
+
+        SqliteConnection c = _db.Connection;
+        bool exists = c.Scalar($"SELECT 1 FROM {Q(table)} WHERE {Q(LocalStoreSchema.Id)} = $id", ("$id", rowId.ToString())) is not null;
+
+        if (exists)
+        {
+            List<string> sets = [];
+            List<(string, object?)> ps = [("$id", rowId.ToString())];
+            int i = 0;
+            foreach ((string col, string? val) in values)
+            {
+                sets.Add($"{Q(col)} = $v{i}");
+                ps.Add(($"$v{i}", val));
+                i++;
+            }
+
+            // base_version follows row_version: the local copy is now in sync for these cells.
+            c.Execute($"UPDATE {Q(table)} SET {string.Join(", ", sets)}, {Q(LocalStoreSchema.BaseVersion)} = {Q(LocalStoreSchema.RowVersion)} WHERE {Q(LocalStoreSchema.Id)} = $id", [.. ps]);
+        }
+        else
+        {
+            List<string> cols = [LocalStoreSchema.Id];
+            List<string> vals = ["$id"];
+            List<(string, object?)> ps = [("$id", rowId.ToString())];
+            int i = 0;
+            foreach ((string col, string? val) in values)
+            {
+                cols.Add(col);
+                vals.Add($"$v{i}");
+                ps.Add(($"$v{i}", val));
+                i++;
+            }
+
+            c.Execute($"INSERT INTO {Q(table)} ({string.Join(", ", cols.Select(Q))}) VALUES ({string.Join(", ", vals)})", [.. ps]);
+        }
+    }
+
     private IReadOnlyList<string> DataColumns(string table)
         => _catalog.GetForTable(table)
             .Where(e => !e.IsCore && !LocalStoreSchema.CoreColumns.Contains(e.ColumnName))

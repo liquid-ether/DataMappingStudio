@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\App.Infrastructure.Remote\App.Infrastructure.Remote.csproj" />
+    <ProjectReference Include="..\..\src\App.Infrastructure.Local\App.Infrastructure.Local.csproj" />
   </ItemGroup>
 
 </Project>

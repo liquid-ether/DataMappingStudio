@@ -1,0 +1,84 @@
+@inject ISyncCoordinator Sync
+@inject LanguageState Lang
+@implements IDisposable
+
+@* Publish flow (Architecture §7a): preview the 3-way merge; publish clean changes directly, or
+   resolve conflicts first; plus a manual refresh and a status line. *@
+<h1 class="page-title">@Lang.T("publish")</h1>
+
+<div class="addbar">
+    <button class="ms-publish" @onclick="StartPublish">@Lang.T("publish") (@Sync.PendingCount())</button>
+    <button class="add" @onclick="DoRefresh">@(Lang.IsFrench ? "Rafraîchir" : "Refresh")</button>
+</div>
+
+@if (_message is not null)
+{
+    <p class="@(_isError ? "err" : null)">@_message</p>
+}
+
+@if (_conflicts is { Count: > 0 })
+{
+    <h2 class="page-title">@(Lang.IsFrench ? "Conflits" : "Conflicts") (@_conflicts.Count)</h2>
+    <ConflictDialog Conflicts="_conflicts" OnResolve="ResolveAndPublish" OnCancel="Cancel" />
+}
+
+@code {
+    private IReadOnlyList<MergeConflict>? _conflicts;
+    private string? _message;
+    private bool _isError;
+
+    protected override void OnInitialized() => Lang.OnChange += StateHasChanged;
+
+    public void Dispose() => Lang.OnChange -= StateHasChanged;
+
+    private void StartPublish()
+    {
+        _message = null;
+        _conflicts = null;
+
+        MergeResult preview = Sync.Preview();
+        if (preview.HasConflicts)
+        {
+            _conflicts = preview.Conflicts;
+            return;
+        }
+
+        Apply([]);
+    }
+
+    private void ResolveAndPublish(IReadOnlyList<ConflictResolution> resolutions)
+    {
+        _conflicts = null;
+        Apply(resolutions);
+    }
+
+    private void Apply(IReadOnlyList<ConflictResolution> resolutions)
+    {
+        PublishResult result = Sync.Publish(resolutions);
+        if (result.HasConflicts)
+        {
+            _conflicts = result.Conflicts;
+            return;
+        }
+
+        _isError = false;
+        _message = result.AppendedCount == 0
+            ? (Lang.IsFrench ? "Déjà à jour." : "Already up to date.")
+            : (Lang.IsFrench ? $"Publié : {result.AppendedCount} changement(s)." : $"Published {result.AppendedCount} change(s).");
+    }
+
+    private void DoRefresh()
+    {
+        RefreshResult result = Sync.Refresh();
+        _isError = false;
+        _message = Lang.IsFrench
+            ? $"Rafraîchi : {result.Applied} appliqué(s), {result.Flagged} à revoir."
+            : $"Refreshed: {result.Applied} applied, {result.Flagged} flagged.";
+    }
+
+    private void Cancel()
+    {
+        _conflicts = null;
+        _message = null;
+    }
+}

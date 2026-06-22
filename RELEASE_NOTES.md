@@ -7,6 +7,28 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-22
+
+The publish / conflict-resolution UI and the sync + audit machinery — the full edit → publish →
+resolve → audit loop.
+
+### Added
+- **`ILocalStore.AdoptCanonical`** — writes remote-pulled canonical values locally **without** a
+  change-log entry (the non-logging path auto-refresh needs); deferred from v0.5.0, now implemented in
+  `SqliteLocalStore`.
+- **`SyncCoordinator`** (`ISyncCoordinator`) — orchestrates preview / publish / refresh / history over
+  the local change log + remote store + `PublishService`, tracking the last-published sequence so
+  "pending" means newer local edits.
+- **`AutoRefreshService`** (`IHostedService`) — periodic non-disruptive fast-forward of untouched cells
+  (flags locally-edited+remotely-changed for review); wired via `AddRemoteStore(..., enableAutoRefresh)`.
+- **UI**: `PublishPanel` (`/publish`) previews the merge, publishes clean changes, and shows the
+  `ConflictDialog` (per-field keep mine / keep theirs / edit) when needed; `HistoryView` (`/history`)
+  renders the audit trail; the top-bar Publish button navigates to `/publish`; a History nav tab.
+- Tests: bUnit (publish reports count, conflict dialog flow, refresh status, keep-theirs resolution)
+  and an end-to-end `SyncCoordinator` integration test across the real local + remote stores
+  (publish-clean / conflict-block-then-resolve / refresh-fast-forward) + a gated Playwright publish/
+  history flow. 151 passing (+4 E2E skipped). Pages verified live.
+
 ## [0.8.0] - 2026-06-22
 
 The Mapping Studio and Lineage screens — a faithful Blazor port of the approved mockup.

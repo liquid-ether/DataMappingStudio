@@ -1,0 +1,55 @@
+@inject ISyncCoordinator Sync
+@inject LanguageState Lang
+@implements IDisposable
+@using System.Globalization
+
+@* Audit / history view over the change log (Architecture §8): the change log is the audit trail. *@
+<h1 class="page-title">@(Lang.IsFrench ? "Historique" : "History")</h1>
+
+<div class="gridbox">
+    <table class="grid">
+        <thead>
+            <tr><th>@(Lang.IsFrench ? "Quand" : "When")</th><th>@(Lang.IsFrench ? "Par" : "By")</th><th>Op</th><th>Table</th><th>@(Lang.IsFrench ? "Champ" : "Field")</th><th>@(Lang.IsFrench ? "Ancien" : "Old")</th><th>@(Lang.IsFrench ? "Nouveau" : "New")</th></tr>
+        </thead>
+        <tbody>
+            @if (_entries.Count == 0)
+            {
+                <tr><td colspan="7"><div class="cell muted">@Lang.T("noRows")</div></td></tr>
+            }
+            @foreach (ChangeLogEntry e in _entries)
+            {
+                <tr @key="e.ChangeId">
+                    <td><div class="cell mono" style="font-size:12px">@e.ChangedAtUtc.ToString("u", CultureInfo.InvariantCulture)</div></td>
+                    <td><div class="cell">@e.ChangedBy</div></td>
+                    <td><div class="cell"><span class="kind-badge @OpClass(e.Operation)">@e.Operation</span></div></td>
+                    <td><div class="cell mono" style="font-size:12px">@e.Table</div></td>
+                    <td><div class="cell mono" style="font-size:12px">@e.Column</div></td>
+                    <td><div class="cell muted">@(e.OldValue ?? "—")</div></td>
+                    <td><div class="cell">@(e.NewValue ?? "—")</div></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private IReadOnlyList<ChangeLogEntry> _entries = [];
+
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += StateHasChanged;
+        Reload();
+    }
+
+    public void Dispose() => Lang.OnChange -= StateHasChanged;
+
+    private void Reload() => _entries = Sync.History().OrderByDescending(e => e.ClientSeq).ToList();
+
+    private static string OpClass(ChangeOperation op) => op switch
+    {
+        ChangeOperation.Insert => "field",
+        ChangeOperation.Update => "calc",
+        ChangeOperation.Delete => "filter",
+        _ => "join",
+    };
+}

@@ -1,0 +1,65 @@
+@inject LanguageState Lang
+
+@* Per-field conflict resolution (Architecture §7a): keep mine / keep theirs / edit. *@
+<div class="gridbox" style="margin-top:12px">
+    <table class="grid">
+        <thead>
+            <tr><th>Field</th><th>Base</th><th>Mine</th><th>Theirs</th><th>Resolution</th></tr>
+        </thead>
+        <tbody>
+            @foreach (MergeConflict conflict in Conflicts)
+            {
+                <tr @key="conflict.Cell">
+                    <td><div class="cell mono" style="font-size:12px">@conflict.Cell.Column</div></td>
+                    <td><div class="cell muted">@(conflict.Base ?? "—")</div></td>
+                    <td><div class="cell"><span class="chip self">@(conflict.Local ?? "—")</span></div></td>
+                    <td><div class="cell"><span class="chip b">@(conflict.Remote ?? "—")</span></div></td>
+                    <td>
+                        <div class="cell" style="gap:10px;flex-wrap:wrap">
+                            <label><input type="radio" name="@RadioName(conflict)" checked="@(Choice(conflict) == ConflictChoice.KeepMine)" @onchange="() => Set(conflict, ConflictChoice.KeepMine)" /> @(Lang.IsFrench ? "Garder les miens" : "Keep mine")</label>
+                            <label><input type="radio" name="@RadioName(conflict)" checked="@(Choice(conflict) == ConflictChoice.KeepTheirs)" @onchange="() => Set(conflict, ConflictChoice.KeepTheirs)" /> @(Lang.IsFrench ? "Garder les leurs" : "Keep theirs")</label>
+                            <label><input type="radio" name="@RadioName(conflict)" checked="@(Choice(conflict) == ConflictChoice.Edit)" @onchange="() => Set(conflict, ConflictChoice.Edit)" /> @(Lang.IsFrench ? "Modifier" : "Edit")</label>
+                            @if (Choice(conflict) == ConflictChoice.Edit)
+                            {
+                                <input class="ed-input" style="width:140px" value="@EditValue(conflict)" @onchange="e => SetEdit(conflict, e.Value?.ToString())" />
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="addbar">
+    <button class="ms-publish" @onclick="ResolveAndPublish">@(Lang.IsFrench ? "Résoudre et publier" : "Resolve & publish")</button>
+    <button class="add" @onclick="OnCancel">@Lang.T("cancel")</button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<MergeConflict> Conflicts { get; set; } = [];
+
+    [Parameter] public EventCallback<IReadOnlyList<ConflictResolution>> OnResolve { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private readonly Dictionary<CellKey, (ConflictChoice Choice, string? Edit)> _choices = new();
+
+    private ConflictChoice Choice(MergeConflict c) => _choices.TryGetValue(c.Cell, out (ConflictChoice Choice, string? Edit) v) ? v.Choice : ConflictChoice.KeepMine;
+
+    private string? EditValue(MergeConflict c) => _choices.TryGetValue(c.Cell, out (ConflictChoice Choice, string? Edit) v) ? v.Edit : c.Remote;
+
+    private void Set(MergeConflict c, ConflictChoice choice) => _choices[c.Cell] = (choice, EditValue(c));
+
+    private void SetEdit(MergeConflict c, string? value) => _choices[c.Cell] = (ConflictChoice.Edit, value);
+
+    private static string RadioName(MergeConflict c) => "r-" + c.Cell.GetHashCode().ToString("X");
+
+    private async Task ResolveAndPublish()
+    {
+        List<ConflictResolution> resolutions = Conflicts
+            .Select(c => new ConflictResolution(c.Cell, Choice(c), Choice(c) == ConflictChoice.Edit ? EditValue(c) : null))
+            .ToList();
+        await OnResolve.InvokeAsync(resolutions);
+    }
+}

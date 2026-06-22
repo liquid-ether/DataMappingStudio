@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Nav
 
-<MsTopBar Tabs="_tabs" />
+<MsTopBar Tabs="_tabs" OnPublish="GoToPublish" />
 
 <div class="ms-wrap">
     @Body
@@ -19,5 +20,8 @@
         .. DefaultCatalog.Navigation.Select(n => ($"t/{n.Table}", n.NavKey)),
         ("mappings", "tabMappings"),
         ("lineage", "tabLineage"),
+        ("history", "navHistory"),
     ];
+
+    private void GoToPublish() => Nav.NavigateTo("publish");
 }

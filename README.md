@@ -16,9 +16,16 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v0.8.0** (Mapping Studio + Lineage UI) |
+| Current version | **v0.9.0** (Publish & conflict resolution + sync/audit) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 144 passing (+3 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 151 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+
+**Publish & sync (`App.Application.Sync` + `App.UI`)** — `SyncCoordinator` ties the local change log,
+the remote store and `PublishService` together (tracks the last-published sequence); the `/publish`
+page previews the 3-way merge, publishes clean changes, and resolves conflicts via the
+`ConflictDialog` (keep mine / theirs / edit); `/history` shows the audit trail; and the
+`AutoRefreshService` (`IHostedService`) fast-forwards untouched cells via the new non-logging
+`ILocalStore.AdoptCanonical`, never clobbering unpublished edits.
 
 **Mapping Studio + Lineage (`App.UI`)** — the mockup's two signature screens, ported to Blazor over
 an editable `MappingStudioState`: the **mappings grid** (rows grouped by target with source chips,

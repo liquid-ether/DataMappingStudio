@@ -24,4 +24,11 @@ public interface ILocalStore
 
     /// <summary>Soft-deletes a row (sets is_deleted), recording a Delete change-log entry.</summary>
     IReadOnlyList<ChangeLogEntry> SoftDelete(string table, Guid id, string changeSetId, string changedBy);
+
+    /// <summary>
+    /// Adopts canonical values pulled from the remote fold — writes them locally <em>without</em> a
+    /// change-log entry (this is not a local edit). Used by auto-refresh to fast-forward cells the
+    /// analyst has not edited, never clobbering unpublished work (Architecture §9).
+    /// </summary>
+    void AdoptCanonical(string table, Guid rowId, IReadOnlyDictionary<string, string?> values);
 }

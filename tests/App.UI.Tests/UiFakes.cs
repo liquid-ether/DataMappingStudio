@@ -57,4 +57,22 @@ public sealed class FakeLocalStore : ILocalStore
 
         return [];
     }
+
+    public void AdoptCanonical(string table, Guid rowId, IReadOnlyDictionary<string, string?> values)
+    {
+        if (!_tables.TryGetValue(table, out Dictionary<Guid, Row>? rows))
+        {
+            rows = _tables[table] = [];
+        }
+
+        if (!rows.TryGetValue(rowId, out Row? row))
+        {
+            row = rows[rowId] = new Row(table, rowId);
+        }
+
+        foreach ((string column, string? value) in values)
+        {
+            row[column] = value;
+        }
+    }
 }

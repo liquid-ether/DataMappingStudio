@@ -16,9 +16,16 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v0.10.0** (Excel importer + PowerShell build tooling) |
+| Current version | **v1.0.0** — feature-complete (both architecture phases) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 157 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 163 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+
+**References, computed columns & reporting (`App.Application.References` + `App.Infrastructure.Remote`)**
+— reference-typed columns render as pickers and resolve to live display values (`ReferenceService`);
+computed columns evaluate `count(...)` and `lookup(...)` autofills read-only; opt-in denormalized
+**reporting views** (`ReportingViewBuilder` → `<table>_report.<ext>`) flatten references + computed for
+Power BI (see [reporting/](reporting/)); and `LogCompactor` archives old change-log entries. The
+importer CLI gained `report` and `compact` verbs.
 
 **Importer & tooling (`App.Importer` + `build/`)** — the Excel→DB pipeline: an editable
 [`build/import-mapping.json`](build/import-mapping.json) **column-mapping facility** (only listed

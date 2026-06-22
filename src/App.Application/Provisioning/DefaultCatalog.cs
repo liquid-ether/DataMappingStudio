@@ -40,7 +40,7 @@ public static class DefaultCatalog
             .Col("responsible_business", CatalogValueType.Text, "Responsible business", "Responsable affaire");
 
         b.Table(TableNames.DataSource)
-            .Col("application_id", CatalogValueType.Text, "Application", "Application")
+            .Ref("application_id", TableNames.Application, "Application", "Application")
             .Col("name", CatalogValueType.Text, "Name", "Nom", required: true)
             .Col("description", CatalogValueType.Text, "Description", "Description")
             .Col("type", CatalogValueType.Text, "Type", "Type")
@@ -50,10 +50,11 @@ public static class DefaultCatalog
             .Col("bronze_path", CatalogValueType.Text, "Bronze path", "Répertoire brute")
             .Col("silver_path", CatalogValueType.Text, "Silver path", "Répertoire standardisé")
             .Col("gold_path", CatalogValueType.Text, "Gold path", "Répertoire Valo (Gold)")
-            .Col("status", CatalogValueType.Text, "Status", "Statut");
+            .Col("status", CatalogValueType.Text, "Status", "Statut")
+            .Computed("field_count", "count(dictionary_entry.source_id)", "NB fields", "NB champs");
 
         b.Table(TableNames.DictionaryEntry)
-            .Col("source_id", CatalogValueType.Text, "Source", "Source")
+            .Ref("source_id", TableNames.DataSource, "Source", "Source")
             .Col("column_name", CatalogValueType.Text, "Column", "Colonne", required: true)
             .Col("ordinal", CatalogValueType.Integer, "Order", "Ordre")
             .Col("data_type", CatalogValueType.Text, "Data type", "Type de données")
@@ -61,7 +62,9 @@ public static class DefaultCatalog
             .Col("is_nullable", CatalogValueType.Boolean, "Nullable", "Nullable")
             .Col("business_name", CatalogValueType.Text, "Business name", "Nom affaire")
             .Col("description", CatalogValueType.Text, "Description", "Description")
-            .Col("classification_prp", CatalogValueType.Text, "PRP", "PRP")
+            .Ref("classification_id", TableNames.Classification, "PRP", "PRP")
+            .Computed("access_901", "lookup(classification_id.access_901)", "Access 901", "Accès 901")
+            .Computed("disclosure_902", "lookup(classification_id.disclosure_902)", "Disclosure 902", "Divulgation 902")
             .Col("language", CatalogValueType.Text, "Language", "Langue")
             .Col("status", CatalogValueType.Text, "Status", "Statut");
 
@@ -115,6 +118,38 @@ public static class DefaultCatalog
                 LabelFr = labelFr,
                 IsRequired = required,
                 IsCore = false,
+                DisplayOrder = ++_order,
+            });
+            return this;
+        }
+
+        public Builder Ref(string name, string target, string labelEn, string labelFr)
+        {
+            _entries.Add(new ColumnCatalogEntry
+            {
+                TableName = _table,
+                ColumnName = name,
+                Kind = ColumnKind.Reference,
+                ValueType = CatalogValueType.Uuid,
+                ReferenceTarget = target,
+                LabelEn = labelEn,
+                LabelFr = labelFr,
+                DisplayOrder = ++_order,
+            });
+            return this;
+        }
+
+        public Builder Computed(string name, string formula, string labelEn, string labelFr)
+        {
+            _entries.Add(new ColumnCatalogEntry
+            {
+                TableName = _table,
+                ColumnName = name,
+                Kind = ColumnKind.Computed,
+                ValueType = CatalogValueType.Text,
+                Formula = formula,
+                LabelEn = labelEn,
+                LabelFr = labelFr,
                 DisplayOrder = ++_order,
             });
             return this;

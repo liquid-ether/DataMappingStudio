@@ -2,6 +2,9 @@
 @inject ICatalog Catalog
 @inject ILocalStore Store
 @inject LanguageState Lang
+@inject IServiceProvider Services
+@using App.Application.References
+@using Microsoft.Extensions.DependencyInjection
 
 @* Metadata-driven editor: columns and rows render from the column catalog, so a new column appears
    with no code change (Architecture §4). Inline edit + add-row + add-column + required validation. *@
@@ -32,11 +35,30 @@
                     @foreach (ColumnCatalogEntry col in _columns)
                     {
                         <td>
-                            <div class="cell editable">
-                                <input class="gi @(IsInvalid(row, col) ? "invalid" : null)"
-                                       value="@row[col.ColumnName]"
-                                       @onchange="e => CommitCell(row, col, e.Value?.ToString())" />
-                            </div>
+                            @if (col.Kind == ColumnKind.Computed && _computed is not null)
+                            {
+                                <div class="cell muted" title="computed">@_computed.Evaluate(Table, col.ColumnName, row)</div>
+                            }
+                            else if (col.Kind == ColumnKind.Reference && _refs is not null)
+                            {
+                                <div class="cell editable">
+                                    <select class="gi" value="@row[col.ColumnName]" @onchange="e => CommitCell(row, col, e.Value?.ToString())">
+                                        <option value="">—</option>
+                                        @foreach (ReferenceOption opt in _refs.Options(col.ReferenceTarget!))
+                                        {
+                                            <option value="@opt.Id">@opt.Display</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="cell editable">
+                                    <input class="gi @(IsInvalid(row, col) ? "invalid" : null)"
+                                           value="@row[col.ColumnName]"
+                                           @onchange="e => CommitCell(row, col, e.Value?.ToString())" />
+                                </div>
+                            }
                         </td>
                     }
                     <td><div class="cell"><span class="rowx" title="remove" @onclick="() => DeleteRow(row)">✕</span></div></td>
@@ -48,11 +70,30 @@
                     @foreach (ColumnCatalogEntry col in _columns)
                     {
                         <td>
-                            <div class="cell editable">
-                                <input class="gi" placeholder="@Lang.Label(col.LabelEn, col.LabelFr)"
-                                       value="@_draft[col.ColumnName]"
-                                       @onchange="e => _draft[col.ColumnName] = Blank(e.Value?.ToString())" />
-                            </div>
+                            @if (col.Kind == ColumnKind.Computed)
+                            {
+                                <div class="cell muted">—</div>
+                            }
+                            else if (col.Kind == ColumnKind.Reference && _refs is not null)
+                            {
+                                <div class="cell editable">
+                                    <select class="gi" value="@_draft[col.ColumnName]" @onchange="e => _draft[col.ColumnName] = Blank(e.Value?.ToString())">
+                                        <option value="">—</option>
+                                        @foreach (ReferenceOption opt in _refs.Options(col.ReferenceTarget!))
+                                        {
+                                            <option value="@opt.Id">@opt.Display</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="cell editable">
+                                    <input class="gi" placeholder="@Lang.Label(col.LabelEn, col.LabelFr)"
+                                           value="@_draft[col.ColumnName]"
+                                           @onchange="e => _draft[col.ColumnName] = Blank(e.Value?.ToString())" />
+                                </div>
+                            }
                         </td>
                     }
                     <td><div class="cell"></div></td>
@@ -111,7 +152,16 @@
     private string _newColumnName = string.Empty;
     private CatalogValueType _newColumnType = CatalogValueType.Text;
 
-    protected override void OnInitialized() => Lang.OnChange += StateHasChanged;
+    // Optional: present in the hosts (reference pickers + computed-column autofill), absent in plain tests.
+    private IReferenceResolver? _refs;
+    private IComputedEvaluator? _computed;
+
+    protected override void OnInitialized()
+    {
+        _refs = Services.GetService<IReferenceResolver>();
+        _computed = Services.GetService<IComputedEvaluator>();
+        Lang.OnChange += StateHasChanged;
+    }
 
     protected override void OnParametersSet() => Reload();
 

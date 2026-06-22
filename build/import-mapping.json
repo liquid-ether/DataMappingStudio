@@ -70,7 +70,10 @@
         "Description": "description",
         "Langue": "language",
         "Statut": "status",
-        "PRP - ID": "classification_prp"
+        "PRP - ID": "classification_id"
+      },
+      "references": {
+        "classification_id": { "table": "classification", "by": "prp" }
       }
     },
     {

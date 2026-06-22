@@ -7,6 +7,33 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-22
+
+Feature-complete: the Phase-2 architecture features — reference & computed columns, opt-in reporting
+views, and log retention — completing both delivery phases.
+
+### Added
+- **Reference-typed columns**: `ReferenceService` (`IReferenceResolver`) lists options and resolves
+  stored ids to live display values; the metadata grid renders reference columns as **pickers** (and
+  computed columns read-only). The default catalog now marks the real FKs as references
+  (`data_source.application_id`, `dictionary_entry.source_id`/`classification_id`).
+- **Computed columns** (`IComputedEvaluator`): catalog `Formula` evaluated on read — `count(table.fk)`
+  (e.g. `data_source.field_count`) and `lookup(ref.col)` **autofill** (e.g. dictionary
+  `access_901`/`disclosure_902` from the referenced classification).
+- **Opt-in reporting views** (`ReportingViewBuilder`): flat `<table>_report.<ext>` with references
+  resolved + computed evaluated; `reporting/MappingStudio.pq` Power Query template + guide for Power BI.
+- **Log compaction/archiving** (`LogCompactor`): rolls change-log entries older than a threshold into
+  dated per-writer archive files, keeping recent entries live.
+- **Importer CLI** `report` and `compact` verbs.
+- Tests: reference options/display + computed count/lookup + grid picker rendering (bUnit), reporting
+  view flattening + compaction (integration). 163 passing (+4 E2E skipped). Pages re-verified live.
+
+### Notes
+- Web-port hardening: `App.Web` already reuses `App.UI` verbatim and is the verified web target; no
+  further fork is required (Architecture §15).
+- Lookup-by-type references (status/type/frequency → `lookup_value` filtered by `lookup_type`) remain
+  scalar text for now; the catalog already supports promoting them to references without migration.
+
 ## [0.10.0] - 2026-06-22
 
 The Excel importer and PowerShell build tooling — the migration path off the current workbook.

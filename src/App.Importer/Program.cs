@@ -2,8 +2,7 @@ using System.Text.Json;
 using App.Application;
 using App.Application.Abstractions;
 using App.Application.Provisioning;
-using App.Application.Sync;
-using App.Domain.Catalog;
+using App.Application.References;
 using App.Domain.Data;
 using App.Importer;
 using App.Infrastructure.Local;
@@ -31,6 +30,10 @@ switch (args[0])
         return RebuildSnapshots(args[1], args[2], args.Length >= 4 ? args[3] : "parquet");
     case "convert-format" when args.Length >= 4:
         return ConvertFormat(args[1], args[2], args[3]);
+    case "report" when args.Length >= 3:
+        return Report(args[1], args[2], args.Length >= 4 ? args[3] : "parquet");
+    case "compact" when args.Length >= 2:
+        return Compact(args[1], args.Length >= 3 ? int.Parse(args[2]) : 90, args.Length >= 4 ? args[3] : "parquet");
     default:
         Usage();
         return 1;
@@ -109,6 +112,35 @@ static int ConvertFormat(string remoteFolder, string from, string to)
     return 0;
 }
 
+static int Report(string dbPath, string remoteFolder, string format)
+{
+    using ServiceProvider provider = BuildProvider(dbPath, remoteFolder, format);
+    ICatalog catalog = provider.GetRequiredService<ICatalog>();
+    catalog.Seed(DefaultCatalog.Entries());
+    ILocalStore store = provider.GetRequiredService<ILocalStore>();
+    store.EnsureSchema();
+    IRemoteFormat fmt = provider.GetRequiredService<IRemoteFormatProvider>().Resolve(format);
+
+    ReferenceService references = new(catalog, store);
+    ReportingViewBuilder builder = new(remoteFolder, fmt, catalog, store, references, references);
+    foreach (string table in catalog.GetTables())
+    {
+        builder.Build(table);
+    }
+
+    Console.WriteLine($"Built reporting views for {catalog.GetTables().Count} tables in {remoteFolder} ({format}).");
+    return 0;
+}
+
+static int Compact(string remoteFolder, int olderThanDays, string format)
+{
+    using ServiceProvider provider = BuildProvider(Path.Combine(remoteFolder, "_compact.db"), remoteFolder, format);
+    IRemoteFormat fmt = provider.GetRequiredService<IRemoteFormatProvider>().Resolve(format);
+    int archived = new LogCompactor(remoteFolder, fmt).Compact(olderThanDays, DateTimeOffset.UtcNow);
+    Console.WriteLine($"Compacted: archived {archived} change-log entries older than {olderThanDays} days.");
+    return 0;
+}
+
 static WorksheetData ReadWorksheet(string dataDir, string worksheet)
 {
     string path = Path.Combine(dataDir, worksheet + ".json");
@@ -153,4 +185,6 @@ static void Usage() => Console.WriteLine(
     "  provision <remoteFolder>\n" +
     "  import <dbPath> <dataDir> <mapping.json> [report.json]\n" +
     "  rebuild-snapshots <dbPath> <remoteFolder> [format]\n" +
-    "  convert-format <remoteFolder> <fromFormat> <toFormat>");
+    "  convert-format <remoteFolder> <fromFormat> <toFormat>\n" +
+    "  report <dbPath> <remoteFolder> [format]\n" +
+    "  compact <remoteFolder> [olderThanDays] [format]");

@@ -1,3 +1,4 @@
+using App.Application.References;
 using App.UI.Localization;
 using App.UI.MappingStudio;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,11 @@ public static class DependencyInjection
         services.AddLocalization(options => options.ResourcesPath = "Resources");
         services.AddScoped<LanguageState>();
         services.AddScoped<MappingStudioState>();
+
+        // Reference pickers + computed-column (autofill) evaluation over the local store.
+        services.AddScoped<ReferenceService>();
+        services.AddScoped<IReferenceResolver>(sp => sp.GetRequiredService<ReferenceService>());
+        services.AddScoped<IComputedEvaluator>(sp => sp.GetRequiredService<ReferenceService>());
         return services;
     }
 }

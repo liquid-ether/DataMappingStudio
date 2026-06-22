@@ -17,11 +17,15 @@ If you only want to run the app on your own PC, do **section 1** and stop there.
 The desktop app is a **single file**, `MappingStudio.exe`. Nothing else needs to be installed.
 
 ### Requirements
-- **Windows 10 or Windows 11** (64-bit). That's it — .NET is built into the file, so you do **not**
-  need to install .NET or anything else.
-- Windows already includes the "WebView2 Runtime" the app uses. (On a rare older machine that lacks it,
+- **Windows 10 (version 1809 / build 17763) or newer, or Windows 11** (64-bit).
+- Windows already includes the **WebView2 Runtime** the app uses. (On a rare older machine that lacks it,
   install it once — free — from Microsoft: search "Microsoft Edge WebView2 Runtime", download the
   **Evergreen Standalone Installer**, run it. No admin needed for the per-user installer.)
+- **.NET runtime** — depends on which build you were given (your IT team picks one):
+  - **Self-contained build (~70 MB)** — .NET is bundled in the file; you need **nothing else**.
+  - **Compact build (~41 MB)** — smaller, but requires the **.NET 10 Desktop Runtime** to be installed
+    once (free, from <https://dotnet.microsoft.com/download/dotnet/10.0> → *Run desktop apps* →
+    "Windows x64"). If it isn't installed, Windows will offer to download it the first time you run the app.
 
 ### Steps
 1. Get the file **`MappingStudio.exe`** from your IT team (or build it — see section 5).
@@ -139,13 +143,23 @@ dotnet run --project src/App.Desktop         # run the desktop shell locally
 
 ### Produce the distributables
 ```powershell
-./build/publish-desktop.ps1     # -> publish\desktop\MappingStudio.exe   (single self-contained file)
-./build/publish-web.ps1         # -> publish\web\                        (self-contained web host)
+./build/publish-desktop.ps1                      # -> publish\desktop\MappingStudio.exe  (~70 MB, no .NET install needed)
+./build/publish-desktop.ps1 -FrameworkDependent  # -> smaller (~41 MB), requires the .NET 10 Desktop Runtime
+./build/publish-web.ps1                          # -> publish\web\  (self-contained web host)
 ```
 
-The desktop publish is a self-contained, single-file `win-x64` executable (the .NET runtime, WPF, the
-WebView2 loader and the SQLite native library are all bundled; the host page is embedded and extracted
-to `%LOCALAPPDATA%\MappingStudio` on first run).
+Both desktop builds are a single `win-x64` `.exe` (the WebView2 loader, the SQLite native library and
+the WinRT projection are bundled; the WebView host page is embedded and extracted to
+`%LOCALAPPDATA%\MappingStudio` on first run). The self-contained build additionally bundles the .NET
+runtime + WPF; the compact build relies on the installed .NET 10 Desktop Runtime.
+
+### Validate the desktop build
+After publishing, run the startup smoke test — it launches the exe and confirms it gets past
+WPF/WebView2 initialization without crashing:
+
+```powershell
+./build/smoke-desktop.ps1        # exit code 0 = pass (needs an interactive Windows desktop session)
+```
 
 ---
 
@@ -154,6 +168,8 @@ to `%LOCALAPPDATA%\MappingStudio` on first run).
 | Symptom | Fix |
 |---|---|
 | Double-clicking the exe does nothing / "WebView2 not found" | Install the **Microsoft Edge WebView2 Runtime** (Evergreen Standalone Installer), then retry. |
+| "Could not load file or assembly 'Microsoft.Windows.SDK.NET'" | You have an old build. Rebuild with the current source (`./build/publish-desktop.ps1`) — the project now targets a versioned Windows TFM that includes this assembly. |
+| Compact build: "To run this application, you must install .NET" | Install the **.NET 10 Desktop Runtime** (link above), or use the self-contained build. |
 | SmartScreen warns about an unknown publisher | Click **More info → Run anyway** (the file isn't code-signed). Ask IT to sign it for wide distribution. |
 | Edits aren't shared with colleagues | Confirm `MAPPINGSTUDIO_REMOTE` points at the **OneDrive-synced** folder and that OneDrive shows it as "up to date". Restart the app after changing the variable. |
 | Web host: "address already in use" | Choose another port, e.g. `--urls "http://localhost:5050"`. |

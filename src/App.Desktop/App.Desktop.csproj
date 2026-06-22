@@ -14,7 +14,11 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Versioned Windows TFM so the WinRT projection (Microsoft.Windows.SDK.NET) is available:
+         the WebView2 WPF control hosts via the composition control, which needs it. Bare
+         net10.0-windows omits it and crashes at startup with a FileNotFoundException. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -25,7 +29,6 @@
          Bundles native deps (WebView2 loader, e_sqlite3) into the one exe via self-extract.
          The WebView2 *runtime* ships with Windows 10/11, so no separate install is needed. -->
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <SatelliteResourceLanguages>en;fr</SatelliteResourceLanguages>
     <ApplicationTitle>Mapping Studio</ApplicationTitle>
     <AssemblyName>MappingStudio</AssemblyName>

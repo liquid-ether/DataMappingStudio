@@ -16,10 +16,14 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.2.0** — fully persistent + packaged |
+| Current version | **v1.2.1** — fully persistent + packaged (WebView2 startup fixed) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
 | Tests | `dotnet test DataMappingStudio.slnx` — 170 passing (+4 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — single-file desktop `.exe`, web host, shared-folder setup |
+
+The desktop ships as a single `MappingStudio.exe` in two flavours: **self-contained** (~70 MB, no
+install) and **compact** (~41 MB, needs the .NET 10 Desktop Runtime) — `build/publish-desktop.ps1`
+[`-FrameworkDependent`]. Validate a build with `build/smoke-desktop.ps1`.
 
 The **Mapping Studio is fully persisted** now — both the mapping rows and the target/source (alias)
 structure live in the local store and sync. The desktop app packages to a **single self-contained

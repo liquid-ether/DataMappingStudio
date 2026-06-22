@@ -7,6 +7,23 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-06-22
+
+### Fixed
+- **Desktop startup crash** `System.IO.FileNotFoundException: Could not load file or assembly
+  'Microsoft.Windows.SDK.NET'` (thrown from `WebView2CompositionControl.TryInitializeD3DImage`).
+  `App.Desktop` now targets the versioned Windows TFM `net10.0-windows10.0.19041.0`
+  (min `10.0.17763.0`), which provides the WinRT projection the WebView2 composition control needs.
+
+### Added
+- **Compact (framework-dependent) desktop build**: `build/publish-desktop.ps1 -FrameworkDependent`
+  produces a ~41 MB single exe that relies on the installed .NET 10 Desktop Runtime (vs ~70 MB
+  self-contained). Single-file compression is now applied only to the self-contained build.
+- **`build/smoke-desktop.ps1`**: launches the published exe and asserts it survives WPF/WebView2
+  startup (catches crashes like the one above); both build flavours verified passing.
+- INSTALL.md updated with the two size options, the .NET 10 Desktop Runtime prerequisite, the
+  validation step, and troubleshooting for the SDK.NET error.
+
 ## [1.2.0] - 2026-06-22
 
 Full Mapping Studio persistence, single-file desktop packaging, and an installation guide.

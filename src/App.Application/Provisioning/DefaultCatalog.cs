@@ -85,8 +85,10 @@ public static class DefaultCatalog
             .Col("expression", CatalogValueType.Text, "Expression", "Expression");
 
         b.Table(TableNames.Mapping)
-            .Col("target_entry", CatalogValueType.Text, "Target", "Cible")
+            .Col("target", CatalogValueType.Text, "Target", "Cible")
+            .Col("field", CatalogValueType.Text, "Field", "Champ")
             .Col("kind", CatalogValueType.Text, "Kind", "Type")
+            .Col("type", CatalogValueType.Text, "Data type", "Type de données")
             .Col("expression", CatalogValueType.Text, "Expression", "Expression")
             .Col("is_tokenized", CatalogValueType.Boolean, "Tokenized", "Tokenisé")
             .Col("notes", CatalogValueType.Text, "Notes", "Notes");

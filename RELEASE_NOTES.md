@@ -7,6 +7,26 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-22
+
+Mapping Studio edits now persist to the local store, so they flow into the change log and publish/sync
+(previously the studio was in-memory only).
+
+### Added
+- **`MappingRepository`** (`IMappingRepository`, `MappingRecord`) in `App.Application.Mappings`: reads
+  and writes Mapping Studio rows to the `mapping` table via `ILocalStore` — every save is an upsert that
+  writes change-log entries; delete is a soft delete.
+- **`MappingStudioState` is store-backed**: it loads rows from the repository (seeding the demo into the
+  store on first run), and `AddRow`/`Save`/`DeleteRow` persist; `MappingRow` gained a stable `Id`.
+- The **mappings grid** routes every edit (kind/target/type cycle, field, expression, add, delete)
+  through persistence.
+- Tests: repository round-trip/update/delete, studio seed + cross-instance persistence + write-through
+  (bUnit/unit), and an end-to-end **mapping edit → pending → publish** integration test. 169 passing.
+
+### Changed
+- The `mapping` catalog table now stores the studio's flat shape (`target`, `field`, `kind`, `type`,
+  `expression`, `is_tokenized`, `notes`); the importer mapping no longer maps `kind`.
+
 ## [1.0.0] - 2026-06-22
 
 Feature-complete: the Phase-2 architecture features — reference & computed columns, opt-in reporting

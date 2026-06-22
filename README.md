@@ -16,9 +16,15 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.0.0** — feature-complete (both architecture phases) |
+| Current version | **v1.1.0** — feature-complete + persistent Mapping Studio |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 163 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 169 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+
+**Mapping Studio persistence (`App.Application.Mappings`)** — the studio is now backed by the local
+store: `MappingRepository` reads/writes rows to the `mapping` table via `ILocalStore`, so every
+add/edit/delete becomes a change-log entry that the publish/sync flow pushes (verified: editing
+mappings shows up as pending on `/publish` and in `/history`). The demo is seeded into the store on
+first run; the target/source alias structure used for lineage context remains seeded configuration.
 
 **References, computed columns & reporting (`App.Application.References` + `App.Infrastructure.Remote`)**
 — reference-typed columns render as pickers and resolve to live display values (`ReferenceService`);

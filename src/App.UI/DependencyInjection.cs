@@ -1,3 +1,4 @@
+using App.Application.Mappings;
 using App.Application.References;
 using App.UI.Localization;
 using App.UI.MappingStudio;
@@ -23,6 +24,9 @@ public static class DependencyInjection
         services.AddScoped<ReferenceService>();
         services.AddScoped<IReferenceResolver>(sp => sp.GetRequiredService<ReferenceService>());
         services.AddScoped<IComputedEvaluator>(sp => sp.GetRequiredService<ReferenceService>());
+
+        // Mapping Studio rows persist to the local store's mapping table (so edits sync/publish).
+        services.AddScoped<IMappingRepository, MappingRepository>();
         return services;
     }
 }

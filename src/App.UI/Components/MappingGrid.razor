@@ -41,7 +41,7 @@
                     <td>
                         @if (row.ProducesField)
                         {
-                            <div class="cell editable"><input class="gi fld" value="@row.Field" @onchange="e => row.Field = e.Value?.ToString() ?? string.Empty" /></div>
+                            <div class="cell editable"><input class="gi fld" value="@row.Field" @onchange="e => OnFieldChanged(row, e.Value?.ToString())" /></div>
                         }
                         else
                         {
@@ -49,7 +49,7 @@
                         }
                     </td>
                     <td>
-                        <ExpressionEditor Expression="@row.Expression" Refs="@State.KnownReferences(row.Target)" OnCommit="v => row.Expression = v" />
+                        <ExpressionEditor Expression="@row.Expression" Refs="@State.KnownReferences(row.Target)" OnCommit="v => OnExpressionChanged(row, v)" />
                     </td>
                     <td>
                         @if (row.ProducesField)
@@ -114,7 +114,19 @@
         _ => "Field",
     };
 
-    private static void CycleKind(MappingRow row)
+    private void OnFieldChanged(MappingRow row, string? value)
+    {
+        row.Field = value ?? string.Empty;
+        State.Save(row);
+    }
+
+    private void OnExpressionChanged(MappingRow row, string value)
+    {
+        row.Expression = value;
+        State.Save(row);
+    }
+
+    private void CycleKind(MappingRow row)
     {
         row.Kind = row.Kind switch
         {
@@ -133,19 +145,23 @@
         {
             row.Type = "text";
         }
+
+        State.Save(row);
     }
 
     private void CycleTarget(MappingRow row)
     {
         IReadOnlyList<string> names = State.TargetNames;
         row.Target = names[(names.ToList().IndexOf(row.Target) + 1) % names.Count];
+        State.Save(row);
     }
 
-    private static void CycleType(MappingRow row)
+    private void CycleType(MappingRow row)
     {
         string[] types = ["text", "number", "date", "bool"];
         string current = string.IsNullOrEmpty(row.Type) ? "text" : row.Type;
         row.Type = types[(Array.IndexOf(types, current) + 1) % types.Length];
+        State.Save(row);
     }
 
     private MarkupString SourceChips(string target)

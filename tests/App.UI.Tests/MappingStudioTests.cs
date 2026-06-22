@@ -1,5 +1,7 @@
 using App.Application;
+using App.Application.Abstractions;
 using App.Application.Expressions;
+using App.Application.Mappings;
 using App.UI.Components;
 using App.UI.Localization;
 using App.UI.MappingStudio;
@@ -14,10 +16,13 @@ public class MappingStudioTests : BunitContext
     {
         Services.AddApplication(); // FunctionLibrary, ExpressionClassifier, ILineageEngine
         Services.AddSingleton<LanguageState>();
+        Services.AddSingleton<ILocalStore>(new FakeLocalStore());
+        Services.AddSingleton<IMappingRepository, MappingRepository>();
         Services.AddSingleton<MappingStudioState>();
     }
 
-    private static IReadOnlyList<KnownReference> Customer360Refs() => new MappingStudioState().KnownReferences("CUSTOMER_360");
+    private static IReadOnlyList<KnownReference> Customer360Refs()
+        => new MappingStudioState(new MappingRepository(new FakeLocalStore())).KnownReferences("CUSTOMER_360");
 
     [Fact]
     public void Expression_view_highlights_functions_fields_and_literals()

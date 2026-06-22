@@ -83,7 +83,6 @@
       "expressionColumn": "expression",
       "columns": {
         "Cible - Règles de transformation": "expression",
-        "Statut": "kind",
         "Notes": "notes"
       }
     }

@@ -90,7 +90,7 @@ else
         _active = 0;
     }
 
-    private void OnKeyDown(KeyboardEventArgs e)
+    private async Task OnKeyDown(KeyboardEventArgs e)
     {
         bool open = _suggestions.Count > 0;
         switch (e.Key)
@@ -105,7 +105,7 @@ else
                 Accept(_active);
                 break;
             case "Enter":
-                Commit();
+                await Commit();
                 break;
             case "Escape" when open:
                 _suggestions = [];

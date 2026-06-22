@@ -1,10 +1,18 @@
 @page "/t/{Table}"
+@inject LanguageState Lang
 
-@* Generic metadata-driven editor for any catalog table. Dedicated entity pages arrive in v0.7.0. *@
-<PageTitle>@Table</PageTitle>
+@* Catalog-driven entity editor. The same page serves every entity (the schema comes from the
+   catalog), with a localized title for the known entities. *@
+<PageTitle>@TitleFor(Table)</PageTitle>
 
-<MetadataGrid Table="@Table" Title="@Table" />
+<MetadataGrid Table="@Table" Title="@TitleFor(Table)" />
 
 @code {
     [Parameter] public string Table { get; set; } = string.Empty;
+
+    private string TitleFor(string table)
+    {
+        EntityNav? nav = DefaultCatalog.Navigation.FirstOrDefault(n => n.Table == table);
+        return nav is null ? table : Lang.T(nav.NavKey);
+    }
 }

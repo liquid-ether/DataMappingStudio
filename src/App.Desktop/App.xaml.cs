@@ -1,10 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 using App.Application;
 using App.Application.Abstractions;
-using App.Domain.Catalog;
+using App.Application.Provisioning;
 using App.Infrastructure.Local;
 using App.Infrastructure.Remote;
 using App.UI;
@@ -38,17 +37,9 @@ public partial class DesktopApp : System.Windows.Application
         ServiceProvider provider = services.BuildServiceProvider();
 
         // Provision the local working copy.
-        provider.GetRequiredService<ICatalog>().Seed(DemoCatalog());
+        provider.GetRequiredService<ICatalog>().Seed(DefaultCatalog.Entries());
         provider.GetRequiredService<ILocalStore>().EnsureSchema();
 
         new MainWindow(provider).Show();
     }
-
-    private static IReadOnlyList<ColumnCatalogEntry> DemoCatalog() =>
-    [
-        new() { TableName = "widget", ColumnName = "name", ValueType = CatalogValueType.Text, IsRequired = true, LabelEn = "Name", LabelFr = "Nom", DisplayOrder = 1 },
-        new() { TableName = "widget", ColumnName = "qty", ValueType = CatalogValueType.Integer, LabelEn = "Quantity", LabelFr = "Quantité", DisplayOrder = 2 },
-        new() { TableName = "widget", ColumnName = "price", ValueType = CatalogValueType.Number, LabelEn = "Price", LabelFr = "Prix", DisplayOrder = 3 },
-        new() { TableName = "widget", ColumnName = "active", ValueType = CatalogValueType.Boolean, LabelEn = "Active", LabelFr = "Actif", DisplayOrder = 4 },
-    ];
 }

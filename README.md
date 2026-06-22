@@ -16,9 +16,14 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v0.6.0** (UI foundation: shell + design system + dynamic editor) |
+| Current version | **v0.7.0** (Entity editor UIs) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 121 passing (+1 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 138 passing (+1 E2E skipped unless `DMS_E2E=1`) |
+
+**Entity editors (`App.Application.Provisioning` + `App.Web`)** — a `DefaultCatalog` seed of the seven
+normalized entities (principal columns, EN/FR labels, required natural keys); data-driven navigation
+tabs; and catalog-driven editors for Applications, Sources, Dictionary, Config, Classification and
+Rules (the metadata-driven grid pointed at each table — no per-entity code). Verified running.
 
 **UI foundation (`App.UI` + `App.Web` + `App.Desktop`)** — the mockup **design system** ported to
 `_content/App.UI/css/app.css` (IBM Plex, dark top bar, grid/cells/badges, lineage styles); the

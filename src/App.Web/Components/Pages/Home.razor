@@ -5,4 +5,9 @@
 
 <h1 class="page-title">@Lang.T("brand")</h1>
 <p>@Lang.T("welcome")</p>
-<p><a class="add" href="t/widget">@Lang.T("navDemo")</a></p>
+<div class="addbar">
+    @foreach (EntityNav nav in DefaultCatalog.Navigation)
+    {
+        <a class="add" href="t/@nav.Table">@Lang.T(nav.NavKey)</a>
+    }
+</div>

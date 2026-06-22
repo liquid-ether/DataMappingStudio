@@ -5,9 +5,14 @@
 <MsTopBar Tabs="_tabs" />
 
 <div class="ms-wrap">
-    <MetadataGrid Table="widget" Title="Widget" />
+    <MetadataGrid Table="@_table" Title="@Lang.T(_navKey)" />
 </div>
 
 @code {
-    private readonly IReadOnlyList<(string Href, string Key)> _tabs = [];
+    // Non-routed shell: a simple table switcher (full routing/pages are shared via App.Web today).
+    [Inject] public LanguageState Lang { get; set; } = default!;
+
+    private string _table = "application";
+    private string _navKey = "navApplications";
+    private IReadOnlyList<(string Href, string Key)> _tabs = [];
 }

@@ -7,6 +7,27 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-21
+
+The entity editor UIs — every core entity is now CRUD-able through metadata-driven editors.
+
+### Added
+- **`DefaultCatalog`** (`App.Application.Provisioning`): the default column catalog for the seven
+  normalized entities (application, data_source, dictionary_entry, lookup_value, classification, rule,
+  mapping) — principal columns with EN/FR labels and required natural keys — plus a `Navigation` list
+  of the editable entities. Reference/lookup columns are seeded as scalar text for now (Phase 2 /
+  v1.0.0 upgrades them to reference pickers; the importer reconciles the full per-field catalog).
+- **Data-driven navigation**: `MainLayout` builds the top-bar tabs from `DefaultCatalog.Navigation`;
+  `Home` lists the entities; the catalog-driven `/t/{table}` page titles each entity in EN/FR.
+- **Entity editors** for Applications, Sources, Dictionary, Config, Classification and Rules — the
+  `MetadataGrid` pointed at each entity's table (no per-entity code; new columns appear automatically).
+- The web host now provisions `DefaultCatalog` (replacing the demo table); the desktop shell opens the
+  Applications editor.
+- Tests: `DefaultCatalogTests` (entities present, required natural keys, all-valid + bilingual,
+  navigation list) and bUnit `EntityEditorTests` (Applications required `app_code`, Dictionary columns,
+  FR label toggle); a gated Playwright entity-flow E2E (create an Application, persists across reload).
+  138 passing (+1 E2E skipped locally). Web host re-verified (Applications editor renders).
+
 ## [0.6.0] - 2026-06-21
 
 The UI foundation — the mockup design system, the app shell, and the metadata-driven editor, hosted

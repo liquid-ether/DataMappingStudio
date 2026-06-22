@@ -13,6 +13,7 @@
 </div>
 
 @code {
-    // v0.6.0 ships the shell + one demo table; v0.7.0 replaces these with the entity tabs.
-    private readonly IReadOnlyList<(string Href, string Key)> _tabs = [("t/widget", "navDemo")];
+    // Entity tabs are data-driven from the catalog navigation; each links to the catalog-driven editor.
+    private static readonly IReadOnlyList<(string Href, string Key)> _tabs =
+        DefaultCatalog.Navigation.Select(n => ($"t/{n.Table}", n.NavKey)).ToList();
 }

@@ -67,7 +67,7 @@ public sealed class SqliteLocalStore : ILocalStore
         return _db.Connection.Query($"{select}{where} ORDER BY {Q(LocalStoreSchema.Id)}", r => MapRow(table, dataColumns, r));
     }
 
-    public IReadOnlyList<ChangeLogEntry> Upsert(string table, Row row, string changeSetId, string changedBy)
+    public IReadOnlyList<ChangeLogEntry> Upsert(string table, Row row, string changeSetId, string changedBy, ChangeOperation? operation = null)
     {
         Dictionary<string, ColumnCatalogEntry> catalog = _catalog.GetForTable(table)
             .Where(e => !e.IsCore && !LocalStoreSchema.CoreColumns.Contains(e.ColumnName))
@@ -150,7 +150,7 @@ public sealed class SqliteLocalStore : ILocalStore
             c.Execute($"UPDATE {Q(table)} SET {string.Join(", ", setClauses)} WHERE {Q(LocalStoreSchema.Id)} = $id", [.. ps]);
         }
 
-        ChangeOperation op = isNew ? ChangeOperation.Insert : ChangeOperation.Update;
+        ChangeOperation op = operation ?? (isNew ? ChangeOperation.Insert : ChangeOperation.Update);
         IEnumerable<ChangeLogEntry> entries = changes.Select(ch => new ChangeLogEntry
         {
             ChangeId = Guid.NewGuid(),

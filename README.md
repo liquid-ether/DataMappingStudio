@@ -16,9 +16,17 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v0.9.0** (Publish & conflict resolution + sync/audit) |
+| Current version | **v0.10.0** (Excel importer + PowerShell build tooling) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 151 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 157 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+
+**Importer & tooling (`App.Importer` + `build/`)** — the Excel→DB pipeline: an editable
+[`build/import-mapping.json`](build/import-mapping.json) **column-mapping facility** (only listed
+columns import; derived/computed are omitted; unmapped headers are reported), per-catalog
+normalization, **FK resolution by natural key**, **expression field-reference resolution** to
+dictionary entries with free-text fallback, and idempotent **upsert** producing a reviewable
+`Import` change set + `import-report.json`. PowerShell scripts (`provision`, `import` via ImportExcel,
+`rebuild-snapshots`, `convert-format`) back the CLI verbs; Pester tests cover them.
 
 **Publish & sync (`App.Application.Sync` + `App.UI`)** — `SyncCoordinator` ties the local change log,
 the remote store and `PublishService` together (tracks the last-published sequence); the `/publish`

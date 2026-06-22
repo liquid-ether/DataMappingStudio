@@ -37,7 +37,7 @@ public sealed class FakeLocalStore : ILocalStore
             ? rows.Values.Where(r => includeDeleted || !r.IsDeleted).ToList()
             : [];
 
-    public IReadOnlyList<ChangeLogEntry> Upsert(string table, Row row, string changeSetId, string changedBy)
+    public IReadOnlyList<ChangeLogEntry> Upsert(string table, Row row, string changeSetId, string changedBy, ChangeOperation? operation = null)
     {
         if (!_tables.TryGetValue(table, out Dictionary<Guid, Row>? rows))
         {

@@ -7,6 +7,28 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-22
+
+The Excel importer and PowerShell build tooling — the migration path off the current workbook.
+
+### Added
+- **`App.Importer` pipeline** (`Importer`, `ImportMapping`, `ImportReport`): for each worksheet, map
+  only the configured columns (derived/computed omitted; unmapped headers reported), normalize per the
+  catalog, **resolve FK references by natural key**, **resolve expression field-references** to
+  dictionary entries (free-text fallback), and **upsert by natural key** as one reviewable
+  `Import` change set; bad rows are skipped + reported, never aborting the run.
+- **`build/import-mapping.json`** — the editable worksheet→table mapping (columns, naturalKey,
+  references, expressionColumn) for the seven entities, with the `data_source → application` FK by
+  `app_code`.
+- **CLI verbs** in `App.Importer` (`provision`, `import`, `rebuild-snapshots`, `convert-format`) and
+  matching **PowerShell scripts** in `build/` (`import.ps1` exports each worksheet via the `ImportExcel`
+  module to JSON, then invokes the importer).
+- **`ILocalStore.Upsert`** gained an optional operation override so imports tag entries `Import`.
+- Tests: 6 xUnit importer tests (column mapping + unmapped reporting, re-run upsert idempotency, FK
+  resolve + unresolved reporting, required-field skip, expression resolve + free-text fallback) and
+  Pester tests (`tests/Build.Tests`) for the scripts + mapping. CLI import verified end-to-end.
+  157 passing (+4 E2E skipped).
+
 ## [0.9.0] - 2026-06-22
 
 The publish / conflict-resolution UI and the sync + audit machinery — the full edit → publish →

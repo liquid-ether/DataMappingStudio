@@ -19,8 +19,10 @@ public interface ILocalStore
     /// <summary>
     /// Inserts or updates a row, writing one change-log entry per changed field under
     /// <paramref name="changeSetId"/>. Returns the entries written (empty when nothing changed).
+    /// Pass <paramref name="operation"/> to tag the entries (e.g. <see cref="ChangeOperation.Import"/>)
+    /// instead of the default Insert/Update inferred from whether the row is new.
     /// </summary>
-    IReadOnlyList<ChangeLogEntry> Upsert(string table, Row row, string changeSetId, string changedBy);
+    IReadOnlyList<ChangeLogEntry> Upsert(string table, Row row, string changeSetId, string changedBy, ChangeOperation? operation = null);
 
     /// <summary>Soft-deletes a row (sets is_deleted), recording a Delete change-log entry.</summary>
     IReadOnlyList<ChangeLogEntry> SoftDelete(string table, Guid id, string changeSetId, string changedBy);

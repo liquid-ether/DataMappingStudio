@@ -1,0 +1,88 @@
+{
+  "$comment": "Worksheet -> table mapping for the Excel importer (Architecture §10b). Only listed columns are imported; derived/computed columns (NB Fields, UniqueKey, autofills, and all Mapping 'used/shown' columns) are intentionally omitted. Edit freely as workbook headers drift — no rebuild needed.",
+  "worksheets": [
+    {
+      "worksheet": "Apps",
+      "table": "application",
+      "naturalKey": ["app_code"],
+      "columns": {
+        "AppCode": "app_code",
+        "Nom GDM": "name_gdm",
+        "Nom VA360": "name_va360",
+        "Nom Abrégé": "short_name",
+        "Répertoire Valo (Gold)": "gold_root_path",
+        "Description": "description",
+        "Responsable TI": "responsible_it",
+        "Responsable Affaire": "responsible_business"
+      }
+    },
+    {
+      "worksheet": "Config",
+      "table": "lookup_value",
+      "naturalKey": ["lookup_type", "value"],
+      "columns": {
+        "Type": "lookup_type",
+        "Value": "value",
+        "DescriptionEN": "description_en",
+        "DescriptionFR": "description_fr"
+      }
+    },
+    {
+      "worksheet": "Classification",
+      "table": "classification",
+      "naturalKey": ["prp"],
+      "columns": {
+        "ClassificationPRP": "prp",
+        "ClassificationAcces": "access_901",
+        "ClassificationDivulgation": "disclosure_902"
+      }
+    },
+    {
+      "worksheet": "Source",
+      "table": "data_source",
+      "naturalKey": ["name"],
+      "columns": {
+        "Nom": "name",
+        "Description": "description",
+        "Type": "type",
+        "Bloc": "bloc",
+        "Fréquence": "frequency",
+        "Nom complet": "full_name",
+        "Répertoire Brute": "bronze_path",
+        "Répertoire Standardisé": "silver_path",
+        "Répertoire Valo (Gold)": "gold_path",
+        "Statut": "status",
+        "Code applicatif du système": "application_id"
+      },
+      "references": {
+        "application_id": { "table": "application", "by": "app_code" }
+      }
+    },
+    {
+      "worksheet": "Dictionnary",
+      "table": "dictionary_entry",
+      "naturalKey": ["column_name"],
+      "columns": {
+        "Colonne": "column_name",
+        "Ordre": "ordinal",
+        "Type de donnees": "data_type",
+        "Nom Affaire": "business_name",
+        "Description": "description",
+        "Langue": "language",
+        "Statut": "status",
+        "PRP - ID": "classification_prp"
+      }
+    },
+    {
+      "worksheet": "Mapping",
+      "table": "mapping",
+      "naturalKey": [],
+      "expressionColumn": "expression",
+      "columns": {
+        "Cible - Règles de transformation": "expression",
+        "Statut": "kind",
+        "Notes": "notes"
+      }
+    }
+  ]
+}

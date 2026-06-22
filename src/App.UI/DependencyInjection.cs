@@ -1,4 +1,5 @@
 using App.UI.Localization;
+using App.UI.MappingStudio;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace App.UI;
@@ -15,6 +16,7 @@ public static class DependencyInjection
     {
         services.AddLocalization(options => options.ResourcesPath = "Resources");
         services.AddScoped<LanguageState>();
+        services.AddScoped<MappingStudioState>();
         return services;
     }
 }

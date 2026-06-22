@@ -1,0 +1,48 @@
+@inject ExpressionClassifier Classifier
+@using App.Application.Expressions
+
+@* Read-only syntax-highlighted expression (port of the mockup's renderExpr output). *@
+<span class="expr-render">
+    @foreach (ClassifiedToken token in Classifier.Classify(Expression ?? string.Empty, _context))
+    {
+        @switch (token.Type)
+        {
+            case ExpressionTokenType.Whitespace:
+                @token.Text
+                break;
+            case ExpressionTokenType.StringLiteral:
+            case ExpressionTokenType.NumberLiteral:
+                <span class="lit">@token.Text</span>
+                break;
+            case ExpressionTokenType.Operator:
+            case ExpressionTokenType.Punctuation:
+                <span class="punc">@token.Text</span>
+                break;
+            case ExpressionTokenType.Function:
+                <span class="fn">@token.Text</span>
+                break;
+            case ExpressionTokenType.Keyword:
+                <span class="kw">@token.Text</span>
+                break;
+            case ExpressionTokenType.FieldReference:
+                <span class="chip @token.Cls">@token.Text</span>
+                break;
+            case ExpressionTokenType.Unresolved:
+                <span class="unresolved" title="unresolved reference">@token.Text</span>
+                break;
+            default:
+                @token.Text
+                break;
+        }
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired] public string? Expression { get; set; }
+
+    [Parameter] public IReadOnlyList<KnownReference> Refs { get; set; } = [];
+
+    private IResolutionContext _context = ResolutionContext.Empty;
+
+    protected override void OnParametersSet() => _context = new ResolutionContext(Refs);
+}

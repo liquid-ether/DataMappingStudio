@@ -1,0 +1,152 @@
+@inject MappingStudioState State
+@inject ILineageEngine Engine
+@inject LanguageState Lang
+@implements IDisposable
+@using System.Globalization
+@using App.Application.Lineage
+@using App.Domain.Lineage
+@using App.UI.MappingStudio
+
+@* Lineage view — port of the mockup: pick a target field, see its derivation graph (upstream-closure
+   highlighted) and the "Built from" tree, with the count of unresolved references. *@
+<div class="lin-top">
+    <span class="lin-pick">@(Lang.IsFrench ? "Tracer" : "Trace")
+        <select value="@_selected" @onchange="e => Select(e.Value?.ToString())">
+            @foreach (LineageTarget tg in State.Targets)
+            {
+                <optgroup label="@tg.Name">
+                    @foreach (string f in _scenario.ProducedFields(tg.Name))
+                    {
+                        <option value="@LineageNode.MakeId(tg.Name, f)">@f</option>
+                    }
+                </optgroup>
+            }
+        </select></span>
+    <div class="legend">
+        <span><i style="background:var(--srcA)"></i>@(Lang.IsFrench ? "Table source" : "Source table")</span>
+        <span><i style="background:var(--target)"></i>@(Lang.IsFrench ? "Entrée cible" : "Target entry")</span>
+    </div>
+</div>
+
+<div class="lin-layout">
+    <div class="lin-canvas">
+        <svg viewBox="0 0 @Inv(_layout.Width) @Inv(_layout.Height)" width="@Inv(_layout.Width)" height="@Inv(_layout.Height)" xmlns="http://www.w3.org/2000/svg">
+            @foreach (LineageEdgeLine edge in _layout.Edges)
+            {
+                <path class="edge @(edge.Highlight ? "hl-edge" : edge.Dim ? "dim" : null)" d="@edge.Path"></path>
+            }
+            @foreach (LineageCardBox card in _layout.Cards)
+            {
+                <g class="@(card.Dim ? "dim" : null)">
+                    <rect class="ds-card" x="@Inv(card.X)" y="@Inv(card.Y)" width="@Inv(card.W)" height="@Inv(card.H)" rx="9"></rect>
+                    <rect class="@(card.IsTarget ? "ds-head-t" : "ds-head-tbl")" x="@Inv(card.X)" y="@Inv(card.Y)" width="@Inv(card.W)" height="@Inv(30)" rx="9"></rect>
+                    <rect class="@(card.IsTarget ? "ds-head-t" : "ds-head-tbl")" x="@Inv(card.X)" y="@Inv(card.Y + 21)" width="@Inv(card.W)" height="@Inv(9)"></rect>
+                    <text x="@Inv(card.X + 11)" y="@Inv(card.Y + 19)" font-size="11.5" font-weight="600" fill="@(card.IsTarget ? "#b4541d" : "#0a5a62")">@card.DataSet</text>
+                </g>
+                @foreach (LineageNodeBox node in card.Nodes)
+                {
+                    <g class="node @(node.Highlight ? "hl-node" : node.Dim ? "dim" : null)" @onclick="() => Select(node.Id)">
+                        <rect x="@Inv(node.RectX)" y="@Inv(node.RectY)" width="@Inv(node.RectW)" height="@Inv(node.RectH)" rx="4"></rect>
+                        <text x="@Inv(node.RectX + 7)" y="@Inv(node.CenterY + 3.5)">@node.Field</text>
+                    </g>
+                }
+            }
+        </svg>
+    </div>
+
+    <aside class="lin-side">
+        @if (_selected is null)
+        {
+            <h3>@(Lang.IsFrench ? "Traçabilité" : "Lineage")</h3>
+            <p class="sub">@(Lang.IsFrench ? "Cliquez sur un champ cible pour tracer son origine." : "Click a target field to trace its origin.")</p>
+        }
+        else
+        {
+            <h3>@(Lang.IsFrench ? "Construit à partir de" : "Built from")</h3>
+            <div class="sel">@_selectedLabel</div>
+            <div class="sub">@_selectedDataSet</div>
+            <div class="tree">
+                @foreach ((int Depth, string DataSet, string Field, bool IsSourceTable, bool IsLeaf) line in _treeLines)
+                {
+                    <div class="ln">
+                        <span class="lf">@(new string(' ', line.Depth * 2))@(line.Depth > 0 ? "└ " : "")</span>
+                        <span class="nf" style="color:@(line.IsSourceTable ? "#0a5a62" : "#b4541d")">@line.DataSet.@line.Field</span>
+                        @if (line.IsLeaf && line.IsSourceTable)
+                        {
+                            <span class="badge-leaf">@(Lang.IsFrench ? "source" : "source")</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        @if (_graph.UnresolvedCount > 0)
+        {
+            <div class="unres-note">⚠ @_graph.UnresolvedCount @(Lang.IsFrench ? "référence(s) non résolue(s) exclue(s)" : "unresolved reference(s) excluded")</div>
+        }
+    </aside>
+</div>
+
+@code {
+    private LineageScenario _scenario = null!;
+    private LineageGraph _graph = LineageGraph.Empty;
+    private LineageLayoutModel _layout = new(0, 160, [], []);
+    private string? _selected;
+    private string _selectedLabel = string.Empty;
+    private string _selectedDataSet = string.Empty;
+    private List<(int Depth, string DataSet, string Field, bool IsSourceTable, bool IsLeaf)> _treeLines = [];
+
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += StateHasChanged;
+        Rebuild();
+        _selected = _graph.Nodes.Any(n => n.Id == LineageNode.MakeId("MARKETING_SEGMENTS", "priority"))
+            ? LineageNode.MakeId("MARKETING_SEGMENTS", "priority")
+            : _graph.Nodes.FirstOrDefault(n => n.Kind == LineageNodeKind.Target)?.Id;
+        Recompute();
+    }
+
+    public void Dispose() => Lang.OnChange -= StateHasChanged;
+
+    private void Select(string? nodeId)
+    {
+        _selected = string.IsNullOrEmpty(nodeId) ? null : nodeId;
+        Recompute();
+    }
+
+    private void Rebuild()
+    {
+        _scenario = State.BuildScenario();
+        _graph = Engine.Build(_scenario);
+    }
+
+    private void Recompute()
+    {
+        Rebuild();
+        LineageClosure? closure = _selected is null ? null : Engine.UpstreamClosure(_graph, _selected);
+        _layout = LineageLayout.Compute(_scenario, _graph, closure, _selected);
+        _treeLines = [];
+
+        if (_selected is not null)
+        {
+            string[] parts = _selected.Split('§');
+            _selectedDataSet = parts[0];
+            _selectedLabel = $"{parts[0]}.{parts[1]}";
+            LineageTreeNode? tree = Engine.BuiltFrom(_scenario, _graph, _selected);
+            if (tree is not null)
+            {
+                Flatten(tree, 0);
+            }
+        }
+    }
+
+    private void Flatten(LineageTreeNode node, int depth)
+    {
+        _treeLines.Add((depth, node.DataSet, node.Field, node.IsSourceTable, node.IsLeaf));
+        foreach (LineageTreeNode child in node.Children)
+        {
+            Flatten(child, depth + 1);
+        }
+    }
+
+    private static string Inv(double d) => d.ToString(CultureInfo.InvariantCulture);
+}

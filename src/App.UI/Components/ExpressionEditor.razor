@@ -1,0 +1,138 @@
+@inject ExpressionClassifier Classifier
+@inject FunctionLibrary Functions
+@using System.Text.RegularExpressions
+@using App.Application.Expressions
+
+@* Inline expression editor: click to edit; live syntax highlighting (when not editing) + dictionary
+   autocomplete (fields from the resolution context + functions), porting the mockup's editor UX. *@
+@if (!_editing)
+{
+    <div class="cell editable expr-render" @onclick="StartEdit">
+        <ExpressionView Expression="@Expression" Refs="@Refs" />
+    </div>
+}
+else
+{
+    <div class="cell editable">
+        <span class="ed-wrap">
+            <input class="ed-input mono" value="@_value" @oninput="OnInput" @onkeydown="OnKeyDown" @onblur="Commit" @ref="_input" />
+            @if (_suggestions.Count > 0)
+            {
+                <div class="ac">
+                    @{ int i = 0; }
+                    @foreach (Suggestion s in _suggestions)
+                    {
+                        int index = i++;
+                        <div class="ac-item @(index == _active ? "active" : null)"
+                             @onmousedown:preventDefault="true" @onmousedown="() => Accept(index)">
+                            <span class="tag @s.Tag">@s.TagText</span>
+                            <span class="lbl">@s.Display</span>
+                            @if (s.Meta is not null)
+                            {
+                                <span class="meta">@s.Meta</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </span>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Expression { get; set; } = string.Empty;
+
+    [Parameter] public IReadOnlyList<KnownReference> Refs { get; set; } = [];
+
+    [Parameter] public EventCallback<string> OnCommit { get; set; }
+
+    private static readonly Regex TrailingToken = new(@"[A-Za-z_][A-Za-z0-9_.]*$", RegexOptions.Compiled);
+
+    private bool _editing;
+    private string _value = string.Empty;
+    private int _active;
+    private List<Suggestion> _suggestions = [];
+    private ElementReference _input;
+
+    private void StartEdit()
+    {
+        _value = Expression;
+        _editing = true;
+        _suggestions = [];
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        _value = e.Value?.ToString() ?? string.Empty;
+        Recompute();
+    }
+
+    private void Recompute()
+    {
+        Match m = TrailingToken.Match(_value);
+        string token = m.Success ? m.Value : string.Empty;
+        if (token.Length == 0)
+        {
+            _suggestions = [];
+            return;
+        }
+
+        List<Suggestion> list = Refs
+            .Where(r => r.Ref.Contains(token, StringComparison.OrdinalIgnoreCase))
+            .Take(8)
+            .Select(r => new Suggestion(r.Ref, r.Ref, r.Cls, r.Alias, r.DataSet))
+            .ToList();
+
+        list.AddRange(Functions.Matching(token).Take(6)
+            .Select(f => new Suggestion(f.Name + "(", f.Name + "()", "fn", "fn", null)));
+
+        _suggestions = list;
+        _active = 0;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        bool open = _suggestions.Count > 0;
+        switch (e.Key)
+        {
+            case "ArrowDown" when open:
+                _active = (_active + 1) % _suggestions.Count;
+                break;
+            case "ArrowUp" when open:
+                _active = (_active - 1 + _suggestions.Count) % _suggestions.Count;
+                break;
+            case "Enter" when open:
+                Accept(_active);
+                break;
+            case "Enter":
+                Commit();
+                break;
+            case "Escape" when open:
+                _suggestions = [];
+                break;
+            case "Escape":
+                _editing = false; // cancel without committing
+                break;
+        }
+    }
+
+    private void Accept(int index)
+    {
+        Suggestion s = _suggestions[index];
+        _value = TrailingToken.Replace(_value, s.Insert);
+        _suggestions = [];
+    }
+
+    private async Task Commit()
+    {
+        _editing = false;
+        _suggestions = [];
+        if (_value != Expression)
+        {
+            Expression = _value;
+            await OnCommit.InvokeAsync(_value);
+        }
+    }
+
+    private sealed record Suggestion(string Insert, string Display, string Tag, string TagText, string? Meta);
+}

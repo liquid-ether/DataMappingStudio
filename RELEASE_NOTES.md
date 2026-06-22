@@ -7,6 +7,32 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-22
+
+The Mapping Studio and Lineage screens — a faithful Blazor port of the approved mockup.
+
+### Added
+- **`MappingStudioState`** (`App.UI.MappingStudio`): in-memory editable model (targets + sources +
+  rows) seeded with the mockup demo; builds a `LineageScenario` on demand to drive the engines.
+- **`ExpressionView`** — read-only syntax highlighting (functions, keywords, literals, field chips by
+  source colour, unresolved underline) via the Phase-3 `ExpressionClassifier`.
+- **`ExpressionEditor`** — click-to-edit with dictionary + function **autocomplete** (filtered by the
+  trailing token, arrow/enter/escape keys, click-to-insert) and live highlighting; commits back to the row.
+- **`MappingGrid`** — the mappings grid: rows grouped by target with source chips, cycling
+  kind/target/type badges, inline field + expression editing, search + target filter, and the
+  +Field/+Calc/+Join/+Filter add bar.
+- **`LineageLayout`** + **`LineageView`** — the SVG lineage graph (level columns by dataset depth,
+  cubic-bezier edges, upstream-closure highlight + dimming), the "Built from" tree, and the
+  unresolved-reference count, driven by the Phase-3 `LineageEngine`. SVG coords are invariant-formatted
+  so they survive the FR culture toggle.
+- Pages `/mappings` and `/lineage` with nav tabs; `MappingStudioState` registered scoped in `AddAppUi`.
+- Tests: 6 bUnit (expression highlight, grid grouping + chips + add-row, lineage closure + unresolved,
+  autocomplete) + a gated Playwright studio flow. 144 passing (+3 E2E skipped). Pages re-verified live.
+
+### Notes
+- The studio edits an in-memory model (as the mockup did); persisting rows to the `mapping` table and
+  binding sources/aliases to stored data is a later refinement.
+
 ## [0.7.0] - 2026-06-21
 
 The entity editor UIs — every core entity is now CRUD-able through metadata-driven editors.

@@ -16,9 +16,16 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v0.7.0** (Entity editor UIs) |
+| Current version | **v0.8.0** (Mapping Studio + Lineage UI) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 138 passing (+1 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 144 passing (+3 E2E skipped unless `DMS_E2E=1`) |
+
+**Mapping Studio + Lineage (`App.UI`)** — the mockup's two signature screens, ported to Blazor over
+an editable `MappingStudioState`: the **mappings grid** (rows grouped by target with source chips,
+cycling kind/target/type badges, the add bar), the inline **`ExpressionEditor`** (dictionary +
+function autocomplete, live syntax highlighting via the Phase-3 engine, unresolved underlines), and
+the **lineage view** (`LineageLayout` → SVG graph with upstream-closure highlight, the "Built from"
+tree, and the unresolved-reference count). Live at `/mappings` and `/lineage`.
 
 **Entity editors (`App.Application.Provisioning` + `App.Web`)** — a `DefaultCatalog` seed of the seven
 normalized entities (principal columns, EN/FR labels, required natural keys); data-driven navigation

@@ -1,0 +1,166 @@
+@inject MappingStudioState State
+@inject LanguageState Lang
+@implements IDisposable
+@using App.Application.Lineage
+@using App.Domain.Entities
+@using App.UI.MappingStudio
+
+@* Excel-like mappings grid — a port of the mockup: rows grouped by target with source chips, inline
+   kind/target/type badges (click to cycle), field text, the expression editor, and the add bar. *@
+<div class="toolbar">
+    <label class="search"><span class="mag">⌕</span>
+        <input type="text" placeholder="@Lang.T("search")" value="@_search" @oninput="e => { _search = e.Value?.ToString() ?? string.Empty; }" /></label>
+    <span class="filt">@Lang.T("tabMappings")
+        <select value="@_targetFilter" @onchange="OnTargetFilterChanged">
+            <option value="*">@(Lang.IsFrench ? "Toutes" : "All")</option>
+            @foreach (string t in State.TargetNames)
+            {
+                <option value="@t">@t</option>
+            }
+        </select></span>
+    <span class="count">@_visible.Count mappings</span>
+</div>
+
+<div class="gridbox">
+    <table class="grid">
+        <thead>
+            <tr><th>Kind</th><th>Target</th><th>Field</th><th>Expression</th><th>Type</th><th></th></tr>
+        </thead>
+        <tbody>
+            @{ string? lastTarget = null; bool group = string.IsNullOrWhiteSpace(_search); }
+            @foreach ((MappingRow row, int index) in _visible)
+            {
+                if (group && row.Target != lastTarget)
+                {
+                    lastTarget = row.Target;
+                    <tr class="grp"><td colspan="6"><div class="grp-cell"><span class="tline">▸ @row.Target</span>@SourceChips(row.Target)</div></td></tr>
+                }
+                <tr @key="row">
+                    <td><div class="cell pickable"><span class="kind-badge @row.Kind.ToString().ToLowerInvariant()" @onclick="() => CycleKind(row)">@KindLabel(row.Kind)</span></div></td>
+                    <td><div class="cell pickable" @onclick="() => CycleTarget(row)"><span class="mono" style="font-size:12px;color:var(--ink-soft)">@row.Target</span></div></td>
+                    <td>
+                        @if (row.ProducesField)
+                        {
+                            <div class="cell editable"><input class="gi fld" value="@row.Field" @onchange="e => row.Field = e.Value?.ToString() ?? string.Empty" /></div>
+                        }
+                        else
+                        {
+                            <div class="cell muted">—</div>
+                        }
+                    </td>
+                    <td>
+                        <ExpressionEditor Expression="@row.Expression" Refs="@State.KnownReferences(row.Target)" OnCommit="v => row.Expression = v" />
+                    </td>
+                    <td>
+                        @if (row.ProducesField)
+                        {
+                            <div class="cell pickable"><span class="type-badge" @onclick="() => CycleType(row)">@(string.IsNullOrEmpty(row.Type) ? "text" : row.Type)</span></div>
+                        }
+                        else
+                        {
+                            <div class="cell muted">—</div>
+                        }
+                    </td>
+                    <td><div class="cell"><span class="rowx" title="remove" @onclick="() => State.DeleteRow(row)">✕</span></div></td>
+                </tr>
+            }
+            @if (_visible.Count == 0)
+            {
+                <tr><td colspan="6"><div class="cell muted" style="padding:18px">No mappings match.</div></td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="addbar">
+    <span class="lab">@(Lang.IsFrench ? "Ajouter à" : "Add to")</span>
+    <select value="@_addTarget" @onchange="OnAddTargetChanged">
+        @foreach (string t in State.TargetNames)
+        {
+            <option value="@t">@t</option>
+        }
+    </select>
+    <button class="add" @onclick="() => State.AddRow(MappingKind.Field, _addTarget)"><span class="plus">+</span> Field</button>
+    <button class="add" @onclick="() => State.AddRow(MappingKind.Calc, _addTarget)"><span class="plus">+</span> Calculated</button>
+    <button class="add" @onclick="() => State.AddRow(MappingKind.Join, _addTarget)"><span class="plus">+</span> Join</button>
+    <button class="add" @onclick="() => State.AddRow(MappingKind.Filter, _addTarget)"><span class="plus">+</span> Filter</button>
+</div>
+
+@code {
+    private string _search = string.Empty;
+    private string _targetFilter = "*";
+    private string _addTarget = string.Empty;
+
+    private IReadOnlyList<(MappingRow Row, int Index)> _visible =>
+        State.VisibleRows(_search, _targetFilter);
+
+    protected override void OnInitialized()
+    {
+        _addTarget = State.TargetNames.FirstOrDefault() ?? string.Empty;
+        Lang.OnChange += StateHasChanged;
+    }
+
+    public void Dispose() => Lang.OnChange -= StateHasChanged;
+
+    private void OnTargetFilterChanged(ChangeEventArgs e) => _targetFilter = e.Value?.ToString() ?? "*";
+
+    private void OnAddTargetChanged(ChangeEventArgs e) => _addTarget = e.Value?.ToString() ?? State.TargetNames[0];
+
+    private static string KindLabel(MappingKind kind) => kind switch
+    {
+        MappingKind.Calc => "Calculated",
+        MappingKind.Join => "Join",
+        MappingKind.Filter => "Filter",
+        _ => "Field",
+    };
+
+    private static void CycleKind(MappingRow row)
+    {
+        row.Kind = row.Kind switch
+        {
+            MappingKind.Field => MappingKind.Calc,
+            MappingKind.Calc => MappingKind.Join,
+            MappingKind.Join => MappingKind.Filter,
+            _ => MappingKind.Field,
+        };
+
+        if (!row.ProducesField)
+        {
+            row.Field = string.Empty;
+            row.Type = string.Empty;
+        }
+        else if (string.IsNullOrEmpty(row.Type))
+        {
+            row.Type = "text";
+        }
+    }
+
+    private void CycleTarget(MappingRow row)
+    {
+        IReadOnlyList<string> names = State.TargetNames;
+        row.Target = names[(names.ToList().IndexOf(row.Target) + 1) % names.Count];
+    }
+
+    private static void CycleType(MappingRow row)
+    {
+        string[] types = ["text", "number", "date", "bool"];
+        string current = string.IsNullOrEmpty(row.Type) ? "text" : row.Type;
+        row.Type = types[(Array.IndexOf(types, current) + 1) % types.Length];
+    }
+
+    private MarkupString SourceChips(string target)
+    {
+        LineageTarget? tg = State.Targets.FirstOrDefault(t => t.Name == target);
+        if (tg is null)
+        {
+            return new MarkupString(string.Empty);
+        }
+
+        string chips = string.Concat(tg.Sources.Select(s =>
+        {
+            string color = s.Cls switch { "a" => "var(--srcA)", "b" => "var(--srcB)", "g" => "var(--srcG)", _ => "var(--target)" };
+            return $"<span class=\"schip\" style=\"background:{color}\">{System.Net.WebUtility.HtmlEncode(s.Alias)}:{System.Net.WebUtility.HtmlEncode(s.Name)}</span>";
+        }));
+        return new MarkupString($"<span class=\"srcs\">{chips}</span>");
+    }
+}

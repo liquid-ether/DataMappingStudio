@@ -13,7 +13,11 @@
 </div>
 
 @code {
-    // Entity tabs are data-driven from the catalog navigation; each links to the catalog-driven editor.
+    // Entity tabs are data-driven from the catalog navigation, then the Mapping Studio + Lineage tabs.
     private static readonly IReadOnlyList<(string Href, string Key)> _tabs =
-        DefaultCatalog.Navigation.Select(n => ($"t/{n.Table}", n.NavKey)).ToList();
+    [
+        .. DefaultCatalog.Navigation.Select(n => ($"t/{n.Table}", n.NavKey)),
+        ("mappings", "tabMappings"),
+        ("lineage", "tabLineage"),
+    ];
 }

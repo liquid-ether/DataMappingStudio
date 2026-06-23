@@ -16,14 +16,19 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.2.2** — desktop navigation + diagnostics |
+| Current version | **v1.2.3** — sample/demo dataset |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 174 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 182 passing (+4 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
 
 The desktop has a **working top-bar menu** that switches between all editors (Applications, Sources,
 Dictionary, Config, Classification, Rules), the Mapping Studio, Lineage, History and Publish — the
 Blazor Hybrid shell is a non-routed view switcher mirroring the web host's navigation.
+
+A **sample dataset** seeds automatically into a fresh desktop store: 10 applications, 100 data sources,
+5000 dictionary entries (5–150 fields/source), classifications, lookups, rules, and a 30-target Mapping
+Studio model whose lineage chains are up to 5 levels deep. To (re)load it into an existing database run
+`build/seed-sample-data.ps1` (resets + reseeds), or `App.Importer seed-sample <local.db>`.
 
 The desktop distributable is `MappingStudio.exe` + a tiny `wwwroot\index.html` host page, in two
 flavours: **self-contained** (~70 MB, no install) and **compact** (~41 MB, needs the .NET 10 Desktop

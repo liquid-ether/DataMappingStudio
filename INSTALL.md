@@ -48,6 +48,13 @@ Your work is saved automatically on your PC under:
 (That folder contains `local.db` — your working copy — and a `remote` folder.) You can paste that path
 into File Explorer's address bar to find it.
 
+### Sample data
+The **first time you run the app on a fresh machine**, it fills itself with a realistic demo dataset
+(10 applications, 100 data sources, 5000 dictionary entries, and a 30-target Mapping Studio model) so
+you have something to explore. To reload it later into an existing database, close the app and run
+`build/seed-sample-data.ps1` (it backs up your current `local.db`, then reseeds), or delete
+`%LOCALAPPDATA%\MappingStudio\local.db` and reopen the app.
+
 > By itself the app works fully on your own machine. To **share and merge edits with colleagues**, point
 > it at a shared folder — see section 2.
 

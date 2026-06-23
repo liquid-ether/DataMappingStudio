@@ -33,6 +33,14 @@ ICatalog catalog = app.Services.GetRequiredService<ICatalog>();
 catalog.Seed(DefaultCatalog.Entries());
 app.Services.GetRequiredService<ILocalStore>().EnsureSchema();
 
+// Optionally seed the demo dataset on a fresh store (off by default so tests/CI stay deterministic):
+// set "SeedSampleData=true" (appsettings or the SeedSampleData env var) to populate all tables.
+if (app.Configuration.GetValue("SeedSampleData", false))
+{
+    int seeded = new SampleDataSeeder(app.Services.GetRequiredService<LocalDatabase>()).SeedIfEmpty();
+    app.Logger.LogInformation("Seeded {Count} sample rows.", seeded);
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);

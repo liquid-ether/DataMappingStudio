@@ -7,6 +7,24 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-06-23
+
+### Added
+- **Sample/demo dataset** spanning every table: 10 applications, 100 data sources, 5000 dictionary
+  entries (5–150 fields per source), 5 classifications, lookup values, reusable rules, and a Mapping
+  Studio model of **30 targets across 5 lineage levels** (the deepest target derives through 5 target
+  hops down to raw sources). Deterministic generator `SampleData` (App.Application.Provisioning) +
+  `SampleDataSeeder` (App.Infrastructure.Local), which bulk-inserts in one transaction as a canonical
+  baseline (no change-log/publish bloat).
+- The desktop **auto-seeds** this dataset on a fresh store (empty `application` table, before the
+  Mapping Studio demo loads). The web host seeds it only when `SeedSampleData=true` (default off, so
+  tests/CI stay deterministic).
+- New tooling: `App.Importer seed-sample <dbPath>` and `build/seed-sample-data.ps1` (resets the
+  desktop DB, backing it up, then reseeds).
+- Tests: generator counts/distribution/lineage-depth/reference-integrity/determinism
+  (`SampleDataTests`) and a real-SQLite seed + computed `field_count` check (`SampleDataSeederTests`).
+  Suite: **182 passing**.
+
 ## [1.2.2] - 2026-06-23
 
 ### Fixed

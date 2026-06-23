@@ -34,6 +34,8 @@ switch (args[0])
         return Report(args[1], args[2], args.Length >= 4 ? args[3] : "parquet");
     case "compact" when args.Length >= 2:
         return Compact(args[1], args.Length >= 3 ? int.Parse(args[2]) : 90, args.Length >= 4 ? args[3] : "parquet");
+    case "seed-sample" when args.Length >= 2:
+        return SeedSample(args[1]);
     default:
         Usage();
         return 1;
@@ -132,6 +134,19 @@ static int Report(string dbPath, string remoteFolder, string format)
     return 0;
 }
 
+static int SeedSample(string dbPath)
+{
+    using ServiceProvider provider = BuildProvider(dbPath, remoteFolder: Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath))!, "_remote"));
+    provider.GetRequiredService<ICatalog>().Seed(DefaultCatalog.Entries());
+    provider.GetRequiredService<ILocalStore>().EnsureSchema();
+
+    int seeded = new SampleDataSeeder(provider.GetRequiredService<LocalDatabase>()).SeedIfEmpty();
+    Console.WriteLine(seeded == 0
+        ? $"Store at {dbPath} already has data; nothing seeded."
+        : $"Seeded {seeded} sample rows into {dbPath} (10 applications, 100 sources, 5000 dictionary entries, 30 mapping targets).");
+    return 0;
+}
+
 static int Compact(string remoteFolder, int olderThanDays, string format)
 {
     using ServiceProvider provider = BuildProvider(Path.Combine(remoteFolder, "_compact.db"), remoteFolder, format);
@@ -187,4 +202,5 @@ static void Usage() => Console.WriteLine(
     "  rebuild-snapshots <dbPath> <remoteFolder> [format]\n" +
     "  convert-format <remoteFolder> <fromFormat> <toFormat>\n" +
     "  report <dbPath> <remoteFolder> [format]\n" +
-    "  compact <remoteFolder> [olderThanDays] [format]");
+    "  compact <remoteFolder> [olderThanDays] [format]\n" +
+    "  seed-sample <dbPath>");

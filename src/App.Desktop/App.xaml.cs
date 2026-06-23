@@ -67,7 +67,10 @@ public partial class DesktopApp : System.Windows.Application
             // Provision the local working copy.
             provider.GetRequiredService<ICatalog>().Seed(DefaultCatalog.Entries());
             provider.GetRequiredService<ILocalStore>().EnsureSchema();
-            logProvider.Append($"{DateTimeOffset.Now:O} [Information] Provisioned local store; opening window.");
+
+            // On a fresh store, seed the demo dataset (all entities + a 30-target lineage model).
+            int seeded = new SampleDataSeeder(provider.GetRequiredService<LocalDatabase>()).SeedIfEmpty();
+            logProvider.Append($"{DateTimeOffset.Now:O} [Information] Provisioned local store (seeded {seeded} sample rows); opening window.");
 
             new MainWindow(provider).Show();
         }

@@ -5,11 +5,15 @@
 @using App.Domain.Entities
 @using App.UI.MappingStudio
 
-@* Excel-like mappings grid — a port of the mockup: rows grouped by target with source chips, inline
-   kind/target/type badges (click to cycle), field text, the expression editor, and the add bar. *@
+@* Mappings grid backed by the local store. Uses a virtualized QuickGrid so thousands of mapping rows
+   render without lag; rows carry inline kind/target/type badges (click to cycle) and the expression
+   editor. Filter by target or search to narrow the set. *@
+@{
+    IReadOnlyList<(MappingRow Row, int Index)> visible = State.VisibleRows(_search, _targetFilter);
+}
 <div class="toolbar">
     <label class="search"><span class="mag">⌕</span>
-        <input type="text" placeholder="@Lang.T("search")" value="@_search" @oninput="e => { _search = e.Value?.ToString() ?? string.Empty; }" /></label>
+        <input type="text" placeholder="@Lang.T("search")" value="@_search" @oninput="e => _search = e.Value?.ToString() ?? string.Empty" /></label>
     <span class="filt">@Lang.T("tabMappings")
         <select value="@_targetFilter" @onchange="OnTargetFilterChanged">
             <option value="*">@(Lang.IsFrench ? "Toutes" : "All")</option>
@@ -18,58 +22,44 @@
                 <option value="@t">@t</option>
             }
         </select></span>
-    <span class="count">@_visible.Count mappings</span>
+    <span class="count">@visible.Count mappings</span>
 </div>
 
 <div class="gridbox">
-    <table class="grid">
-        <thead>
-            <tr><th>Kind</th><th>Target</th><th>Field</th><th>Expression</th><th>Type</th><th></th></tr>
-        </thead>
-        <tbody>
-            @{ string? lastTarget = null; bool group = string.IsNullOrWhiteSpace(_search); }
-            @foreach ((MappingRow row, int index) in _visible)
+    <QuickGrid Items="@visible.Select(v => v.Row).AsQueryable()" Virtualize="@GridVirtualize" ItemSize="34" Class="quickgrid">
+        <TemplateColumn Title="Kind">
+            <div class="cell pickable"><span class="kind-badge @context.Kind.ToString().ToLowerInvariant()" @onclick="() => CycleKind(context)">@KindLabel(context.Kind)</span></div>
+        </TemplateColumn>
+        <TemplateColumn Title="Target">
+            <div class="cell pickable" @onclick="() => CycleTarget(context)"><span class="mono" style="font-size:12px;color:var(--ink-soft)">@context.Target</span></div>
+        </TemplateColumn>
+        <TemplateColumn Title="Field">
+            @if (context.ProducesField)
             {
-                if (group && row.Target != lastTarget)
-                {
-                    lastTarget = row.Target;
-                    <tr class="grp"><td colspan="6"><div class="grp-cell"><span class="tline">▸ @row.Target</span>@SourceChips(row.Target)</div></td></tr>
-                }
-                <tr @key="row">
-                    <td><div class="cell pickable"><span class="kind-badge @row.Kind.ToString().ToLowerInvariant()" @onclick="() => CycleKind(row)">@KindLabel(row.Kind)</span></div></td>
-                    <td><div class="cell pickable" @onclick="() => CycleTarget(row)"><span class="mono" style="font-size:12px;color:var(--ink-soft)">@row.Target</span></div></td>
-                    <td>
-                        @if (row.ProducesField)
-                        {
-                            <div class="cell editable"><input class="gi fld" value="@row.Field" @onchange="e => OnFieldChanged(row, e.Value?.ToString())" /></div>
-                        }
-                        else
-                        {
-                            <div class="cell muted">—</div>
-                        }
-                    </td>
-                    <td>
-                        <ExpressionEditor Expression="@row.Expression" Refs="@State.KnownReferences(row.Target)" OnCommit="v => OnExpressionChanged(row, v)" />
-                    </td>
-                    <td>
-                        @if (row.ProducesField)
-                        {
-                            <div class="cell pickable"><span class="type-badge" @onclick="() => CycleType(row)">@(string.IsNullOrEmpty(row.Type) ? "text" : row.Type)</span></div>
-                        }
-                        else
-                        {
-                            <div class="cell muted">—</div>
-                        }
-                    </td>
-                    <td><div class="cell"><span class="rowx" title="remove" @onclick="() => State.DeleteRow(row)">✕</span></div></td>
-                </tr>
+                <div class="cell editable"><input class="gi fld" value="@context.Field" @onchange="e => OnFieldChanged(context, e.Value?.ToString())" /></div>
             }
-            @if (_visible.Count == 0)
+            else
             {
-                <tr><td colspan="6"><div class="cell muted" style="padding:18px">No mappings match.</div></td></tr>
+                <div class="cell muted">—</div>
             }
-        </tbody>
-    </table>
+        </TemplateColumn>
+        <TemplateColumn Title="Expression">
+            <ExpressionEditor Expression="@context.Expression" Refs="@State.KnownReferences(context.Target)" OnCommit="v => OnExpressionChanged(context, v)" />
+        </TemplateColumn>
+        <TemplateColumn Title="Type">
+            @if (context.ProducesField)
+            {
+                <div class="cell pickable"><span class="type-badge" @onclick="() => CycleType(context)">@(string.IsNullOrEmpty(context.Type) ? "text" : context.Type)</span></div>
+            }
+            else
+            {
+                <div class="cell muted">—</div>
+            }
+        </TemplateColumn>
+        <TemplateColumn Title="">
+            <div class="cell"><span class="rowx" title="remove" @onclick="() => State.DeleteRow(context)">✕</span></div>
+        </TemplateColumn>
+    </QuickGrid>
 </div>
 
 <div class="addbar">
@@ -87,12 +77,12 @@
 </div>
 
 @code {
+    // Virtualize by default; tests cascade false so QuickGrid renders all rows without JS.
+    [CascadingParameter(Name = "GridVirtualize")] public bool GridVirtualize { get; set; } = true;
+
     private string _search = string.Empty;
     private string _targetFilter = "*";
     private string _addTarget = string.Empty;
-
-    private IReadOnlyList<(MappingRow Row, int Index)> _visible =>
-        State.VisibleRows(_search, _targetFilter);
 
     protected override void OnInitialized()
     {
@@ -104,7 +94,7 @@
 
     private void OnTargetFilterChanged(ChangeEventArgs e) => _targetFilter = e.Value?.ToString() ?? "*";
 
-    private void OnAddTargetChanged(ChangeEventArgs e) => _addTarget = e.Value?.ToString() ?? State.TargetNames[0];
+    private void OnAddTargetChanged(ChangeEventArgs e) => _addTarget = e.Value?.ToString() ?? State.TargetNames.FirstOrDefault() ?? string.Empty;
 
     private static string KindLabel(MappingKind kind) => kind switch
     {
@@ -152,6 +142,11 @@
     private void CycleTarget(MappingRow row)
     {
         IReadOnlyList<string> names = State.TargetNames;
+        if (names.Count == 0)
+        {
+            return;
+        }
+
         row.Target = names[(names.ToList().IndexOf(row.Target) + 1) % names.Count];
         State.Save(row);
     }
@@ -162,21 +157,5 @@
         string current = string.IsNullOrEmpty(row.Type) ? "text" : row.Type;
         row.Type = types[(Array.IndexOf(types, current) + 1) % types.Length];
         State.Save(row);
-    }
-
-    private MarkupString SourceChips(string target)
-    {
-        LineageTarget? tg = State.Targets.FirstOrDefault(t => t.Name == target);
-        if (tg is null)
-        {
-            return new MarkupString(string.Empty);
-        }
-
-        string chips = string.Concat(tg.Sources.Select(s =>
-        {
-            string color = s.Cls switch { "a" => "var(--srcA)", "b" => "var(--srcB)", "g" => "var(--srcG)", _ => "var(--target)" };
-            return $"<span class=\"schip\" style=\"background:{color}\">{System.Net.WebUtility.HtmlEncode(s.Alias)}:{System.Net.WebUtility.HtmlEncode(s.Name)}</span>";
-        }));
-        return new MarkupString($"<span class=\"srcs\">{chips}</span>");
     }
 }

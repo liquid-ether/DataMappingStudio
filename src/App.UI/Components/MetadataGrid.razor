@@ -7,101 +7,84 @@
 @using Microsoft.Extensions.DependencyInjection
 
 @* Metadata-driven editor: columns and rows render from the column catalog, so a new column appears
-   with no code change (Architecture §4). Inline edit + add-row + add-column + required validation. *@
+   with no code change (Architecture §4). Rows render in a virtualized QuickGrid so large tables (e.g.
+   thousands of dictionary entries) stay responsive. Inline edit + add-row + add-column + validation. *@
 <div class="toolbar">
     <h2 class="page-title">@Title</h2>
     <span class="count">@_rows.Count</span>
 </div>
 
 <div class="gridbox">
-    <table class="grid">
-        <thead>
-            <tr>
-                @foreach (ColumnCatalogEntry col in _columns)
-                {
-                    <th>@Lang.Label(col.LabelEn, col.LabelFr)@(col.IsRequired ? new MarkupString("<span class=\"req\">*</span>") : default)</th>
-                }
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @if (_rows.Count == 0 && _draft is null)
-            {
-                <tr><td colspan="@(_columns.Count + 1)"><div class="cell muted">@Lang.T("noRows")</div></td></tr>
-            }
-            @foreach (Row row in _rows)
-            {
-                <tr @key="row.Id">
-                    @foreach (ColumnCatalogEntry col in _columns)
+    <QuickGrid Items="@_rows.AsQueryable()" Virtualize="@GridVirtualize" ItemSize="34" Class="quickgrid">
+        @foreach (ColumnCatalogEntry col in _columns)
+        {
+            ColumnCatalogEntry c = col;
+            <TemplateColumn>
+                <HeaderTemplate>@Lang.Label(c.LabelEn, c.LabelFr)@if (c.IsRequired) {<span class="req">*</span>}</HeaderTemplate>
+                <ChildContent>
+                    @if (c.Kind == ColumnKind.Computed && _computed is not null)
                     {
-                        <td>
-                            @if (col.Kind == ColumnKind.Computed && _computed is not null)
-                            {
-                                <div class="cell muted" title="computed">@_computed.Evaluate(Table, col.ColumnName, row)</div>
-                            }
-                            else if (col.Kind == ColumnKind.Reference && _refs is not null)
-                            {
-                                <div class="cell editable">
-                                    <select class="gi" value="@row[col.ColumnName]" @onchange="e => CommitCell(row, col, e.Value?.ToString())">
-                                        <option value="">—</option>
-                                        @foreach (ReferenceOption opt in _refs.Options(col.ReferenceTarget!))
-                                        {
-                                            <option value="@opt.Id">@opt.Display</option>
-                                        }
-                                    </select>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="cell editable">
-                                    <input class="gi @(IsInvalid(row, col) ? "invalid" : null)"
-                                           value="@row[col.ColumnName]"
-                                           @onchange="e => CommitCell(row, col, e.Value?.ToString())" />
-                                </div>
-                            }
-                        </td>
+                        <div class="cell muted" title="computed">@_computed.Evaluate(Table, c.ColumnName, context)</div>
                     }
-                    <td><div class="cell"><span class="rowx" title="remove" @onclick="() => DeleteRow(row)">✕</span></div></td>
-                </tr>
-            }
-            @if (_draft is not null)
-            {
-                <tr @key="@("draft")">
-                    @foreach (ColumnCatalogEntry col in _columns)
+                    else if (c.Kind == ColumnKind.Reference && _refs is not null)
                     {
-                        <td>
-                            @if (col.Kind == ColumnKind.Computed)
-                            {
-                                <div class="cell muted">—</div>
-                            }
-                            else if (col.Kind == ColumnKind.Reference && _refs is not null)
-                            {
-                                <div class="cell editable">
-                                    <select class="gi" value="@_draft[col.ColumnName]" @onchange="e => _draft[col.ColumnName] = Blank(e.Value?.ToString())">
-                                        <option value="">—</option>
-                                        @foreach (ReferenceOption opt in _refs.Options(col.ReferenceTarget!))
-                                        {
-                                            <option value="@opt.Id">@opt.Display</option>
-                                        }
-                                    </select>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="cell editable">
-                                    <input class="gi" placeholder="@Lang.Label(col.LabelEn, col.LabelFr)"
-                                           value="@_draft[col.ColumnName]"
-                                           @onchange="e => _draft[col.ColumnName] = Blank(e.Value?.ToString())" />
-                                </div>
-                            }
-                        </td>
+                        <div class="cell editable">
+                            <select class="gi" value="@context[c.ColumnName]" @onchange="e => CommitCell(context, c, e.Value?.ToString())">
+                                <option value="">—</option>
+                                @foreach (ReferenceOption opt in _refs.Options(c.ReferenceTarget!))
+                                {
+                                    <option value="@opt.Id">@opt.Display</option>
+                                }
+                            </select>
+                        </div>
                     }
-                    <td><div class="cell"></div></td>
-                </tr>
-            }
-        </tbody>
-    </table>
+                    else
+                    {
+                        <div class="cell editable">
+                            <input class="gi @(IsInvalid(context, c) ? "invalid" : null)"
+                                   value="@context[c.ColumnName]"
+                                   @onchange="e => CommitCell(context, c, e.Value?.ToString())" />
+                        </div>
+                    }
+                </ChildContent>
+            </TemplateColumn>
+        }
+        <TemplateColumn Title="">
+            <div class="cell"><span class="rowx" title="remove" @onclick="() => DeleteRow(context)">✕</span></div>
+        </TemplateColumn>
+    </QuickGrid>
 </div>
+
+@if (_rows.Count == 0 && _draft is null)
+{
+    <div class="cell muted" style="padding:12px">@Lang.T("noRows")</div>
+}
+
+@if (_draft is not null)
+{
+    <div class="draftbar">
+        @foreach (ColumnCatalogEntry col in _columns)
+        {
+            ColumnCatalogEntry c = col;
+            @if (c.Kind == ColumnKind.Reference && _refs is not null)
+            {
+                <select class="gi" value="@_draft[c.ColumnName]" @onchange="e => _draft[c.ColumnName] = Blank(e.Value?.ToString())">
+                    <option value="">@Lang.Label(c.LabelEn, c.LabelFr)</option>
+                    @foreach (ReferenceOption opt in _refs.Options(c.ReferenceTarget!))
+                    {
+                        <option value="@opt.Id">@opt.Display</option>
+                    }
+                </select>
+            }
+            else if (c.Kind != ColumnKind.Computed)
+            {
+                <input class="gi" placeholder="@Lang.Label(c.LabelEn, c.LabelFr)"
+                       value="@_draft[c.ColumnName]"
+                       @onchange="e => _draft[c.ColumnName] = Blank(e.Value?.ToString())" />
+            }
+        }
+    </div>
+}
 
 @if (_error is not null)
 {
@@ -143,6 +126,9 @@
     [Parameter] public string ChangedBy { get; set; } = "analyst";
 
     [Parameter] public string? Title { get; set; }
+
+    // Virtualize by default; tests cascade false so QuickGrid renders all rows without JS.
+    [CascadingParameter(Name = "GridVirtualize")] public bool GridVirtualize { get; set; } = true;
 
     private IReadOnlyList<ColumnCatalogEntry> _columns = [];
     private List<Row> _rows = [];

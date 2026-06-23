@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace App.UI.Tests;
 
-public class MetadataGridTests : BunitContext
+public class MetadataGridTests : AppTestContext
 {
     private FakeCatalog _catalog = null!;
 

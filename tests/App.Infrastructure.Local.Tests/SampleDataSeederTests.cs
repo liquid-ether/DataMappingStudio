@@ -1,3 +1,4 @@
+using App.Application.Catalog;
 using App.Application.Provisioning;
 using App.Application.References;
 using App.Domain.Data;
@@ -61,6 +62,20 @@ public sealed class SampleDataSeederTests : IDisposable
 
         Assert.Equal(actualFields.ToString(), references.Evaluate(TableNames.DataSource, "field_count", source));
         Assert.InRange(actualFields, 5, 150);
+    }
+
+    [Fact]
+    public void Catalog_query_exposes_sources_and_their_dictionary_fields()
+    {
+        new SampleDataSeeder(_db).SeedIfEmpty();
+        CatalogQuery query = new(_store);
+
+        Assert.Equal(100, query.DataSources().Count);
+
+        DataSourceInfo source = query.DataSources()[0];
+        int expected = _store.GetAll(TableNames.DictionaryEntry).Count(e => e["source_id"] == source.Id.ToString());
+        Assert.Equal(expected, query.FieldNames(source.Name).Count);
+        Assert.Equal(expected, query.FieldsByDataSourceName()[source.Name].Count);
     }
 
     public void Dispose()

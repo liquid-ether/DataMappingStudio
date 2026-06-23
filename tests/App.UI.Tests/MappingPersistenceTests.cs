@@ -1,3 +1,4 @@
+using App.Application.Catalog;
 using App.Application.Mappings;
 using App.Domain.Entities;
 using App.UI.MappingStudio;
@@ -7,7 +8,7 @@ namespace App.UI.Tests;
 public class MappingPersistenceTests
 {
     private static MappingStudioState Studio(FakeLocalStore store)
-        => new(new MappingRepository(store), new MappingTargetRepository(store));
+        => new(new MappingRepository(store), new MappingTargetRepository(store), new CatalogQuery(store));
 
     [Fact]
     public void Repository_round_trips_a_mapping_record()

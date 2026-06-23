@@ -48,7 +48,18 @@ a{color:var(--focus)}
 .filt select,.add select{font:inherit;font-size:13px;border:1px solid var(--line-strong);border-radius:7px;padding:6px 8px;background:#fff;color:var(--ink)}
 .count{margin-left:auto;color:var(--ink-faint);font-size:12px}
 
-.gridbox{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:auto}
+.gridbox{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:auto;max-height:calc(100vh - 210px)}
+/* QuickGrid renders its own table; align it with the app's grid look and let it virtualize/scroll. */
+.gridbox .quickgrid{width:100%;border-collapse:collapse;font-size:13px;min-width:720px}
+.gridbox .quickgrid thead th{position:sticky;top:0;z-index:2;background:var(--panel-2);text-align:left;
+  padding:8px 10px;font-weight:600;border-bottom:1px solid var(--line);white-space:nowrap}
+.gridbox .quickgrid td{padding:0 6px;border-bottom:1px solid var(--line);vertical-align:middle;height:34px}
+.gridbox .quickgrid tr:hover td{background:#fafcfc}
+/* Inline draft-row editor (add new record) shown below the grid. */
+.draftbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 2px}
+.draftbar .gi{min-width:120px}
+/* Lineage source autocomplete input. */
+.lin-src{margin-left:6px;min-width:240px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font:inherit}
 table.grid{width:100%;border-collapse:collapse;font-size:13px;min-width:720px}
 table.grid thead th{position:sticky;top:0;z-index:2;background:var(--panel-2);text-align:left;
   font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);

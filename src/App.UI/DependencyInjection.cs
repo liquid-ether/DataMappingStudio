@@ -1,3 +1,4 @@
+using App.Application.Catalog;
 using App.Application.Mappings;
 using App.Application.References;
 using App.UI.Localization;
@@ -24,6 +25,9 @@ public static class DependencyInjection
         services.AddScoped<ReferenceService>();
         services.AddScoped<IReferenceResolver>(sp => sp.GetRequiredService<ReferenceService>());
         services.AddScoped<IComputedEvaluator>(sp => sp.GetRequiredService<ReferenceService>());
+
+        // Real data-model queries (data sources + their dictionary fields) driving the studio + lineage.
+        services.AddScoped<ICatalogQuery, CatalogQuery>();
 
         // Mapping Studio rows + target/source alias structure persist to the local store (so edits sync).
         services.AddScoped<IMappingRepository, MappingRepository>();

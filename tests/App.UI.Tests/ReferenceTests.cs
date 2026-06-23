@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace App.UI.Tests;
 
-public class ReferenceTests : BunitContext
+public class ReferenceTests : AppTestContext
 {
     private static readonly Guid AppId = Guid.Parse("a0000000-0000-0000-0000-000000000001");
     private static readonly Guid SourceId = Guid.Parse("50000000-0000-0000-0000-000000000001");

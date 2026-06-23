@@ -27,7 +27,7 @@ public sealed class FakeSyncCoordinator : ISyncCoordinator
     public IReadOnlyList<ChangeLogEntry> History(string? table = null, Guid? rowId = null) => [];
 }
 
-public class PublishTests : BunitContext
+public class PublishTests : AppTestContext
 {
     private FakeSyncCoordinator _sync = null!;
 

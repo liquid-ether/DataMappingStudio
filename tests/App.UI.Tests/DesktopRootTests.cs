@@ -18,7 +18,7 @@ namespace App.UI.Tests;
 /// Renders the Blazor Hybrid desktop root component with the same service shape the desktop host wires,
 /// to reproduce/guard the desktop's component tree (the web host is exercised separately).
 /// </summary>
-public class DesktopRootTests : BunitContext
+public class DesktopRootTests : AppTestContext
 {
     [Fact]
     public void Desktop_root_renders_without_error()
@@ -77,6 +77,7 @@ public class DesktopRootTests : BunitContext
         Services.AddSingleton<ICatalog>(new FakeCatalog(DefaultCatalog.Entries()));
         Services.AddSingleton<ILocalStore>(new FakeLocalStore());
         Services.AddSingleton<LanguageState>();
+        Services.AddSingleton<App.Application.Catalog.ICatalogQuery, App.Application.Catalog.CatalogQuery>();
         Services.AddSingleton<IMappingRepository, MappingRepository>();
         Services.AddSingleton<IMappingTargetRepository, MappingTargetRepository>();
         Services.AddSingleton<MappingStudioState>();

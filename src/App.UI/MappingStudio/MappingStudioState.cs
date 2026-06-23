@@ -1,3 +1,4 @@
+using App.Application.Catalog;
 using App.Application.Expressions;
 using App.Application.Lineage;
 using App.Application.Mappings;
@@ -36,7 +37,7 @@ public sealed class MappingRow
 /// the change log and publish/sync (Architecture §6/§8). The target/source (alias) structure used for
 /// lineage context is seeded configuration for now. On first run (empty table) the demo is seeded.
 /// </summary>
-public sealed class MappingStudioState(IMappingRepository repository, IMappingTargetRepository targetRepository)
+public sealed class MappingStudioState(IMappingRepository repository, IMappingTargetRepository targetRepository, ICatalogQuery catalogQuery)
 {
     private const string WriterId = "analyst";
 
@@ -145,7 +146,9 @@ public sealed class MappingStudioState(IMappingRepository repository, IMappingTa
             targets = targetRepository.GetAll().ToList();
         }
 
-        _targets.AddRange(targets);
+        // Link raw sources to the real data model: replace stored field lists with the live dictionary
+        // columns of the matching data source (falls back to the stored fields when there is no match).
+        _targets.AddRange(EnrichSources(targets));
 
         // Mapping rows.
         List<MappingRecord> existing = repository.GetAll().ToList();
@@ -161,6 +164,20 @@ public sealed class MappingStudioState(IMappingRepository repository, IMappingTa
         {
             _rows.AddRange(existing.Select(MappingRow.FromRecord));
         }
+    }
+
+    /// <summary>The data sources available to map from (real <c>data_source</c> rows), for the lineage picker.</summary>
+    public IReadOnlyList<DataSourceInfo> DataSources() => catalogQuery.DataSources();
+
+    private IEnumerable<LineageTarget> EnrichSources(IEnumerable<LineageTarget> targets)
+    {
+        IReadOnlyDictionary<string, IReadOnlyList<string>> fieldMap = catalogQuery.FieldsByDataSourceName();
+
+        return targets.Select(t => new LineageTarget(t.Name, t.Sources
+            .Select(s => !s.IsTarget && fieldMap.TryGetValue(s.Name, out IReadOnlyList<string>? fields) && fields.Count > 0
+                ? s with { Fields = fields }
+                : s)
+            .ToList()));
     }
 
     private static IEnumerable<LineageTarget> DemoTargets() =>

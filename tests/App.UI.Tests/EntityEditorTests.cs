@@ -11,7 +11,7 @@ namespace App.UI.Tests;
 /// The entity editors are the metadata-driven grid pointed at each entity's table — these confirm the
 /// default catalog drives them with the right columns/labels in both languages.
 /// </summary>
-public class EntityEditorTests : BunitContext
+public class EntityEditorTests : AppTestContext
 {
     private IRenderedComponent<MetadataGrid> RenderEntity(string table)
     {

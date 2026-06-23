@@ -32,6 +32,65 @@ public sealed class LineageScenario(IReadOnlyList<LineageTarget> targets, IReadO
 
     public LineageTarget? TargetByName(string name) => Targets.FirstOrDefault(t => t.Name == name);
 
+    /// <summary>The raw (non-target) source names referenced by any target — the selectable lineage sources.</summary>
+    public IReadOnlyList<string> SourceNames() => Targets
+        .SelectMany(t => t.Sources)
+        .Where(s => !s.IsTarget)
+        .Select(s => s.Name)
+        .Distinct(StringComparer.Ordinal)
+        .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    /// <summary>
+    /// A sub-scenario centred on <paramref name="sourceName"/>: the targets that consume it (and everything
+    /// downstream of those), plus one hop of upstream context so each target's other sources still render.
+    /// Returns an empty scenario when the source feeds no target. Keeps the view lean for large models.
+    /// </summary>
+    public LineageScenario ScopedToSource(string sourceName)
+    {
+        HashSet<string> included = Targets
+            .Where(t => t.Sources.Any(s => !s.IsTarget && string.Equals(s.Name, sourceName, StringComparison.Ordinal)))
+            .Select(t => t.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (included.Count == 0)
+        {
+            return new LineageScenario([], []);
+        }
+
+        // Downstream impact: pull in every target transitively built from an included target.
+        bool grew = true;
+        while (grew)
+        {
+            grew = false;
+            foreach (LineageTarget t in Targets)
+            {
+                if (!included.Contains(t.Name) && t.Sources.Any(s => s.IsTarget && included.Contains(s.Name)))
+                {
+                    included.Add(t.Name);
+                    grew = true;
+                }
+            }
+        }
+
+        // One hop of upstream context so each included target's upstream target-sources render with fields.
+        HashSet<string> withContext = new(included, StringComparer.Ordinal);
+        foreach (string name in included)
+        {
+            foreach (LineageSource s in TargetByName(name)?.Sources ?? [])
+            {
+                if (s.IsTarget)
+                {
+                    withContext.Add(s.Name);
+                }
+            }
+        }
+
+        List<LineageTarget> targets = Targets.Where(t => withContext.Contains(t.Name)).ToList();
+        List<LineageRow> rows = Rows.Where(r => withContext.Contains(r.Target)).ToList();
+        return new LineageScenario(targets, rows);
+    }
+
     /// <summary>Fields a target produces (its field/calc rows), in row order, de-duplicated.</summary>
     public IReadOnlyList<string> ProducedFields(string name)
     {

@@ -7,90 +7,105 @@
 @using App.Domain.Lineage
 @using App.UI.MappingStudio
 
-@* Lineage view — port of the mockup: pick a target field, see its derivation graph (upstream-closure
-   highlighted) and the "Built from" tree, with the count of unresolved references. *@
+@* Source-scoped lineage: pick a source (autocomplete over the real data sources). The graph is rebuilt
+   for just that source — the targets it feeds, everything downstream, and each target's other sources —
+   so the view stays lean with hundreds of sources. Click a field to trace its "Built from" path. *@
 <div class="lin-top">
-    <span class="lin-pick">@(Lang.IsFrench ? "Tracer" : "Trace")
-        <select value="@_selected" @onchange="e => Select(e.Value?.ToString())">
-            @foreach (LineageTarget tg in State.Targets)
+    <span class="lin-pick">@(Lang.IsFrench ? "Source" : "Source")
+        <input list="lin-sources" class="lin-src" placeholder="@(Lang.IsFrench ? "Choisir une source…" : "Pick a source…")"
+               value="@_source" @onchange="e => SelectSource(e.Value?.ToString())" />
+        <datalist id="lin-sources">
+            @foreach (string s in _sources)
             {
-                <optgroup label="@tg.Name">
-                    @foreach (string f in _scenario.ProducedFields(tg.Name))
-                    {
-                        <option value="@LineageNode.MakeId(tg.Name, f)">@f</option>
-                    }
-                </optgroup>
+                <option value="@s"></option>
             }
-        </select></span>
+        </datalist>
+    </span>
     <div class="legend">
         <span><i style="background:var(--srcA)"></i>@(Lang.IsFrench ? "Table source" : "Source table")</span>
         <span><i style="background:var(--target)"></i>@(Lang.IsFrench ? "Entrée cible" : "Target entry")</span>
     </div>
 </div>
 
-<div class="lin-layout">
-    <div class="lin-canvas">
-        <svg viewBox="0 0 @Inv(_layout.Width) @Inv(_layout.Height)" width="@Inv(_layout.Width)" height="@Inv(_layout.Height)" xmlns="http://www.w3.org/2000/svg">
-            @foreach (LineageEdgeLine edge in _layout.Edges)
-            {
-                <path class="edge @(edge.Highlight ? "hl-edge" : edge.Dim ? "dim" : null)" d="@edge.Path"></path>
-            }
-            @foreach (LineageCardBox card in _layout.Cards)
-            {
-                <g class="@(card.Dim ? "dim" : null)">
-                    <rect class="ds-card" x="@Inv(card.X)" y="@Inv(card.Y)" width="@Inv(card.W)" height="@Inv(card.H)" rx="9"></rect>
-                    <rect class="@(card.IsTarget ? "ds-head-t" : "ds-head-tbl")" x="@Inv(card.X)" y="@Inv(card.Y)" width="@Inv(card.W)" height="@Inv(30)" rx="9"></rect>
-                    <rect class="@(card.IsTarget ? "ds-head-t" : "ds-head-tbl")" x="@Inv(card.X)" y="@Inv(card.Y + 21)" width="@Inv(card.W)" height="@Inv(9)"></rect>
-                    <text x="@Inv(card.X + 11)" y="@Inv(card.Y + 19)" font-size="11.5" font-weight="600" fill="@(card.IsTarget ? "#b4541d" : "#0a5a62")">@card.DataSet</text>
-                </g>
-                @foreach (LineageNodeBox node in card.Nodes)
+@if (string.IsNullOrEmpty(_source))
+{
+    <p class="sub" style="padding:16px">@(Lang.IsFrench ? "Choisissez une source pour afficher sa traçabilité." : "Pick a source to see its lineage.")</p>
+}
+else if (_graph.Nodes.Count == 0)
+{
+    <p class="sub" style="padding:16px"><b>@_source</b> @(Lang.IsFrench ? "n'alimente aucune cible." : "does not feed any target.")</p>
+}
+else
+{
+    <div class="lin-layout">
+        <div class="lin-canvas">
+            <svg viewBox="0 0 @Inv(_layout.Width) @Inv(_layout.Height)" width="@Inv(_layout.Width)" height="@Inv(_layout.Height)" xmlns="http://www.w3.org/2000/svg">
+                @foreach (LineageEdgeLine edge in _layout.Edges)
                 {
-                    <g class="node @(node.Highlight ? "hl-node" : node.Dim ? "dim" : null)" @onclick="() => Select(node.Id)">
-                        <rect x="@Inv(node.RectX)" y="@Inv(node.RectY)" width="@Inv(node.RectW)" height="@Inv(node.RectH)" rx="4"></rect>
-                        <text x="@Inv(node.RectX + 7)" y="@Inv(node.CenterY + 3.5)">@node.Field</text>
+                    <path class="edge @(edge.Highlight ? "hl-edge" : edge.Dim ? "dim" : null)" d="@edge.Path"></path>
+                }
+                @foreach (LineageCardBox card in _layout.Cards)
+                {
+                    <g class="@(card.Dim ? "dim" : null)">
+                        <rect class="ds-card" x="@Inv(card.X)" y="@Inv(card.Y)" width="@Inv(card.W)" height="@Inv(card.H)" rx="9"></rect>
+                        <rect class="@(card.IsTarget ? "ds-head-t" : "ds-head-tbl")" x="@Inv(card.X)" y="@Inv(card.Y)" width="@Inv(card.W)" height="@Inv(30)" rx="9"></rect>
+                        <rect class="@(card.IsTarget ? "ds-head-t" : "ds-head-tbl")" x="@Inv(card.X)" y="@Inv(card.Y + 21)" width="@Inv(card.W)" height="@Inv(9)"></rect>
+                        <text x="@Inv(card.X + 11)" y="@Inv(card.Y + 19)" font-size="11.5" font-weight="600" fill="@(card.IsTarget ? "#b4541d" : "#0a5a62")">@card.DataSet</text>
                     </g>
+                    @foreach (LineageNodeBox node in card.Nodes)
+                    {
+                        <g class="node @(node.Highlight ? "hl-node" : node.Dim ? "dim" : null)" @onclick="() => SelectNode(node.Id)">
+                            <rect x="@Inv(node.RectX)" y="@Inv(node.RectY)" width="@Inv(node.RectW)" height="@Inv(node.RectH)" rx="4"></rect>
+                            <text x="@Inv(node.RectX + 7)" y="@Inv(node.CenterY + 3.5)">@node.Field</text>
+                        </g>
+                    }
                 }
-            }
-        </svg>
-    </div>
+            </svg>
+        </div>
 
-    <aside class="lin-side">
-        @if (_selected is null)
-        {
-            <h3>@(Lang.IsFrench ? "Traçabilité" : "Lineage")</h3>
-            <p class="sub">@(Lang.IsFrench ? "Cliquez sur un champ cible pour tracer son origine." : "Click a target field to trace its origin.")</p>
-        }
-        else
-        {
-            <h3>@(Lang.IsFrench ? "Construit à partir de" : "Built from")</h3>
-            <div class="sel">@_selectedLabel</div>
-            <div class="sub">@_selectedDataSet</div>
-            <div class="tree">
-                @foreach ((int Depth, string DataSet, string Field, bool IsSourceTable, bool IsLeaf) line in _treeLines)
-                {
-                    <div class="ln">
-                        <span class="lf">@(new string(' ', line.Depth * 2))@(line.Depth > 0 ? "└ " : "")</span>
-                        <span class="nf" style="color:@(line.IsSourceTable ? "#0a5a62" : "#b4541d")">@line.DataSet.@line.Field</span>
-                        @if (line.IsLeaf && line.IsSourceTable)
-                        {
-                            <span class="badge-leaf">@(Lang.IsFrench ? "source" : "source")</span>
-                        }
-                    </div>
-                }
-            </div>
-        }
-        @if (_graph.UnresolvedCount > 0)
-        {
-            <div class="unres-note">⚠ @_graph.UnresolvedCount @(Lang.IsFrench ? "référence(s) non résolue(s) exclue(s)" : "unresolved reference(s) excluded")</div>
-        }
-    </aside>
-</div>
+        <aside class="lin-side">
+            @if (_selectedNode is null)
+            {
+                <h3>@(Lang.IsFrench ? "Traçabilité" : "Lineage")</h3>
+                <div class="sub">@(Lang.IsFrench ? "Source" : "Source"): <b>@_source</b></div>
+                <p class="sub">@(Lang.IsFrench ? "Cliquez sur un champ cible pour tracer son origine." : "Click a target field to trace its origin.")</p>
+            }
+            else
+            {
+                <h3>@(Lang.IsFrench ? "Construit à partir de" : "Built from")</h3>
+                <div class="sel">@_selectedLabel</div>
+                <div class="sub">@_selectedDataSet</div>
+                <div class="tree">
+                    @foreach ((int Depth, string DataSet, string Field, bool IsSourceTable, bool IsLeaf) line in _treeLines)
+                    {
+                        <div class="ln">
+                            <span class="lf">@(new string(' ', line.Depth * 2))@(line.Depth > 0 ? "└ " : "")</span>
+                            <span class="nf" style="color:@(line.IsSourceTable ? "#0a5a62" : "#b4541d")">@line.DataSet.@line.Field</span>
+                            @if (line.IsLeaf && line.IsSourceTable)
+                            {
+                                <span class="badge-leaf">@(Lang.IsFrench ? "source" : "source")</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            @if (_graph.UnresolvedCount > 0)
+            {
+                <div class="unres-note">⚠ @_graph.UnresolvedCount @(Lang.IsFrench ? "référence(s) non résolue(s) exclue(s)" : "unresolved reference(s) excluded")</div>
+            }
+        </aside>
+    </div>
+}
 
 @code {
-    private LineageScenario _scenario = null!;
+    private LineageScenario _full = new([], []);
+    private IReadOnlyList<string> _sources = [];
+    private string _source = string.Empty;
+
+    private LineageScenario _scenario = new([], []);
     private LineageGraph _graph = LineageGraph.Empty;
     private LineageLayoutModel _layout = new(0, 160, [], []);
-    private string? _selected;
+    private string? _selectedNode;
     private string _selectedLabel = string.Empty;
     private string _selectedDataSet = string.Empty;
     private List<(int Depth, string DataSet, string Field, bool IsSourceTable, bool IsLeaf)> _treeLines = [];
@@ -98,40 +113,40 @@
     protected override void OnInitialized()
     {
         Lang.OnChange += StateHasChanged;
-        Rebuild();
-        _selected = _graph.Nodes.Any(n => n.Id == LineageNode.MakeId("MARKETING_SEGMENTS", "priority"))
-            ? LineageNode.MakeId("MARKETING_SEGMENTS", "priority")
-            : _graph.Nodes.FirstOrDefault(n => n.Kind == LineageNodeKind.Target)?.Id;
-        Recompute();
+        _full = State.BuildScenario();
+        _sources = _full.SourceNames();
+        SelectSource(_sources.FirstOrDefault()); // start on the first source so something is shown
     }
 
     public void Dispose() => Lang.OnChange -= StateHasChanged;
 
-    private void Select(string? nodeId)
+    private void SelectSource(string? name)
     {
-        _selected = string.IsNullOrEmpty(nodeId) ? null : nodeId;
+        _source = name ?? string.Empty;
+        _selectedNode = null;
+        _scenario = string.IsNullOrEmpty(_source) ? new LineageScenario([], []) : _full.ScopedToSource(_source);
+        _graph = Engine.Build(_scenario);
         Recompute();
     }
 
-    private void Rebuild()
+    private void SelectNode(string id)
     {
-        _scenario = State.BuildScenario();
-        _graph = Engine.Build(_scenario);
+        _selectedNode = id;
+        Recompute();
     }
 
     private void Recompute()
     {
-        Rebuild();
-        LineageClosure? closure = _selected is null ? null : Engine.UpstreamClosure(_graph, _selected);
-        _layout = LineageLayout.Compute(_scenario, _graph, closure, _selected);
+        LineageClosure? closure = _selectedNode is null ? null : Engine.UpstreamClosure(_graph, _selectedNode);
+        _layout = LineageLayout.Compute(_scenario, _graph, closure, _selectedNode);
         _treeLines = [];
 
-        if (_selected is not null)
+        if (_selectedNode is not null)
         {
-            string[] parts = _selected.Split('§');
+            string[] parts = _selectedNode.Split('§');
             _selectedDataSet = parts[0];
             _selectedLabel = $"{parts[0]}.{parts[1]}";
-            LineageTreeNode? tree = Engine.BuiltFrom(_scenario, _graph, _selected);
+            LineageTreeNode? tree = Engine.BuiltFrom(_scenario, _graph, _selectedNode);
             if (tree is not null)
             {
                 Flatten(tree, 0);

@@ -3,7 +3,7 @@ using Bunit;
 
 namespace App.UI.Tests;
 
-public class ComponentSmokeTests : BunitContext
+public class ComponentSmokeTests : AppTestContext
 {
     [Fact]
     public void Shared_component_renders()

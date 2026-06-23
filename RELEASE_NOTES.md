@@ -7,6 +7,29 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-23
+
+### Changed
+- **Mapping Studio & Lineage are now linked to the real data model.** A target's raw sources resolve to
+  real `data_source` rows and their fields come from the live `dictionary_entry` columns (new
+  `ICatalogQuery`/`CatalogQuery`), instead of free-text alias field lists. `MappingStudioState` enriches
+  each source's fields from the dictionary on load (falling back to stored fields when a source has no
+  matching data source).
+- **Lineage view is now source-scoped.** Pick a source from an autocomplete (over the real data sources);
+  the graph is rebuilt for just that source — the targets it feeds, everything downstream, and each
+  target's other sources — so the view stays lean with hundreds of sources and redraws on change. Click a
+  field to trace its "Built from" path. (`LineageScenario.ScopedToSource`/`SourceNames`.)
+- **Grids are virtualized with QuickGrid.** The Mapping grid and the metadata entity editors (e.g. the
+  5000-row dictionary) render through `Microsoft.AspNetCore.Components.QuickGrid` with virtualization, so
+  large tables stay responsive. The mapping grid trades the per-target group rows/source chips for a flat,
+  virtualized table with a Target column (the target filter and search remain).
+
+### Added
+- `Microsoft.AspNetCore.Components.QuickGrid` dependency (App.UI).
+- Tests: `LineageScenarioScopeTests` (scoping + source list), `MappingStudioLinkTests` (dictionary-backed
+  fields + lineage picker), `CatalogQuery` coverage, and a bUnit base context that runs loose JS interop
+  and disables grid virtualization so QuickGrid renders fully under test. Suite: **189 passing**.
+
 ## [1.2.3] - 2026-06-23
 
 ### Added

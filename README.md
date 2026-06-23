@@ -16,9 +16,9 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.2.3** — sample/demo dataset |
+| Current version | **v1.3.0** — data-model-linked studio, scoped lineage, virtualized grids |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 182 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 189 passing (+4 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
 
 The desktop has a **working top-bar menu** that switches between all editors (Applications, Sources,
@@ -29,6 +29,13 @@ A **sample dataset** seeds automatically into a fresh desktop store: 10 applicat
 5000 dictionary entries (5–150 fields/source), classifications, lookups, rules, and a 30-target Mapping
 Studio model whose lineage chains are up to 5 levels deep. To (re)load it into an existing database run
 `build/seed-sample-data.ps1` (resets + reseeds), or `App.Importer seed-sample <local.db>`.
+
+The **Mapping Studio and Lineage are driven by the real data model**: a target's sources are real
+`data_source` rows and their fields come from the `dictionary_entry` columns (`CatalogQuery`). The
+**Lineage** view picks a source from an autocomplete and draws only that source's scoped graph (the
+targets it feeds, downstream, plus each target's other sources), so it stays lean with hundreds of
+sources. The **Mapping** and entity grids use a **virtualized QuickGrid**, so thousands of mapping and
+dictionary rows render without lag.
 
 The desktop distributable is `MappingStudio.exe` + a tiny `wwwroot\index.html` host page, in two
 flavours: **self-contained** (~70 MB, no install) and **compact** (~41 MB, needs the .NET 10 Desktop

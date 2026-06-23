@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace App.UI.Tests;
 
-public class MsTopBarTests : BunitContext
+public class MsTopBarTests : AppTestContext
 {
     public MsTopBarTests() => Services.AddSingleton<LanguageState>();
 

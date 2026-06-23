@@ -14,7 +14,8 @@ If you only want to run the app on your own PC, do **section 1** and stop there.
 
 ## 1. Desktop app (for analysts)
 
-The desktop app is a **single file**, `MappingStudio.exe`. Nothing else needs to be installed.
+The desktop app is `MappingStudio.exe` plus a tiny `wwwroot\index.html` file that must sit next to it
+(keep them together in the same folder). Nothing else needs to be installed.
 
 ### Requirements
 - **Windows 10 (version 1809 / build 17763) or newer, or Windows 11** (64-bit).
@@ -28,8 +29,10 @@ The desktop app is a **single file**, `MappingStudio.exe`. Nothing else needs to
     "Windows x64"). If it isn't installed, Windows will offer to download it the first time you run the app.
 
 ### Steps
-1. Get the file **`MappingStudio.exe`** from your IT team (or build it — see section 5).
-2. Put it anywhere convenient, e.g. your Desktop or `Documents`.
+1. Get **`MappingStudio.exe`** and its **`wwwroot`** folder from your IT team (or build them — see
+   section 5). Keep both together.
+2. Put them anywhere convenient, e.g. your Desktop or `Documents` (the `wwwroot` folder must stay
+   beside the exe).
 3. **Double-click `MappingStudio.exe`.** The first launch takes a few seconds (it unpacks itself); after
    that it opens quickly.
 4. The app opens with the navigation tabs across the top (Applications, Sources, Dictionary, Config,
@@ -143,15 +146,17 @@ dotnet run --project src/App.Desktop         # run the desktop shell locally
 
 ### Produce the distributables
 ```powershell
-./build/publish-desktop.ps1                      # -> publish\desktop\MappingStudio.exe  (~70 MB, no .NET install needed)
-./build/publish-desktop.ps1 -FrameworkDependent  # -> smaller (~41 MB), requires the .NET 10 Desktop Runtime
+./build/publish-desktop.ps1                      # -> publish\desktop\  (~70 MB exe, no .NET install needed)
+./build/publish-desktop.ps1 -FrameworkDependent  # -> smaller (~41 MB exe), requires the .NET 10 Desktop Runtime
 ./build/publish-web.ps1                          # -> publish\web\  (self-contained web host)
 ```
 
-Both desktop builds are a single `win-x64` `.exe` (the WebView2 loader, the SQLite native library and
-the WinRT projection are bundled; the WebView host page is embedded and extracted to
-`%LOCALAPPDATA%\MappingStudio` on first run). The self-contained build additionally bundles the .NET
-runtime + WPF; the compact build relies on the installed .NET 10 Desktop Runtime.
+Each desktop build produces `publish\desktop\MappingStudio.exe` **plus a `wwwroot\index.html`** host
+page that must ship beside it — distribute the whole `publish\desktop` folder (or zip it). The exe is a
+single `win-x64` file (the WebView2 loader, the SQLite native library and the WinRT projection are
+bundled; the web assets are embedded in the bundled assemblies and resolved against the host page next
+to the exe). The self-contained build additionally bundles the .NET runtime + WPF; the compact build
+relies on the installed .NET 10 Desktop Runtime.
 
 ### Validate the desktop build
 After publishing, run the startup smoke test — it launches the exe and confirms it gets past
@@ -160,6 +165,9 @@ WPF/WebView2 initialization without crashing:
 ```powershell
 ./build/smoke-desktop.ps1        # exit code 0 = pass (needs an interactive Windows desktop session)
 ```
+
+If the app opens but a screen is blank with an error bar, check the per-launch log under
+`%LOCALAPPDATA%\MappingStudio\logs` for the detailed exception.
 
 ---
 

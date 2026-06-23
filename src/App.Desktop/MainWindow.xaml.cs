@@ -6,10 +6,9 @@ namespace App.Desktop;
 /// <summary>The Blazor Hybrid shell window: a single <c>BlazorWebView</c> hosting the App.UI root component.</summary>
 public partial class MainWindow : Window
 {
-    public MainWindow(IServiceProvider services, string hostPagePath)
+    public MainWindow(IServiceProvider services)
     {
         InitializeComponent();
-        webView.HostPage = hostPagePath; // extracted from the embedded resource at startup
-        webView.Services = services;
+        webView.Services = services; // HostPage (wwwroot/index.html) is set in XAML, relative to the app dir
     }
 }

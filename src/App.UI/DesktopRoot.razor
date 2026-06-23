@@ -1,18 +1,62 @@
 @namespace App.UI
+@using App.Application.Provisioning
+@implements IDisposable
 
-@* Root component for the Blazor Hybrid desktop shell. Renders the same App.UI components the web host
-   uses, proving one component tree serves both hosts (Architecture §5a). Non-routed for now. *@
-<MsTopBar Tabs="_tabs" />
+@* Root component for the Blazor Hybrid desktop shell. Blazor Hybrid has no URL router, so this is a
+   non-routed view switcher: the top bar's tabs select an in-app view, rendering the same App.UI
+   components the web host routes to (Architecture §5a — one component tree serves both hosts). *@
+<MsTopBar Tabs="_tabs" ActiveHref="@_active" OnSelect="Select" OnPublish="ShowPublish" />
 
 <div class="ms-wrap">
-    <MetadataGrid Table="@_table" Title="@Lang.T(_navKey)" />
+    @if (_active == "mappings")
+    {
+        <MappingGrid />
+    }
+    else if (_active == "lineage")
+    {
+        <LineageView />
+    }
+    else if (_active == "history")
+    {
+        <HistoryView />
+    }
+    else if (_active == "publish")
+    {
+        <PublishPanel />
+    }
+    else if (_active.StartsWith("t/", StringComparison.Ordinal))
+    {
+        string table = _active["t/".Length..];
+        <MetadataGrid Table="@table" Title="@TitleFor(table)" />
+    }
 </div>
 
 @code {
-    // Non-routed shell: a simple table switcher (full routing/pages are shared via App.Web today).
     [Inject] public LanguageState Lang { get; set; } = default!;
 
-    private string _table = "application";
-    private string _navKey = "navApplications";
-    private IReadOnlyList<(string Href, string Key)> _tabs = [];
+    // Entity tabs are data-driven from the catalog navigation, then Mapping Studio, Lineage and History —
+    // mirroring the web host's MainLayout so both shells expose the same destinations.
+    private static readonly IReadOnlyList<(string Href, string Key)> _tabs =
+    [
+        .. DefaultCatalog.Navigation.Select(n => ($"t/{n.Table}", n.NavKey)),
+        ("mappings", "tabMappings"),
+        ("lineage", "tabLineage"),
+        ("history", "navHistory"),
+    ];
+
+    private string _active = $"t/{DefaultCatalog.Navigation[0].Table}";
+
+    private void Select(string href) => _active = href;
+
+    private void ShowPublish() => _active = "publish";
+
+    private string TitleFor(string table)
+    {
+        EntityNav? nav = DefaultCatalog.Navigation.FirstOrDefault(n => n.Table == table);
+        return nav is null ? table : Lang.T(nav.NavKey);
+    }
+
+    protected override void OnInitialized() => Lang.OnChange += StateHasChanged;
+
+    public void Dispose() => Lang.OnChange -= StateHasChanged;
 }

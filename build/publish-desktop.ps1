@@ -27,9 +27,9 @@ if (-not $FrameworkDependent) { $publishArgs += '-p:EnableCompressionInSingleFil
 
 dotnet publish $project @publishArgs
 
-# Prune the non-runtime leftovers (XML doc files) so the distributable is a single .exe.
-Get-ChildItem $Output -Recurse -File | Where-Object { $_.Extension -ne '.exe' } | Remove-Item -Force
-Get-ChildItem $Output -Recurse -Directory | Sort-Object FullName -Descending | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+# Prune only debug/doc leftovers. KEEP wwwroot\index.html — BlazorWebView needs it next to the exe to
+# resolve the embedded _framework/_content assets, so the distributable is MappingStudio.exe + that file.
+Get-ChildItem $Output -Recurse -File | Where-Object { $_.Extension -in '.pdb', '.xml' } | Remove-Item -Force
 
 Write-Host ""
 Write-Host ("Published {0} desktop app to: {1}" -f $(if ($FrameworkDependent) { 'framework-dependent' } else { 'self-contained' }), $Output)

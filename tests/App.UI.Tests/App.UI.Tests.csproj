@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="bunit" Version="2.7.2" />
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.9" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
@@ -23,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\App.UI\App.UI.csproj" />
+    <ProjectReference Include="..\..\src\App.Infrastructure.Local\App.Infrastructure.Local.csproj" />
   </ItemGroup>
 
 </Project>

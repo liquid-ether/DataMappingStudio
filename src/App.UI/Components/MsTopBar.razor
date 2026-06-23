@@ -7,7 +7,15 @@
     <nav class="ms-tabs">
         @foreach ((string Href, string Key) tab in Tabs)
         {
-            <NavLink class="@(tab.Href == "" ? "active" : null)" href="@tab.Href" Match="NavLinkMatch.All" ActiveClass="active">@Lang.T(tab.Key)</NavLink>
+            @if (OnSelect.HasDelegate)
+            {
+                @* Desktop (non-routed) shell: tabs switch an in-app view instead of navigating a URL. *@
+                <button type="button" aria-selected="@(tab.Href == ActiveHref)" @onclick="() => OnSelect.InvokeAsync(tab.Href)">@Lang.T(tab.Key)</button>
+            }
+            else
+            {
+                <NavLink class="@(tab.Href == "" ? "active" : null)" href="@tab.Href" Match="NavLinkMatch.All" ActiveClass="active">@Lang.T(tab.Key)</NavLink>
+            }
         }
     </nav>
     <div class="ms-spacer"></div>
@@ -33,6 +41,13 @@
     ];
 
     [Parameter] public EventCallback OnPublish { get; set; }
+
+    /// <summary>When set (desktop shell), tabs become buttons that raise this with the tab's Href key
+    /// instead of navigating a URL. When unset (web), tabs render as routed <see cref="NavLink"/>s.</summary>
+    [Parameter] public EventCallback<string> OnSelect { get; set; }
+
+    /// <summary>The currently active tab's Href, used to mark the active button in desktop mode.</summary>
+    [Parameter] public string? ActiveHref { get; set; }
 
     protected override void OnInitialized() => Lang.OnChange += StateHasChanged;
 

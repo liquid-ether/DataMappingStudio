@@ -7,6 +7,31 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-06-23
+
+### Fixed
+- **Desktop had no menu / could not navigate.** The Blazor Hybrid shell rendered only the
+  Applications grid. `DesktopRoot` is now a non-routed view switcher and `MsTopBar` supports
+  click-based tab selection (it still renders routed `NavLink`s on the web), so the desktop top
+  bar navigates to every editor (Applications, Sources, Dictionary, Config, Classification,
+  Rules), the Mapping Studio, Lineage, History and the Publish panel.
+- **Desktop showed a blank page with an error bar.** Reverted to standard Blazor Hybrid packaging:
+  the WebView host page (`wwwroot\index.html`) ships next to the exe with a relative `HostPage`, so
+  BlazorWebView resolves the embedded `_framework`/`_content` assets and the app boots. (The
+  earlier single-file approach embedded the host page and pointed `HostPage` at `%LOCALAPPDATA%`,
+  which moved the asset root and prevented bootstrap.) The distributable is now
+  `MappingStudio.exe` + a 0.8 KB `wwwroot\index.html`.
+- Added the missing `#blazor-error-ui` CSS so the error bar stays hidden unless a real unhandled
+  error occurs (it was always visible before).
+
+### Added
+- **Desktop diagnostics**: a per-launch log file under `%LOCALAPPDATA%\MappingStudio\logs`
+  capturing startup, provisioning, and (via the logging pipeline) Blazor component exceptions,
+  plus Dispatcher/AppDomain/Task global exception handlers.
+- Tests: `DesktopRootTests` now renders the desktop shell with the full service graph and exercises
+  **every menu option** (all 6 entity editors, Mapping Studio, Lineage, History, Publish) plus the
+  EN/FR toggle; a real-SQLite-store render test guards provisioning. Suite: **174 passing**.
+
 ## [1.2.1] - 2026-06-22
 
 ### Fixed

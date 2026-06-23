@@ -16,19 +16,25 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.2.1** — fully persistent + packaged (WebView2 startup fixed) |
+| Current version | **v1.2.2** — desktop navigation + diagnostics |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 170 passing (+4 E2E skipped unless `DMS_E2E=1`) |
-| Install | see **[INSTALL.md](INSTALL.md)** — single-file desktop `.exe`, web host, shared-folder setup |
+| Tests | `dotnet test DataMappingStudio.slnx` — 174 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
 
-The desktop ships as a single `MappingStudio.exe` in two flavours: **self-contained** (~70 MB, no
-install) and **compact** (~41 MB, needs the .NET 10 Desktop Runtime) — `build/publish-desktop.ps1`
-[`-FrameworkDependent`]. Validate a build with `build/smoke-desktop.ps1`.
+The desktop has a **working top-bar menu** that switches between all editors (Applications, Sources,
+Dictionary, Config, Classification, Rules), the Mapping Studio, Lineage, History and Publish — the
+Blazor Hybrid shell is a non-routed view switcher mirroring the web host's navigation.
+
+The desktop distributable is `MappingStudio.exe` + a tiny `wwwroot\index.html` host page, in two
+flavours: **self-contained** (~70 MB, no install) and **compact** (~41 MB, needs the .NET 10 Desktop
+Runtime) — `build/publish-desktop.ps1` [`-FrameworkDependent`]. Validate a build with
+`build/smoke-desktop.ps1`; the desktop writes a detailed log per launch to
+`%LOCALAPPDATA%\MappingStudio\logs`.
 
 The **Mapping Studio is fully persisted** now — both the mapping rows and the target/source (alias)
-structure live in the local store and sync. The desktop app packages to a **single self-contained
-`MappingStudio.exe`** (`build/publish-desktop.ps1`); the shared (synced) folder is configurable via the
-`MAPPINGSTUDIO_REMOTE` env var (desktop) / `RemoteFolder` config (web).
+structure live in the local store and sync. The desktop app packages via `build/publish-desktop.ps1`;
+the shared (synced) folder is configurable via the `MAPPINGSTUDIO_REMOTE` env var (desktop) /
+`RemoteFolder` config (web).
 
 **Mapping Studio persistence (`App.Application.Mappings`)** — the studio is now backed by the local
 store: `MappingRepository` reads/writes rows to the `mapping` table via `ILocalStore`, so every

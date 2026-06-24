@@ -7,6 +7,16 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-06-23
+
+### Changed
+- **Tables now auto-size to the window.** The app shell is a full-height flex column (top bar +
+  fill-the-rest content area), so each grid expands to take most of the available space and
+  re-flows on resize, instead of being capped at a fixed width/height. The grid scrolls internally
+  with a sticky header. The buffers kept around the content are **configurable** via CSS variables
+  in `app.css` (`--buffer-x`, `--buffer-top`, `--buffer-bottom`, and `--content-max` to optionally
+  cap width). This also gives QuickGrid a proper sized scroll container for virtualization.
+
 ## [1.3.0] - 2026-06-23
 
 ### Changed

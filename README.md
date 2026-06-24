@@ -16,7 +16,7 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.3.0** — data-model-linked studio, scoped lineage, virtualized grids |
+| Current version | **v1.3.1** — full-height auto-sizing tables |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
 | Tests | `dotnet test DataMappingStudio.slnx` — 189 passing (+4 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
@@ -36,6 +36,11 @@ The **Mapping Studio and Lineage are driven by the real data model**: a target's
 targets it feeds, downstream, plus each target's other sources), so it stays lean with hundreds of
 sources. The **Mapping** and entity grids use a **virtualized QuickGrid**, so thousands of mapping and
 dictionary rows render without lag.
+
+The shell is a **full-height flex layout**, so each table auto-sizes to take most of the window and
+re-flows on resize. The breathing room around the content is configurable via CSS variables in
+`src/App.UI/wwwroot/css/app.css`: `--buffer-x` (sides), `--buffer-top`, `--buffer-bottom`, and
+`--content-max` (optional width cap; `none` = fill).
 
 The desktop distributable is `MappingStudio.exe` + a tiny `wwwroot\index.html` host page, in two
 flavours: **self-contained** (~70 MB, no install) and **compact** (~41 MB, needs the .NET 10 Desktop

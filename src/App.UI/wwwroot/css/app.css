@@ -9,11 +9,21 @@
   --srcG:#1f8a55; --srcG-bg:#e4f3ea; --srcG-line:#bfe2cd;
   --calc:#6a4ee0; --calc-bg:#ece7fb; --calc-line:#d4c9f6;
   --bad:#c0392b; --good:#1f8a55; --focus:#0e7c86; --r:8px; --fs-eyebrow:11px;
+  /* Configurable layout buffers: the content area (and its tables) fills the viewport minus these.
+     Adjust here to change how much breathing room is kept around the grids. */
+  --buffer-x:22px;       /* left/right buffer */
+  --buffer-top:18px;     /* buffer below the top bar */
+  --buffer-bottom:18px;  /* buffer at the bottom */
+  --content-max:none;    /* set a px value to cap content width; 'none' = fill available width */
 }
 *{box-sizing:border-box}
-html,body{margin:0}
+html,body{margin:0;height:100%}
 body{background:var(--app-bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;
-  font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  display:flex;flex-direction:column;min-height:100vh}
+/* Full-height app shell so the content area (and its tables) can auto-size to the viewport: the top
+   bar keeps its natural height and .ms-wrap fills the rest. #app is the desktop host's root element. */
+#app{flex:1;display:flex;flex-direction:column;min-height:0}
 .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
 a{color:var(--focus)}
 
@@ -34,7 +44,9 @@ a{color:var(--focus)}
 .ms-publish{background:#3ec7c2;color:#04221f;border:0;border-radius:6px;font:inherit;font-weight:600;font-size:13px;padding:7px 15px;cursor:pointer}
 .ms-publish:hover{background:#52d6d1}
 
-.ms-wrap{max-width:1180px;margin:0 auto;padding:18px 22px 80px}
+.ms-wrap{flex:1;min-height:0;display:flex;flex-direction:column;width:100%;
+  max-width:var(--content-max);margin:0 auto;
+  padding:var(--buffer-top) var(--buffer-x) var(--buffer-bottom)}
 .view{display:none} .view.on{display:block}
 .page-title{font-size:18px;font-weight:600;margin:0 0 12px}
 
@@ -48,7 +60,8 @@ a{color:var(--focus)}
 .filt select,.add select{font:inherit;font-size:13px;border:1px solid var(--line-strong);border-radius:7px;padding:6px 8px;background:#fff;color:var(--ink)}
 .count{margin-left:auto;color:var(--ink-faint);font-size:12px}
 
-.gridbox{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:auto;max-height:calc(100vh - 210px)}
+/* Fills the space left between the toolbar and the add bar, and scrolls internally (sticky header). */
+.gridbox{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:auto;flex:1;min-height:120px}
 /* QuickGrid renders its own table; align it with the app's grid look and let it virtualize/scroll. */
 .gridbox .quickgrid{width:100%;border-collapse:collapse;font-size:13px;min-width:720px}
 .gridbox .quickgrid thead th{position:sticky;top:0;z-index:2;background:var(--panel-2);text-align:left;
@@ -132,11 +145,11 @@ tr.grp td{background:#eef3f4;border-bottom:1px solid var(--line-strong)}
 .legend{display:flex;gap:14px;flex-wrap:wrap;margin-left:auto;font-size:12px;color:var(--ink-soft)}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
-.lin-layout{display:grid;grid-template-columns:1fr 300px;gap:14px}
+.lin-layout{display:grid;grid-template-columns:1fr 300px;gap:14px;flex:1;min-height:0}
 @media(max-width:880px){.lin-layout{grid-template-columns:1fr}}
-.lin-canvas{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:auto;
+.lin-canvas{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:auto;min-height:0;
   background-image:radial-gradient(var(--line) .6px,transparent .6px);background-size:18px 18px}
-.lin-side{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px 15px}
+.lin-side{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px 15px;overflow:auto;min-height:0}
 .lin-side h3{margin:0 0 4px;font-size:13px}
 .lin-side .sel{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--target);font-size:13px}
 .lin-side .sub{color:var(--ink-faint);font-size:12px;margin:2px 0 12px}

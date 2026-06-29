@@ -16,9 +16,9 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.5.0** — per-column sort & filter in the metadata editors |
+| Current version | **v1.6.0** — native Excel import (`import-excel`) + importer config |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 195 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 197 passing (+4 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
 
 The desktop has a **working top-bar menu** that switches between all editors (Applications, Sources,
@@ -79,13 +79,21 @@ computed columns evaluate `count(...)` and `lookup(...)` autofills read-only; op
 Power BI (see [reporting/](reporting/)) — resolved in bulk, reading each referenced/child table once; and `LogCompactor` archives old change-log entries. The
 importer CLI gained `report` and `compact` verbs.
 
-**Importer & tooling (`App.Importer` + `build/`)** — the Excel→DB pipeline: an editable
+**Importer & tooling (`App.Importer` + `build/`)** — the Excel→DB pipeline: the importer reads
+**`.xlsx` workbooks natively** (ClosedXML — no external PowerShell module) via the `import-excel` verb
+and loads them into the **local SQLite working copy** (the same `local.db` the app uses). An editable
 [`build/import-mapping.json`](build/import-mapping.json) **column-mapping facility** (only listed
 columns import; derived/computed are omitted; unmapped headers are reported), per-catalog
 normalization, **FK resolution by natural key**, **expression field-reference resolution** to
 dictionary entries with free-text fallback, and idempotent **upsert** producing a reviewable
-`Import` change set + `import-report.json`. PowerShell scripts (`provision`, `import` via ImportExcel,
-`rebuild-snapshots`, `convert-format`) back the CLI verbs; Pester tests cover them.
+`Import` change set + `import-report.json`. Importer **configuration** lives in
+[`appsettings.json`](src/App.Importer/appsettings.json) (`Importer:DbPath` / `MappingPath` /
+`RemoteFolder` / `ChangedBy`), overridable by `DMS_Importer__*` env vars and explicit arguments;
+defaults target `%LOCALAPPDATA%\MappingStudio\local.db` + the bundled mapping, so
+`import-excel <workbook.xlsx>` "just works" against the app's database. Run it directly
+(`dotnet run --project src/App.Importer -- import-excel working.xlsx`) or via
+[`build/import.ps1`](build/import.ps1); PowerShell scripts (`provision`, `import`, `rebuild-snapshots`,
+`convert-format`) back the CLI verbs; Pester tests cover them.
 
 **Publish & sync (`App.Application.Sync` + `App.UI`)** — `SyncCoordinator` ties the local change log,
 the remote store and `PublishService` together (tracks the last-published sequence); the `/publish`

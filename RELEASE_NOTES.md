@@ -7,6 +7,39 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-06-29
+
+### Added
+- **Native Excel import in the importer (`import-excel`).** `App.Importer` now reads `.xlsx` workbooks
+  **directly** (ClosedXML) and loads them into the local SQLite working copy as one reviewable Import
+  change set — no external PowerShell `ImportExcel` module required. New verb:
+  `import-excel <workbook.xlsx> [dbPath] [mapping.json] [report.json]`. New `ExcelWorksheetReader`
+  takes the first used row of each mapped worksheet as headers and every subsequent row as a record
+  (Excel's displayed cell values, so dates/numbers come through as shown). Absent/empty worksheets are
+  skipped gracefully.
+- **Importer configuration (`src/App.Importer/appsettings.json`).** A new `Importer` section
+  (`DbPath`, `MappingPath`, `RemoteFolder`, `ChangedBy`), bound via `Microsoft.Extensions.Configuration`
+  and overridable by `DMS_Importer__*` environment variables and explicit CLI arguments (arguments win).
+  Defaults target the same working copy the desktop/web app uses
+  (`%LOCALAPPDATA%\MappingStudio\local.db`) and the bundled `import-mapping.json`, so
+  `import-excel <workbook.xlsx>` imports into the app's database with no further arguments.
+
+### Changed
+- `build/import.ps1` now drives the native `import-excel` path; the `ImportExcel` PowerShell module is
+  no longer a prerequisite. The canonical `import-mapping.json` and `appsettings.json` ship next to the
+  importer executable.
+
+### Verified
+- End-to-end against a local SQLite database: a generated `.xlsx` imported via the CLI created rows,
+  a re-run reported them as updates (persistence via natural-key upsert), foreign keys resolved by
+  natural key, and unmapped columns were reported; config/env-var-driven DB targeting confirmed with
+  no `dbPath` argument.
+
+### Added (tests)
+- `ExcelImportTests`: a real in-memory `.xlsx` read by `ExcelWorksheetReader` and imported into a real
+  `SqliteLocalStore` (rows + FK resolution + unmapped reporting), plus absent-worksheet handling.
+  Suite: **197 passing**.
+
 ## [1.5.0] - 2026-06-29
 
 ### Added

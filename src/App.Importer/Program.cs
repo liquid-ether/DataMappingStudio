@@ -7,10 +7,12 @@ using App.Domain.Data;
 using App.Importer;
 using App.Infrastructure.Local;
 using App.Infrastructure.Remote;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 // Excel → SQLite importer + build tooling CLI (Architecture §10/§14). Verbs:
 //   provision <remoteFolder>
+//   import-excel <workbook.xlsx> [dbPath] [mapping.json] [report.json]   (paths default from appsettings.json)
 //   import    <dbPath> <dataDir> <mapping.json> [report.json]
 //   rebuild-snapshots <dbPath> <remoteFolder> [format]
 //   convert-format <remoteFolder> <fromFormat> <toFormat>
@@ -24,6 +26,8 @@ switch (args[0])
 {
     case "provision" when args.Length >= 2:
         return Provision(args[1]);
+    case "import-excel" when args.Length >= 2:
+        return ImportExcel(args[1], Arg(args, 2), Arg(args, 3), Arg(args, 4));
     case "import" when args.Length >= 4:
         return Import(args[1], args[2], args[3], args.Length >= 5 ? args[4] : Path.Combine(args[2], "import-report.json"));
     case "rebuild-snapshots" when args.Length >= 3:
@@ -65,6 +69,46 @@ static int Import(string dbPath, string dataDir, string mappingPath, string repo
 
     File.WriteAllText(reportPath, report.ToJson());
     Console.WriteLine($"Import complete: {report.TotalCreated} created, {report.TotalUpdated} updated, {report.TotalSkipped} skipped. Report: {reportPath}");
+    return 0;
+}
+
+// Reads a real .xlsx directly (no PowerShell/ImportExcel needed) and imports it into the local SQLite
+// working copy. The db / mapping / report paths default from appsettings.json (or DMS_Importer__* env
+// vars) when omitted, so `import-excel <workbook.xlsx>` targets the app's database out of the box.
+static int ImportExcel(string workbookPath, string? dbArg, string? mappingArg, string? reportArg)
+{
+    ImporterConfig config = LoadConfig();
+    string dbPath = config.ResolveDbPath(dbArg);
+    string mappingPath = config.ResolveMappingPath(mappingArg);
+
+    if (!File.Exists(workbookPath))
+    {
+        Console.Error.WriteLine($"Workbook not found: {workbookPath}");
+        return 1;
+    }
+
+    if (!File.Exists(mappingPath))
+    {
+        Console.Error.WriteLine($"Mapping not found: {mappingPath} (set Importer:MappingPath or pass it as an argument).");
+        return 1;
+    }
+
+    string reportPath = reportArg ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath))!, "import-report.json");
+
+    using ServiceProvider provider = BuildProvider(dbPath, config.ResolveRemoteFolder(null, dbPath));
+    ICatalog catalog = provider.GetRequiredService<ICatalog>();
+    catalog.Seed(DefaultCatalog.Entries());
+    ILocalStore store = provider.GetRequiredService<ILocalStore>();
+    store.EnsureSchema();
+
+    ImportMapping mapping = ImportMapping.FromJson(File.ReadAllText(mappingPath));
+    List<WorksheetData> data = ExcelWorksheetReader.Read(workbookPath, mapping);
+
+    Importer importer = new(catalog, store, provider.GetRequiredService<App.Application.Expressions.RuleExpressionBuilder>());
+    ImportReport report = importer.Run(mapping, data, config.ChangedBy);
+
+    File.WriteAllText(reportPath, report.ToJson());
+    Console.WriteLine($"Imported '{Path.GetFileName(workbookPath)}' into {dbPath}: {report.TotalCreated} created, {report.TotalUpdated} updated, {report.TotalSkipped} skipped. Report: {reportPath}");
     return 0;
 }
 
@@ -195,9 +239,24 @@ static ServiceProvider BuildProvider(string dbPath, string remoteFolder, string 
         .BuildServiceProvider();
 }
 
+// Loads appsettings.json (next to the exe) + DMS_-prefixed environment variables into the Importer config.
+static ImporterConfig LoadConfig()
+{
+    IConfiguration configuration = new ConfigurationBuilder()
+        .SetBasePath(AppContext.BaseDirectory)
+        .AddJsonFile("appsettings.json", optional: true)
+        .AddEnvironmentVariables(prefix: "DMS_")
+        .Build();
+    return configuration.GetSection("Importer").Get<ImporterConfig>() ?? new ImporterConfig();
+}
+
+// Optional positional argument at index i, or null when absent.
+static string? Arg(string[] args, int i) => i < args.Length ? args[i] : null;
+
 static void Usage() => Console.WriteLine(
     "Usage:\n" +
     "  provision <remoteFolder>\n" +
+    "  import-excel <workbook.xlsx> [dbPath] [mapping.json] [report.json]   (paths default from appsettings.json)\n" +
     "  import <dbPath> <dataDir> <mapping.json> [report.json]\n" +
     "  rebuild-snapshots <dbPath> <remoteFolder> [format]\n" +
     "  convert-format <remoteFolder> <fromFormat> <toFormat>\n" +

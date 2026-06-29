@@ -116,21 +116,25 @@ $env:RemoteFolder = "C:\Users\<name>\OneDrive - Contoso\MappingStudio"
 
 ## 4. Importing existing Excel data (optional)
 
-To load the team's current workbook into a local copy (one-time or repeatedly during the transition):
+To load the team's current workbook into a local copy (one-time or repeatedly during the transition).
+The importer reads the `.xlsx` **natively** — no extra PowerShell module needed.
 
-1. Install the free **ImportExcel** PowerShell module once:
-
-   ```powershell
-   Install-Module ImportExcel -Scope CurrentUser
-   ```
-
-2. Run the importer (it reads each worksheet, then validates/loads it as a reviewable change set):
+1. Run the importer (it reads each worksheet, then validates/loads it as a reviewable change set).
+   With no `-DbPath` it imports into the app's own database by default
+   (`%LOCALAPPDATA%\MappingStudio\local.db`):
 
    ```powershell
-   ./build/import.ps1 -Workbook .\TheTeamsWorkbook.xlsx -DbPath "$env:LOCALAPPDATA\MappingStudio\local.db"
+   ./build/import.ps1 -Workbook .\TheTeamsWorkbook.xlsx
    ```
 
-3. Open the desktop app, review the imported rows, then **Publish**. Which columns map to which fields
+   Or call the CLI directly (same defaults, configurable via `src/App.Importer/appsettings.json` or
+   `DMS_Importer__*` environment variables):
+
+   ```powershell
+   dotnet run --project src/App.Importer -- import-excel .\TheTeamsWorkbook.xlsx
+   ```
+
+2. Open the desktop app, review the imported rows, then **Publish**. Which columns map to which fields
    is controlled by [`build/import-mapping.json`](build/import-mapping.json) — edit it as headers change.
 
 ---
@@ -140,8 +144,8 @@ To load the team's current workbook into a local copy (one-time or repeatedly du
 ### Requirements
 - **.NET 10 SDK** (10.0.x) — download from <https://dotnet.microsoft.com/download/dotnet/10.0>.
 - Windows (the desktop app is Windows-only; the libraries and web host are cross-platform).
-- PowerShell 7+ for the `build/` scripts; **Pester** and **ImportExcel** modules only for their
-  respective scripts/tests.
+- PowerShell 7+ for the `build/` scripts; the **Pester** module only for the script tests. (The Excel
+  importer reads `.xlsx` natively now — the `ImportExcel` module is no longer required.)
 
 ### Build, test, run
 ```powershell
@@ -188,5 +192,5 @@ If the app opens but a screen is blank with an error bar, check the per-launch l
 | SmartScreen warns about an unknown publisher | Click **More info → Run anyway** (the file isn't code-signed). Ask IT to sign it for wide distribution. |
 | Edits aren't shared with colleagues | Confirm `MAPPINGSTUDIO_REMOTE` points at the **OneDrive-synced** folder and that OneDrive shows it as "up to date". Restart the app after changing the variable. |
 | Web host: "address already in use" | Choose another port, e.g. `--urls "http://localhost:5050"`. |
-| `import.ps1` says ImportExcel is missing | Run `Install-Module ImportExcel -Scope CurrentUser`. |
+| Importer can't find the mapping/workbook | Pass `-DbPath`/`-Mapping` explicitly, or set `DMS_Importer__DbPath` / `DMS_Importer__MappingPath`; the workbook path is relative to your current directory. |
 | `dotnet` not recognized (building from source) | Install the .NET 10 SDK and reopen the terminal. |

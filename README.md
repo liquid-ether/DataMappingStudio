@@ -16,9 +16,9 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.4.2** — bulk reference/computed resolution across grids + reporting |
+| Current version | **v1.5.0** — per-column sort & filter in the metadata editors |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 192 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 195 passing (+4 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
 
 The desktop has a **working top-bar menu** that switches between all editors (Applications, Sources,
@@ -104,7 +104,9 @@ tree, and the unresolved-reference count). Live at `/mappings` and `/lineage`.
 **Entity editors (`App.Application.Provisioning` + `App.Web`)** — a `DefaultCatalog` seed of the seven
 normalized entities (principal columns, EN/FR labels, required natural keys); data-driven navigation
 tabs; and catalog-driven editors for Applications, Sources, Dictionary, Config, Classification and
-Rules (the metadata-driven grid pointed at each table — no per-entity code). Verified running.
+Rules (the metadata-driven grid pointed at each table — no per-entity code). Every column header is
+click-to-sort and a toolbar **Filters** toggle reveals a per-column filter box (both operate on the
+displayed value, so reference/computed columns sort and filter by what the user sees). Verified running.
 
 **UI foundation (`App.UI` + `App.Web` + `App.Desktop`)** — the **design system** in
 `_content/App.UI/css/app.css` (Inter + JetBrains Mono, themable `:root` tokens with a light/dark

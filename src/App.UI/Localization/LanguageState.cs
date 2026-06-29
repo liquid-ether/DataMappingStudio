@@ -31,7 +31,12 @@ public sealed class LanguageState
         ["save"] = ("Save", "Enregistrer"),
         ["cancel"] = ("Cancel", "Annuler"),
         ["search"] = ("Search", "Rechercher"),
+        ["filter"] = ("Filter…", "Filtrer…"),
+        ["filters"] = ("Filters", "Filtres"),
+        ["filtersHint"] = ("Show a filter box under each column header", "Afficher un filtre sous chaque en-tête de colonne"),
+        ["clearFilters"] = ("Clear filters", "Effacer les filtres"),
         ["noRows"] = ("No rows yet.", "Aucune ligne."),
+        ["noMatches"] = ("No rows match the current filters.", "Aucune ligne ne correspond aux filtres."),
         ["requiredMissing"] = ("Fill all required fields.", "Renseignez les champs obligatoires."),
         ["columnName"] = ("Column name", "Nom de colonne"),
     };

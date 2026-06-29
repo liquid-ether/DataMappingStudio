@@ -11,16 +11,36 @@
    thousands of dictionary entries) stay responsive. Inline edit + add-row + add-column + validation. *@
 <div class="toolbar">
     <h2 class="page-title">@Title</h2>
-    <span class="count">@_rows.Count</span>
+    <button class="add @(_showFilters ? "on" : null)" type="button" @onclick="() => _showFilters = !_showFilters" title="@Lang.T("filtersHint")">
+        <span class="plus">⧩</span> @Lang.T("filters")
+    </button>
+    @if (_filters.Values.Any(v => !string.IsNullOrWhiteSpace(v)))
+    {
+        <button class="add" type="button" @onclick="ClearFilters">@Lang.T("clearFilters")</button>
+    }
+    <span class="count">@(_filters.Values.Any(v => !string.IsNullOrWhiteSpace(v)) ? $"{_view.Count} / {_rows.Count}" : _rows.Count.ToString())</span>
 </div>
 
 <div class="gridbox">
-    <QuickGrid Items="@_rows.AsQueryable()" Virtualize="@GridVirtualize" ItemSize="34" Class="quickgrid">
+    <QuickGrid Items="@_view.AsQueryable()" Virtualize="@GridVirtualize" ItemSize="34" Class="quickgrid">
         @foreach (ColumnCatalogEntry col in _columns)
         {
             ColumnCatalogEntry c = col;
             <TemplateColumn>
-                <HeaderTemplate>@Lang.Label(c.LabelEn, c.LabelFr)@if (c.IsRequired) {<span class="req">*</span>}</HeaderTemplate>
+                <HeaderTemplate>
+                    <div class="th">
+                        <button class="th-label" type="button" @onclick="() => ToggleSort(c)">
+                            <span>@Lang.Label(c.LabelEn, c.LabelFr)</span>@if (c.IsRequired) {<span class="req">*</span>}
+                            <span class="th-sort">@SortIndicator(c)</span>
+                        </button>
+                        @if (_showFilters)
+                        {
+                            <input class="th-filter" type="search" placeholder="@Lang.T("filter")"
+                                   value="@Filter(c)" @oninput="e => SetFilter(c, e.Value?.ToString())"
+                                   @onclick:stopPropagation="true" />
+                        }
+                    </div>
+                </HeaderTemplate>
                 <ChildContent>
                     @if (c.Kind == ColumnKind.Computed && _computed is not null)
                     {
@@ -58,6 +78,10 @@
 @if (_rows.Count == 0 && _draft is null)
 {
     <div class="cell muted" style="padding:12px">@Lang.T("noRows")</div>
+}
+else if (_view.Count == 0 && _rows.Count > 0)
+{
+    <div class="cell muted" style="padding:12px">@Lang.T("noMatches")</div>
 }
 
 @if (_draft is not null)
@@ -139,6 +163,18 @@
     // the Sources/Dictionary grids stall for seconds while scrolling the sample dataset.
     private Dictionary<string, IReadOnlyList<ReferenceOption>> _refOptions = new(StringComparer.Ordinal);
     private Dictionary<string, Dictionary<Guid, string?>> _computedValues = new(StringComparer.Ordinal);
+    // Reference id -> display value per target, so sorting/filtering reference columns works on the
+    // visible text (the picker shows the display, not the stored id).
+    private Dictionary<string, Dictionary<Guid, string>> _refDisplayByTarget = new(StringComparer.Ordinal);
+
+    // Per-column sort + filter applied to produce _view (what the grid actually renders). Sorting and
+    // filtering run on each column's *displayed* value, so they behave the same for scalar, reference
+    // and computed columns.
+    private List<Row> _view = [];
+    private string? _sortColumn;
+    private bool _sortDescending;
+    private readonly Dictionary<string, string> _filters = new(StringComparer.Ordinal);
+    private bool _showFilters;
 
     private Row? _draft;
     private string? _error;
@@ -185,6 +221,25 @@
                     c => c.ColumnName,
                     c => new Dictionary<Guid, string?>(_computed.EvaluateColumn(Table, c.ColumnName, _rows)),
                     StringComparer.Ordinal);
+
+        // Index reference displays by id (reuses the options already loaded above).
+        _refDisplayByTarget = _refOptions.ToDictionary(
+            kv => kv.Key,
+            kv => kv.Value.ToDictionary(o => o.Id, o => o.Display),
+            StringComparer.Ordinal);
+
+        // Drop filters for columns that no longer exist (e.g. after add/remove column).
+        foreach (string stale in _filters.Keys.Where(k => _columns.All(c => c.ColumnName != k)).ToList())
+        {
+            _filters.Remove(stale);
+        }
+
+        if (_sortColumn is not null && _columns.All(c => c.ColumnName != _sortColumn))
+        {
+            _sortColumn = null;
+        }
+
+        RecomputeView();
     }
 
     private IReadOnlyList<ReferenceOption> RefOptions(string target)
@@ -194,6 +249,111 @@
         => _computedValues.TryGetValue(col.ColumnName, out Dictionary<Guid, string?>? map) && map.TryGetValue(row.Id, out string? v)
             ? v
             : null;
+
+    // The user-facing text of a cell: computed value, reference display, or the raw scalar value.
+    private string? DisplayValue(Row row, ColumnCatalogEntry col)
+    {
+        if (col.Kind == ColumnKind.Computed)
+        {
+            return ComputedValue(col, row);
+        }
+
+        if (col.Kind == ColumnKind.Reference && col.ReferenceTarget is { } target)
+        {
+            string? id = row[col.ColumnName];
+            return !string.IsNullOrEmpty(id) && Guid.TryParse(id, out Guid guid)
+                && _refDisplayByTarget.TryGetValue(target, out Dictionary<Guid, string>? map) && map.TryGetValue(guid, out string? display)
+                    ? display
+                    : id;
+        }
+
+        return row[col.ColumnName];
+    }
+
+    private string Filter(ColumnCatalogEntry col) => _filters.GetValueOrDefault(col.ColumnName, string.Empty);
+
+    private void SetFilter(ColumnCatalogEntry col, string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            _filters.Remove(col.ColumnName);
+        }
+        else
+        {
+            _filters[col.ColumnName] = value;
+        }
+
+        RecomputeView();
+    }
+
+    private void ClearFilters()
+    {
+        _filters.Clear();
+        RecomputeView();
+    }
+
+    private void ToggleSort(ColumnCatalogEntry col)
+    {
+        // Cycle: unsorted -> ascending -> descending -> unsorted.
+        if (_sortColumn != col.ColumnName)
+        {
+            _sortColumn = col.ColumnName;
+            _sortDescending = false;
+        }
+        else if (!_sortDescending)
+        {
+            _sortDescending = true;
+        }
+        else
+        {
+            _sortColumn = null;
+        }
+
+        RecomputeView();
+    }
+
+    private string SortIndicator(ColumnCatalogEntry col)
+        => _sortColumn == col.ColumnName ? (_sortDescending ? "▼" : "▲") : "↕";
+
+    // Apply the active filters then the active sort to produce the rows the grid renders.
+    private void RecomputeView()
+    {
+        IEnumerable<Row> rows = _rows;
+
+        foreach ((string column, string term) in _filters)
+        {
+            if (string.IsNullOrWhiteSpace(term))
+            {
+                continue;
+            }
+
+            ColumnCatalogEntry? col = _columns.FirstOrDefault(c => c.ColumnName == column);
+            if (col is null)
+            {
+                continue;
+            }
+
+            string needle = term.Trim();
+            rows = rows.Where(r => (DisplayValue(r, col) ?? string.Empty).Contains(needle, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (_sortColumn is { } sortName && _columns.FirstOrDefault(c => c.ColumnName == sortName) is { } sortCol)
+        {
+            bool numeric = sortCol.ValueType is CatalogValueType.Integer or CatalogValueType.Number;
+            rows = numeric
+                ? (_sortDescending
+                    ? rows.OrderByDescending(r => AsNumber(DisplayValue(r, sortCol)))
+                    : rows.OrderBy(r => AsNumber(DisplayValue(r, sortCol))))
+                : (_sortDescending
+                    ? rows.OrderByDescending(r => DisplayValue(r, sortCol), StringComparer.OrdinalIgnoreCase)
+                    : rows.OrderBy(r => DisplayValue(r, sortCol), StringComparer.OrdinalIgnoreCase));
+        }
+
+        _view = rows.ToList();
+    }
+
+    private static double? AsNumber(string? value)
+        => double.TryParse(value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double n) ? n : null;
 
     private void CommitCell(Row row, ColumnCatalogEntry col, string? value)
     {

@@ -7,6 +7,18 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-29
+
+### Added
+- **Per-column sort and filter in every metadata editor.** Each column header in the entity editors
+  (Applications, Sources, Dictionary, Config, Classification, Rules — all the same `MetadataGrid`) is
+  now **click-to-sort**, cycling ascending → descending → unsorted with a ▲ / ▼ / ↕ indicator; and a
+  **Filters** toggle in the toolbar reveals a filter box under each header. Sorting and filtering work
+  on each column's *displayed* value, so reference columns sort/filter by their picker text and
+  computed columns by their evaluated value, and numeric columns (`Integer` / `Number`) sort
+  numerically rather than lexically. The toolbar shows a filtered/total count, a **Clear filters**
+  action, and a "no rows match" hint; filters/sort drop automatically when a column is removed. EN/FR.
+
 ## [1.4.2] - 2026-06-29
 
 ### Changed

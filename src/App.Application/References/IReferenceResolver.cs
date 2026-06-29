@@ -27,4 +27,12 @@ public interface IReferenceResolver
 public interface IComputedEvaluator
 {
     string? Evaluate(string table, string column, Row row);
+
+    /// <summary>
+    /// Evaluates a computed column for many rows at once, reading each referenced/child table only
+    /// <em>once</em> instead of per row. Returns a row-id → value map. Prefer this over calling
+    /// <see cref="Evaluate"/> in a loop (e.g. grids/reports over large tables): a <c>count(child.fk)</c>
+    /// column would otherwise re-scan the whole child table for every parent row.
+    /// </summary>
+    IReadOnlyDictionary<Guid, string?> EvaluateColumn(string table, string column, IReadOnlyList<Row> rows);
 }

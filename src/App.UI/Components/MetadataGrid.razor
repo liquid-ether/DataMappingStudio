@@ -24,14 +24,14 @@
                 <ChildContent>
                     @if (c.Kind == ColumnKind.Computed && _computed is not null)
                     {
-                        <div class="cell muted" title="computed">@_computed.Evaluate(Table, c.ColumnName, context)</div>
+                        <div class="cell muted" title="computed">@ComputedValue(c, context)</div>
                     }
                     else if (c.Kind == ColumnKind.Reference && _refs is not null)
                     {
                         <div class="cell editable">
                             <select class="gi" value="@context[c.ColumnName]" @onchange="e => CommitCell(context, c, e.Value?.ToString())">
                                 <option value="">—</option>
-                                @foreach (ReferenceOption opt in _refs.Options(c.ReferenceTarget!))
+                                @foreach (ReferenceOption opt in RefOptions(c.ReferenceTarget!))
                                 {
                                     <option value="@opt.Id">@opt.Display</option>
                                 }
@@ -70,7 +70,7 @@
             {
                 <select class="gi" value="@_draft[c.ColumnName]" @onchange="e => _draft[c.ColumnName] = Blank(e.Value?.ToString())">
                     <option value="">@Lang.Label(c.LabelEn, c.LabelFr)</option>
-                    @foreach (ReferenceOption opt in _refs.Options(c.ReferenceTarget!))
+                    @foreach (ReferenceOption opt in RefOptions(c.ReferenceTarget!))
                     {
                         <option value="@opt.Id">@opt.Display</option>
                     }
@@ -132,6 +132,14 @@
 
     private IReadOnlyList<ColumnCatalogEntry> _columns = [];
     private List<Row> _rows = [];
+
+    // Reference options and computed values are derived once per load and reused across every cell
+    // render (QuickGrid re-renders visible rows on each scroll). Without this cache each reference cell
+    // re-queried its target table and each computed cell re-scanned a child table per row, which made
+    // the Sources/Dictionary grids stall for seconds while scrolling the sample dataset.
+    private Dictionary<string, IReadOnlyList<ReferenceOption>> _refOptions = new(StringComparer.Ordinal);
+    private Dictionary<string, Dictionary<Guid, string?>> _computedValues = new(StringComparer.Ordinal);
+
     private Row? _draft;
     private string? _error;
     private bool _addingColumn;
@@ -160,7 +168,32 @@
             .OrderBy(e => e.DisplayOrder).ThenBy(e => e.ColumnName)
             .ToList();
         _rows = Store.GetAll(Table).ToList();
+
+        // Read each referenced table once for its picker options...
+        _refOptions = _columns
+            .Where(c => c.Kind == ColumnKind.Reference && c.ReferenceTarget is not null)
+            .Select(c => c.ReferenceTarget!)
+            .Distinct(StringComparer.Ordinal)
+            .ToDictionary(t => t, t => _refs?.Options(t) ?? [], StringComparer.Ordinal);
+
+        // ...and evaluate each computed column in one bulk pass (one child/target read for all rows).
+        _computedValues = _computed is null
+            ? new(StringComparer.Ordinal)
+            : _columns
+                .Where(c => c.Kind == ColumnKind.Computed)
+                .ToDictionary(
+                    c => c.ColumnName,
+                    c => new Dictionary<Guid, string?>(_computed.EvaluateColumn(Table, c.ColumnName, _rows)),
+                    StringComparer.Ordinal);
     }
+
+    private IReadOnlyList<ReferenceOption> RefOptions(string target)
+        => _refOptions.TryGetValue(target, out IReadOnlyList<ReferenceOption>? opts) ? opts : [];
+
+    private string? ComputedValue(ColumnCatalogEntry col, Row row)
+        => _computedValues.TryGetValue(col.ColumnName, out Dictionary<Guid, string?>? map) && map.TryGetValue(row.Id, out string? v)
+            ? v
+            : null;
 
     private void CommitCell(Row row, ColumnCatalogEntry col, string? value)
     {
@@ -173,6 +206,19 @@
 
         row[col.ColumnName] = v;
         Store.Upsert(Table, row, NewChangeSet(), ChangedBy);
+
+        // Keep this row's computed cells (e.g. lookups off a reference) in sync with the edit without
+        // a full reload — cheap, one row, and avoids losing the user's scroll position.
+        if (_computed is not null && _computedValues.Count > 0)
+        {
+            foreach (ColumnCatalogEntry computed in _columns.Where(c => c.Kind == ColumnKind.Computed))
+            {
+                if (_computedValues.TryGetValue(computed.ColumnName, out Dictionary<Guid, string?>? map))
+                {
+                    map[row.Id] = _computed.EvaluateColumn(Table, computed.ColumnName, [row]).GetValueOrDefault(row.Id);
+                }
+            }
+        }
     }
 
     private void StartDraft()

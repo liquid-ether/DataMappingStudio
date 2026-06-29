@@ -16,9 +16,9 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.4.0** — Data Import wizard + app-wide light/dark theme |
+| Current version | **v1.4.1** — grid scroll-perf fix + non-blocking fonts |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 189 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 191 passing (+4 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
 
 The desktop has a **working top-bar menu** that switches between all editors (Applications, Sources,
@@ -46,7 +46,9 @@ The **Mapping Studio and Lineage are driven by the real data model**: a target's
 **Lineage** view picks a source from an autocomplete and draws only that source's scoped graph (the
 targets it feeds, downstream, plus each target's other sources), so it stays lean with hundreds of
 sources. The **Mapping** and entity grids use a **virtualized QuickGrid**, so thousands of mapping and
-dictionary rows render without lag.
+dictionary rows render without lag. Reference-picker options and computed-column values are derived
+**once per load** (one read of each referenced/child table via the bulk `EvaluateColumn`), not per
+cell, so scrolling the large Sources/Dictionary tables stays smooth.
 
 The shell is a **full-height flex layout**, so each table auto-sizes to take most of the window and
 re-flows on resize. The breathing room around the content is configurable via CSS variables in

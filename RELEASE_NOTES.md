@@ -7,6 +7,28 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-06-29
+
+### Fixed
+- **Severe scroll lag in the Sources and Dictionary editors with large datasets.** The metadata grid
+  re-queried the database for *every* reference picker and recomputed *every* computed cell on each
+  render — and QuickGrid re-renders visible rows on each scroll. Worst case, the Sources
+  `field_count` column re-scanned **all 5000** `dictionary_entry` rows for **every visible row, every
+  scroll frame**, so the grid went blank and took 10–15 s to repaint on the sample dataset. Reference
+  options and computed values are now derived **once per load** — a new bulk
+  `IComputedEvaluator.EvaluateColumn` reads each child/target table a single time and maps every row
+  from memory — and the cached values are reused across renders; an edited row refreshes just its own
+  computed cells in place. (`ReferenceService`, `MetadataGrid`.)
+- **Slow desktop first paint on machines with no/slow/firewalled internet.** The Google Fonts
+  stylesheet was render-blocking, so the WebView could stall for seconds (up to a TCP timeout) waiting
+  on the network before showing anything. The font stylesheet now loads asynchronously in both hosts;
+  first paint uses the Inter / JetBrains Mono fallbacks immediately and swaps the real fonts in when
+  they arrive. (The one-time sample-data seed was measured at ~1 s for 5388 rows and is not the cause.)
+
+### Added
+- Tests: `EvaluateColumn` count + lookup coverage and a grid assertion for the precomputed
+  `field_count` value. Suite: **191 passing**.
+
 ## [1.4.0] - 2026-06-29
 
 ### Added

@@ -59,6 +59,33 @@ public class ReferenceTests : AppTestContext
     }
 
     [Fact]
+    public void EvaluateColumn_counts_children_for_many_rows_in_one_pass()
+    {
+        (FakeCatalog catalog, FakeLocalStore store) = Seeded();
+        ReferenceService svc = new(catalog, store);
+        IReadOnlyList<Row> sources = store.GetAll(TableNames.DataSource);
+
+        IReadOnlyDictionary<Guid, string?> counts = svc.EvaluateColumn(TableNames.DataSource, "field_count", sources);
+
+        Assert.Equal("2", counts[SourceId]); // matches the per-row Evaluate result
+    }
+
+    [Fact]
+    public void EvaluateColumn_lookup_resolves_for_many_rows()
+    {
+        (FakeCatalog catalog, FakeLocalStore store) = Seeded();
+        ReferenceService svc = new(catalog, store);
+        Row withClass = new(TableNames.DictionaryEntry, Guid.NewGuid()) { ["classification_id"] = ClassId.ToString() };
+        Row withoutClass = new(TableNames.DictionaryEntry, Guid.NewGuid());
+
+        IReadOnlyDictionary<Guid, string?> values =
+            svc.EvaluateColumn(TableNames.DictionaryEntry, "access_901", [withClass, withoutClass]);
+
+        Assert.Equal("Open", values[withClass.Id]);
+        Assert.Null(values[withoutClass.Id]);
+    }
+
+    [Fact]
     public void Grid_renders_reference_columns_as_pickers()
     {
         (FakeCatalog catalog, FakeLocalStore store) = Seeded();
@@ -74,5 +101,6 @@ public class ReferenceTests : AppTestContext
         Assert.Contains("<select", cut.Markup);   // application_id reference picker
         Assert.Contains("GDM1", cut.Markup);        // the referenced option's display
         Assert.Contains("NB fields", cut.Markup);   // computed column header
+        Assert.Contains(">2<", cut.Markup);         // precomputed field_count value for the seeded source
     }
 }

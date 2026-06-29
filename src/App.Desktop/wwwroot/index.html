@@ -14,7 +14,11 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    @* Load web fonts asynchronously so first paint is never blocked on the network (a desktop with no/
+       slow/firewalled internet would otherwise stall for seconds waiting for fonts). The Inter/JetBrains
+       Mono fallbacks in app.css render immediately, then the real fonts swap in when they arrive. *@
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" /></noscript>
     <link rel="stylesheet" href="_content/App.UI/css/app.css" />
     <title>Mapping Studio</title>
 </head>

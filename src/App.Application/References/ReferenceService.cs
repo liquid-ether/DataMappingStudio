@@ -75,6 +75,74 @@ public sealed partial class ReferenceService(ICatalog catalog, ILocalStore store
         return null;
     }
 
+    public IReadOnlyDictionary<Guid, string?> EvaluateColumn(string table, string column, IReadOnlyList<Row> rows)
+    {
+        Dictionary<Guid, string?> result = new(rows.Count);
+        IReadOnlyList<ColumnCatalogEntry> entries = catalog.GetForTable(table);
+        ColumnCatalogEntry? entry = entries.FirstOrDefault(e => e.ColumnName == column);
+
+        if (entry?.Formula is { } formula)
+        {
+            Match count = CountFormula().Match(formula);
+            if (count.Success)
+            {
+                string childTable = count.Groups["table"].Value;
+                string fk = count.Groups["col"].Value;
+
+                // Read the child table once and tally references by FK value, instead of re-scanning it
+                // for every parent row (the source of the grid's scroll lag).
+                Dictionary<string, int> counts = new(StringComparer.Ordinal);
+                foreach (Row child in store.GetAll(childTable))
+                {
+                    if (child[fk] is { } key)
+                    {
+                        counts[key] = counts.GetValueOrDefault(key) + 1;
+                    }
+                }
+
+                foreach (Row row in rows)
+                {
+                    result[row.Id] = counts.GetValueOrDefault(row.Id.ToString()).ToString();
+                }
+
+                return result;
+            }
+
+            Match lookup = LookupFormula().Match(formula);
+            if (lookup.Success)
+            {
+                string refColumn = lookup.Groups["ref"].Value;
+                string targetColumn = lookup.Groups["col"].Value;
+                ColumnCatalogEntry? refEntry = entries.FirstOrDefault(e => e.ColumnName == refColumn);
+                if (refEntry?.ReferenceTarget is { } target)
+                {
+                    // Index the target table once, then resolve each row's referenced value from memory.
+                    Dictionary<Guid, Row> byId = [];
+                    foreach (Row t in store.GetAll(target))
+                    {
+                        byId[t.Id] = t;
+                    }
+
+                    foreach (Row row in rows)
+                    {
+                        result[row.Id] = row[refColumn] is { } refId && Guid.TryParse(refId, out Guid guid) && byId.TryGetValue(guid, out Row? targetRow)
+                            ? targetRow[targetColumn]
+                            : null;
+                    }
+
+                    return result;
+                }
+            }
+        }
+
+        foreach (Row row in rows)
+        {
+            result[row.Id] = null;
+        }
+
+        return result;
+    }
+
     private string DisplayColumn(string table)
         => DisplayColumns.TryGetValue(table, out string? col) ? col : SyncColumns.Id;
 

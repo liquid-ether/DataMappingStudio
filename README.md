@@ -16,9 +16,9 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.7.0** — Data Import wizard performs real imports (shared engine) |
+| Current version | **v1.8.0** — concurrency-safe store, real change authorship, opt-in web auth |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 200 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 201 passing (+5 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
 
 The desktop has a **working top-bar menu** that switches between all editors (Applications, Sources,

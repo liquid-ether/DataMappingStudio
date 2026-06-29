@@ -4,7 +4,9 @@ using App.Application.Provisioning;
 using App.Infrastructure.Local;
 using App.Infrastructure.Remote;
 using App.UI;
+using App.Web;
 using App.Web.Components;
+using Microsoft.AspNetCore.Authentication.Negotiate;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +27,21 @@ builder.Services
     .AddLocalStore(Path.Combine(dataDir, "local.db"))
     .AddRemoteStore(remoteFolder)
     .AddAppUi();
+
+// Record the authenticated request user as the change author (overrides the OS-account default).
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+
+// Authentication is OFF by default (so local dev and the E2E suite work without credentials). In
+// production set Auth:Require=true (or env Auth__Require=true): the host then requires an authenticated
+// Windows user (Negotiate / Kerberos / NTLM) for every endpoint, and that identity feeds ICurrentUser.
+bool requireAuth = builder.Configuration.GetValue("Auth:Require", false);
+if (requireAuth)
+{
+    builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
+    builder.Services.AddAuthorizationBuilder().SetFallbackPolicy(
+        new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+}
 
 WebApplication app = builder.Build();
 
@@ -49,6 +66,12 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
+if (requireAuth)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
+
 app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<AppRoot>().AddInteractiveServerRenderMode();

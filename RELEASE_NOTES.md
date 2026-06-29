@@ -7,6 +7,25 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-06-29
+
+### Security & reliability (production hardening — top of the pre-production review list)
+- **Concurrency-safe local store.** The process-wide SQLite connection is now serialized behind a
+  re-entrant gate (`LocalDatabase.Gate`); every store/catalog/audit operation runs under it as one
+  whole operation (preserving `INSERT`+`last_insert_rowid` and read-then-write atomicity). The web
+  host's many Blazor circuits plus the 30-second auto-refresh timer can no longer execute commands on
+  the shared connection concurrently (which risked "database is locked" / change-log corruption). New
+  parallel read/write stress test asserts no corruption and unique change-log sequences.
+- **Real change authorship.** New `ICurrentUser` (App.Application.Abstractions) records the acting user
+  as `changed_by` on every change-log entry — the audit trail and conflict attribution previously
+  recorded a hardcoded `"analyst"`. The desktop/CLI use the OS account; the web host uses the
+  authenticated request user. Wired through `MetadataGrid`, `MappingStudioState`, `DataImportState`;
+  the per-writer remote-log id (`SyncCoordinator.WriterId`, host-level) is set from the OS account.
+- **Web authentication (opt-in).** `App.Web` can require an authenticated **Windows user (Negotiate)**
+  for every endpoint via `Auth:Require=true` (or `Auth__Require=true`); that identity feeds
+  `ICurrentUser`. Off by default so local dev and the E2E suite run without credentials. Verified:
+  anonymous requests receive `401` when enabled, and the Data Import E2E still passes with it off.
+
 ## [1.7.0] - 2026-06-29
 
 ### Changed

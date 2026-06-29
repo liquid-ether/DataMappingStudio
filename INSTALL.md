@@ -112,6 +112,17 @@ $env:RemoteFolder = "C:\Users\<name>\OneDrive - Contoso\MappingStudio"
 .\publish\web\App.Web.exe --urls "http://localhost:5000"
 ```
 
+> **Production note — authentication.** The web host is **unauthenticated by default** (so local
+> development and the E2E suite work without credentials). Before exposing it beyond localhost, require
+> an authenticated Windows user for every endpoint by setting `Auth__Require=true` (or `Auth:Require` in
+> `appsettings.json`). The authenticated identity is then recorded as the change author. Without this,
+> anyone who can reach the URL can read, edit, and publish.
+
+```powershell
+$env:Auth__Require = "true"   # require Windows (Negotiate) auth in production
+.\publish\web\App.Web.exe --urls "https://+:5001"
+```
+
 ---
 
 ## 4. Importing existing Excel data (optional)

@@ -1,5 +1,6 @@
 using App.Application.Abstractions;
 using App.Application.Expressions;
+using App.Application.Importing;
 using App.Application.Provisioning;
 using App.Domain.Data;
 using App.Domain.Entities;
@@ -13,7 +14,7 @@ public sealed class ImporterTests : IDisposable
     private readonly string _dir;
     private readonly LocalDatabase _db;
     private readonly SqliteLocalStore _store;
-    private readonly Importer _importer;
+    private readonly ImportEngine _importer;
 
     private sealed class Clock : IClock
     {
@@ -31,7 +32,7 @@ public sealed class ImporterTests : IDisposable
         _store.EnsureSchema();
 
         FunctionLibrary functions = new();
-        _importer = new Importer(catalog, _store, new RuleExpressionBuilder(functions, new ExpressionClassifier(functions)));
+        _importer = new ImportEngine(catalog, _store, new RuleExpressionBuilder(functions, new ExpressionClassifier(functions)));
     }
 
     private static WorksheetData Sheet(string worksheet, params Dictionary<string, string?>[] rows)

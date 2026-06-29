@@ -1,5 +1,6 @@
 using App.Application.Abstractions;
 using App.Application.Expressions;
+using App.Application.Importing;
 using App.Application.Provisioning;
 using App.Domain.Data;
 using App.Domain.Entities;
@@ -11,7 +12,7 @@ namespace App.Importer.Tests;
 
 /// <summary>
 /// End-to-end coverage for the native Excel path: build a real .xlsx in memory, read it with
-/// <see cref="ExcelWorksheetReader"/>, and run the importer into a real SQLite working copy — proving
+/// <see cref="ClosedXmlWorkbookReader"/>, and run the importer into a real SQLite working copy — proving
 /// the importer targets the local database and can import an Excel file without any external tooling.
 /// </summary>
 public sealed class ExcelImportTests : IDisposable
@@ -19,7 +20,7 @@ public sealed class ExcelImportTests : IDisposable
     private readonly string _dir;
     private readonly LocalDatabase _db;
     private readonly SqliteLocalStore _store;
-    private readonly Importer _importer;
+    private readonly ImportEngine _importer;
 
     private sealed class Clock : IClock
     {
@@ -37,7 +38,7 @@ public sealed class ExcelImportTests : IDisposable
         _store.EnsureSchema();
 
         FunctionLibrary functions = new();
-        _importer = new Importer(catalog, _store, new RuleExpressionBuilder(functions, new ExpressionClassifier(functions)));
+        _importer = new ImportEngine(catalog, _store, new RuleExpressionBuilder(functions, new ExpressionClassifier(functions)));
     }
 
     private static ImportMapping AppsAndSourceMapping() => new()
@@ -94,7 +95,7 @@ public sealed class ExcelImportTests : IDisposable
         ImportMapping mapping = AppsAndSourceMapping();
         using MemoryStream workbook = BuildWorkbook();
 
-        List<WorksheetData> data = ExcelWorksheetReader.Read(workbook, mapping);
+        IReadOnlyList<WorksheetData> data = new ClosedXmlWorkbookReader().Read(workbook, mapping);
         ImportReport report = _importer.Run(mapping, data, "import");
 
         // Application row landed in the local store with the mapped columns.
@@ -126,7 +127,7 @@ public sealed class ExcelImportTests : IDisposable
         };
         using MemoryStream workbook = BuildWorkbook();
 
-        List<WorksheetData> data = ExcelWorksheetReader.Read(workbook, mapping);
+        IReadOnlyList<WorksheetData> data = new ClosedXmlWorkbookReader().Read(workbook, mapping);
 
         Assert.Equal(2, data.Count);
         Assert.Empty(data.First(d => d.Worksheet == "Classification").Rows); // absent sheet -> empty, no crash

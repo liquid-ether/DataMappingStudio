@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace App.Importer;
+namespace App.Application.Importing;
 
 /// <summary>Per-worksheet import outcome (Architecture §10d).</summary>
 public sealed class WorksheetReport(string worksheet, string table)

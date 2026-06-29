@@ -1,34 +1,24 @@
+using App.Application.Importing;
 using ClosedXML.Excel;
 
-namespace App.Importer;
+namespace App.Infrastructure.Local;
 
 /// <summary>
-/// Reads an Excel workbook (.xlsx) directly into the importer's <see cref="WorksheetData"/> shape —
-/// no external tooling (the build's PowerShell <c>ImportExcel</c> step is now optional). For each
-/// worksheet named in the mapping it takes the first used row as the header and every subsequent used
-/// row as a record of header → cell text (Excel's displayed value, so dates/numbers come through as the
-/// user sees them). Worksheets that are absent or empty yield an empty <see cref="WorksheetData"/>.
+/// <see cref="IWorkbookReader"/> backed by ClosedXML: reads an .xlsx workbook directly (no external
+/// tooling). For each worksheet named in the mapping it takes the first used row as the header and every
+/// subsequent used row as a record of header → cell text (Excel's displayed value, so dates/numbers come
+/// through as the user sees them). Worksheets that are absent or empty yield an empty
+/// <see cref="WorksheetData"/>.
 /// </summary>
-public static class ExcelWorksheetReader
+public sealed class ClosedXmlWorkbookReader : IWorkbookReader
 {
-    public static List<WorksheetData> Read(string workbookPath, ImportMapping mapping)
+    public IReadOnlyList<WorksheetData> Read(Stream workbook, ImportMapping mapping)
     {
-        using XLWorkbook workbook = new(workbookPath);
-        return Read(workbook, mapping);
-    }
-
-    public static List<WorksheetData> Read(Stream workbookStream, ImportMapping mapping)
-    {
-        using XLWorkbook workbook = new(workbookStream);
-        return Read(workbook, mapping);
-    }
-
-    private static List<WorksheetData> Read(XLWorkbook workbook, ImportMapping mapping)
-    {
+        using XLWorkbook xl = new(workbook);
         List<WorksheetData> result = [];
         foreach (WorksheetMapping ws in mapping.Worksheets)
         {
-            result.Add(workbook.Worksheets.TryGetWorksheet(ws.Worksheet, out IXLWorksheet? sheet)
+            result.Add(xl.Worksheets.TryGetWorksheet(ws.Worksheet, out IXLWorksheet? sheet)
                 ? new WorksheetData(ws.Worksheet, ReadRows(sheet))
                 : new WorksheetData(ws.Worksheet, []));
         }
@@ -57,8 +47,7 @@ public static class ExcelWorksheetReader
             Dictionary<string, string?> record = new(StringComparer.Ordinal);
             foreach ((int column, string name) in headers)
             {
-                IXLCell cell = row.Cell(column);
-                string text = cell.GetFormattedString();
+                string text = row.Cell(column).GetFormattedString();
                 record[name] = string.IsNullOrEmpty(text) ? null : text;
             }
 

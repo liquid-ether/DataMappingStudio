@@ -3,11 +3,12 @@
 @inject ThemeState Theme
 @implements IDisposable
 @using App.UI.DataImport
+@using App.Application.Importing
+@using Microsoft.AspNetCore.Components.Forms
 
-@* Data Import wizard ("DataBridge Import") — a faithful Blazor port of the imported
-   "Data Import Tool.dc.html" design: a 6-step pipeline (Source → Mapping → Transform → Validate →
-   Load → Recap) over the DataImportState service. Theming is scoped to the .dbi root via CSS vars so
-   the wizard's light/dark switch never touches the surrounding app shell. *@
+@* Data Import wizard — wired to the real local database. An uploaded .xlsx is parsed by the shared
+   workbook reader using the built-in mapping, validated against the column catalog (dry run), then
+   loaded through the same ImportEngine the CLI uses into the local store as one reviewable change set. *@
 
 <style>
   @@keyframes dbi-spin{to{transform:rotate(360deg)}}
@@ -16,42 +17,26 @@
     font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;
     border:1px solid var(--border);border-radius:16px;overflow:hidden;position:relative;box-shadow:0 8px 40px rgba(16,30,40,.10)}
   .dbi *{box-sizing:border-box}
-  .dbi ::selection{background:var(--accent-soft)}
   .dbi .mono{font-family:'JetBrains Mono',ui-monospace,monospace}
-  .dbi select{color:var(--text);font-family:inherit}
-  .dbi option{background:var(--surface);color:var(--text);font-weight:500}
+  .dbi select,.dbi input{font-family:inherit}
   .dbi .dbi-ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .dbi-scroll::-webkit-scrollbar{width:10px;height:10px}
   .dbi-scroll::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
-  .dbi-scroll::-webkit-scrollbar-track{background:transparent}
   .dbi-fade{animation:dbi-fadeup .22s ease}
 
-  /* header */
   .dbi-head{display:flex;align-items:center;gap:18px;padding:0 22px;height:60px;background:var(--surface);border-bottom:1px solid var(--border);position:relative;z-index:40}
   .dbi-logo{width:30px;height:30px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 1px 2px rgba(0,0,0,.18)}
   .dbi-logo i{width:13px;height:13px;border:2.2px solid #fff;border-radius:3px;border-top-color:transparent;transform:rotate(45deg);display:block}
   .dbi-title{font-weight:600;font-size:15px;letter-spacing:-.2px;white-space:nowrap}
   .dbi-badge{font-size:11px;font-weight:500;color:var(--text-3);border:1px solid var(--border);padding:1px 7px;border-radius:20px;white-space:nowrap}
-  .dbi-conn{display:flex;align-items:center;gap:9px;height:36px;padding:0 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;cursor:pointer;color:var(--text);font-family:inherit;font-size:12.5px;max-width:280px}
-  .dbi-conn-label{font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+  .dbi-target{display:flex;align-items:center;gap:9px;height:36px;padding:0 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;font-size:12.5px;max-width:280px}
   .dbi-dot-ok{width:7px;height:7px;border-radius:50%;background:var(--ok);flex-shrink:0;box-shadow:0 0 0 3px var(--ok-soft)}
-  .dbi-tbtn{display:flex;align-items:center;gap:7px;height:36px;padding:0 13px;background:var(--surface);border:1px solid var(--border);border-radius:9px;cursor:pointer;color:var(--text-2);font-family:inherit;font-size:12.5px;font-weight:500}
   .dbi-sep{width:1px;height:24px;background:var(--border)}
   .dbi-seg{display:flex;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:2px;font-size:12px;font-weight:600}
   .dbi-seg button{padding:4px 11px;border-radius:6px;border:none;cursor:pointer;font-family:inherit;font-weight:600;font-size:12px;background:transparent;color:var(--text-3)}
   .dbi-seg button.on{background:var(--accent);color:#fff}
   .dbi-icon{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--border);border-radius:9px;cursor:pointer;color:var(--text-2);font-size:15px}
 
-  /* popovers */
-  .dbi-pop-scrim{position:absolute;inset:0;z-index:45}
-  .dbi-pop{position:absolute;top:64px;z-index:46;width:340px;background:var(--surface);border:1px solid var(--border);border-radius:13px;box-shadow:0 14px 44px rgba(0,0,0,.22);padding:16px;animation:dbi-fadeup .14s ease}
-  .dbi-flab{font-size:11px;color:var(--text-3);font-weight:500;display:block}
-  .dbi-input{width:100%;height:36px;padding:0 10px;margin-top:4px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;cursor:pointer}
-  .dbi-chip-btn{font-size:11px;font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:none;padding:5px 10px;border-radius:7px;cursor:pointer;font-family:inherit}
-  .dbi-out-btn{font-size:11px;font-weight:600;color:var(--accent-text);background:none;border:1px solid var(--border);padding:5px 11px;border-radius:7px;cursor:pointer;font-family:inherit}
-  .dbi-tpl-row{display:flex;align-items:center;gap:10px;padding:10px 11px;border:1px solid var(--border);border-radius:10px}
-
-  /* stepper */
   .dbi-stepper{display:flex;overflow-x:auto;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
   .dbi-step{display:flex;align-items:center;gap:9px;padding:7px 13px;border-radius:10px;border:none;background:transparent;cursor:pointer;font-family:inherit}
   .dbi-step.cur{background:var(--surface-2)}
@@ -62,7 +47,6 @@
   .dbi-kicker{font-size:9.5px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3)}
   .dbi-conn-line{width:26px;height:2px;border-radius:2px;flex-shrink:0;display:block}
 
-  /* body / footer */
   .dbi-body{flex:1;overflow:auto;padding:28px 22px 32px;min-height:0}
   .dbi-h1{margin:0 0 5px;font-size:21px;font-weight:600;letter-spacing:-.3px}
   .dbi-sub{margin:0;color:var(--text-2);font-size:13.5px}
@@ -72,15 +56,14 @@
   .dbi-back{height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit}
   .dbi-back:disabled{opacity:.45;cursor:not-allowed}
 
-  /* cards / generic */
   .dbi-card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px}
   .dbi-card-h{font-weight:600;font-size:13px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
   .dbi-eyebrow{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)}
   .dbi-colhead{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3)}
 
-  /* step1 */
-  .dbi-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:3px;padding:48px 24px;border-radius:16px;border:2px dashed var(--border-strong);background:var(--surface);cursor:pointer;transition:all .15s}
-  .dbi-drop.drag{border-color:var(--accent);background:var(--accent-soft)}
+  .dbi-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:3px;padding:48px 24px;border-radius:16px;border:2px dashed var(--border-strong);background:var(--surface);cursor:pointer;transition:all .15s;position:relative}
+  .dbi-drop:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .dbi-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
   .dbi-drop-ic{width:60px;height:60px;border-radius:16px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;margin-bottom:8px}
   .dbi-drop-ic i{width:24px;height:24px;border:2.4px solid var(--accent);border-radius:6px;border-bottom-color:transparent;display:block}
   .dbi-pill{font-size:11px;font-weight:600;color:var(--text-3);border:1px solid var(--border);padding:3px 9px;border-radius:20px}
@@ -88,79 +71,34 @@
   .dbi-file-ic{width:42px;height:42px;border-radius:10px;background:var(--ok-soft);display:flex;align-items:center;justify-content:center;color:var(--ok);font-weight:700;font-size:13px;flex-shrink:0}
   .dbi-file-meta{display:flex;gap:14px;color:var(--text-3);font-size:11.5px;margin-top:2px}
   .dbi-x{background:none;border:1px solid var(--border);color:var(--text-2);border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:14px}
-  .dbi-encbadge{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:20px}
-  .dbi-encbadge.ok{background:var(--ok-soft);color:var(--ok)} .dbi-encbadge.bad{background:var(--err-soft);color:var(--err)}
   .dbi-prev{border-collapse:collapse;width:100%;font-size:11.5px}
   .dbi-prev th{text-align:left;padding:7px 9px;background:var(--surface-2);color:var(--text-2);font-weight:600;white-space:nowrap;border-bottom:1px solid var(--border)}
   .dbi-prev td{padding:6px 9px;white-space:nowrap;color:var(--text);border-bottom:1px solid var(--border)}
-  .dbi-sheet{text-align:left;min-width:200px;flex:1;padding:13px 15px;border-radius:11px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-family:inherit;color:var(--text)}
-  .dbi-sheet.on{border-color:var(--accent);background:var(--accent-soft)}
+  .dbi-sheet{text-align:left;min-width:210px;flex:1;padding:13px 15px;border-radius:11px;border:1.5px solid var(--accent);background:var(--accent-soft);font-family:inherit;color:var(--text)}
   .dbi-sheet-chk{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
-
-  /* step2 */
   .dbi-tab{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-weight:600;font-size:13px;cursor:pointer;font-family:inherit}
   .dbi-tab.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-text)}
   .dbi-status{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:6px 11px;border-radius:8px}
   .dbi-status.err{color:var(--err);background:var(--err-soft)} .dbi-status.ok{color:var(--ok);background:var(--ok-soft)} .dbi-status.warn{color:var(--warn);background:var(--warn-soft)}
   .dbi-maprow{display:grid;grid-template-columns:1fr 30px 1fr;align-items:center;border-bottom:1px solid var(--border)}
   .dbi-type{font-size:10px;font-weight:600;color:var(--text-3);background:var(--surface-2);padding:1px 6px;border-radius:5px}
-  .dbi-mapsel{flex:1;min-width:0;height:34px;padding:0 9px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer}
   .dbi-fl{font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:5px;white-space:nowrap}
   .dbi-note{display:flex;align-items:center;gap:10px;margin-top:12px;padding:11px 15px;background:var(--info-soft);border-radius:10px;font-size:12px;color:var(--text-2)}
-
-  /* step3 */
-  .dbi-selbox{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0 12px 0 13px;height:40px}
-  .dbi-plain{border:none;background:transparent;color:var(--text);font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;height:38px;outline:none}
-  .dbi-collist{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:8px 11px;border-radius:8px;border:none;background:transparent;color:var(--text-2);font-weight:500;font-size:12.5px;cursor:pointer;font-family:inherit;text-align:left}
-  .dbi-collist.on{background:var(--accent-soft);color:var(--accent-text);font-weight:600}
-  .dbi-colbadge{font-size:10px;font-weight:700;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--surface-3);color:var(--text-3);display:flex;align-items:center;justify-content:center}
-  .dbi-colbadge.on{background:var(--accent);color:#fff}
-  .dbi-xchip{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 11px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:9px;font-size:12.5px;font-weight:600;color:var(--accent-text)}
-  .dbi-xparam{font-size:10.5px;font-weight:500;opacity:.85;background:var(--surface);padding:1px 5px;border-radius:5px}
-  .dbi-xrem{background:none;border:none;color:var(--accent-text);cursor:pointer;font-size:13px;padding:0;display:flex;opacity:.7}
-  .dbi-libbtn{display:flex;align-items:center;gap:7px;padding:7px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:500;color:var(--text-2);cursor:pointer;font-family:inherit}
-  .dbi-libbtn:hover{background:var(--surface-3)}
-  .dbi-ba-h{display:grid;grid-template-columns:1fr 30px 1fr;background:var(--surface-2);border-bottom:1px solid var(--border)}
-  .dbi-ba-row{display:grid;grid-template-columns:1fr 30px 1fr;border-bottom:1px solid var(--border);font-size:12px}
-
-  /* step4 */
-  .dbi-log{border-collapse:collapse;width:100%;font-size:12px}
-  .dbi-log th{text-align:left;padding:8px 10px;font-weight:600;color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.4px;background:var(--surface-2)}
-  .dbi-log td{padding:8px 10px;border-top:1px solid var(--border)}
-  .dbi-kind{display:inline-flex;width:18px;height:18px;border-radius:5px;align-items:center;justify-content:center;font-size:10px;font-weight:700}
-  .dbi-kind.err{background:var(--err-soft);color:var(--err)} .dbi-kind.warn{background:var(--warn-soft);color:var(--warn)}
-  .dbi-mode{display:flex;gap:12px;padding:14px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-family:inherit;text-align:left;color:var(--text)}
-  .dbi-mode.on{border-color:var(--accent);background:var(--accent-soft)}
-  .dbi-radio{width:18px;height:18px;border-radius:50%;border:2px solid var(--border-strong);flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center}
-  .dbi-radio.on{border-color:var(--accent)}
-  .dbi-radio-dot{width:8px;height:8px;border-radius:50%;background:transparent}
-  .dbi-radio-dot.on{background:var(--accent)}
-
-  /* step5 */
   .dbi-kv{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden}
   .dbi-kv-cell{background:var(--surface);padding:12px 14px}
   .dbi-bigbtn{width:100%;height:50px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-weight:600;font-size:15px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 2px 8px rgba(0,0,0,.16)}
+  .dbi-bigbtn:disabled{opacity:.6;cursor:not-allowed}
   .dbi-spin{width:16px;height:16px;border:2.4px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:dbi-spin .7s linear infinite;display:inline-block}
-  .dbi-bar{height:10px;background:var(--surface-3);border-radius:6px;overflow:hidden}
-  .dbi-bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .1s linear}
-  .dbi-cancel{font-size:12.5px;font-weight:600;color:var(--err);background:var(--err-soft);border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-family:inherit}
-  .dbi-cancelled{background:var(--err-soft);border:1px solid var(--err);border-radius:13px;padding:18px;display:flex;align-items:center;gap:13px}
-  .dbi-cancel-ic{width:34px;height:34px;border-radius:50%;background:var(--err);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-  .dbi-done{background:var(--surface);border:1px solid var(--ok);border-radius:13px;padding:20px;text-align:center}
-  .dbi-done-ic{width:52px;height:52px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 12px}
-
-  /* step6 */
+  .dbi-metric{border:1px solid var(--border);border-radius:13px;padding:16px;background:var(--surface)}
+  .dbi-log{border-collapse:collapse;width:100%;font-size:12px}
+  .dbi-log th{text-align:left;padding:8px 10px;font-weight:600;color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.4px;background:var(--surface-2)}
+  .dbi-log td{padding:8px 10px;border-top:1px solid var(--border)}
   .dbi-okdot{width:24px;height:24px;border-radius:50%;background:var(--ok);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px}
-  .dbi-metric{text-align:left;width:100%;border:1px solid var(--border);border-radius:13px;padding:16px;cursor:pointer;font-family:inherit;color:var(--text);transition:all .14s;position:relative}
-  .dbi-track{height:9px;background:var(--surface-3);border-radius:5px;overflow:hidden}
-  .dbi-rundet{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-  .dbi-rundet-cell{background:var(--surface);padding:11px 14px;min-width:0}
   .dbi-act{display:flex;align-items:center;gap:8px;height:44px;padding:0 18px;border-radius:11px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit}
   .dbi-act.primary{border:none;background:var(--accent);color:#fff;padding:0 20px}
 </style>
 
 <div class="dbi">
-
   @* ===== TOP BAR ===== *@
   <header class="dbi-head">
     <div style="display:flex;align-items:center;gap:11px;min-width:0">
@@ -169,82 +107,25 @@
       <span class="dbi-badge">@T("envBadge")</span>
     </div>
     <div style="flex:1"></div>
-
-    <button class="dbi-conn" @onclick="State.ToggleConn">
+    <div class="dbi-target">
       <span class="dbi-dot-ok"></span>
       <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;min-width:0">
-        <span style="font-size:10px;color:var(--text-3);font-weight:500">@T("connection")</span>
-        <span class="dbi-conn-label">@($"{State.Conn.Server} / {State.Conn.Database} · {State.Conn.Schema}")</span>
+        <span style="font-size:10px;color:var(--text-3);font-weight:500">@T("target")</span>
+        <span style="font-weight:550">@T("targetDb")</span>
       </span>
-      <span style="color:var(--text-3);font-size:10px">▾</span>
-    </button>
-
-    <button class="dbi-tbtn" @onclick="State.ToggleTpl"><span style="font-size:13px">⌗</span>@T("templates")</button>
-
+    </div>
     <div class="dbi-sep"></div>
-
     <div class="dbi-seg">
       <button class="@(Lang.IsFrench ? "" : "on")" @onclick='() => Lang.Set("en")'>EN</button>
       <button class="@(Lang.IsFrench ? "on" : "")" @onclick='() => Lang.Set("fr")'>FR</button>
     </div>
-
     <button class="dbi-icon" title="@T("theme")" @onclick="Theme.ToggleAsync">@(Theme.IsDark ? "☀" : "☾")</button>
   </header>
-
-  @* connection popover *@
-  @if (State.ConnOpen)
-  {
-    <div class="dbi-pop-scrim" @onclick="State.ClosePops"></div>
-    <div class="dbi-pop" style="right:170px">
-      <div style="font-weight:600;margin-bottom:12px;font-size:13px">@T("targetConnection")</div>
-      <label class="dbi-flab">@T("server")</label>
-      <select class="dbi-input" @bind:get="State.Conn.Server" @bind:set='v => State.SetConn("server", v)'>
-        @foreach (string o in _servers) { <option value="@o">@o</option> }
-      </select>
-      <label class="dbi-flab" style="margin-top:10px">@T("database")</label>
-      <select class="dbi-input" @bind:get="State.Conn.Database" @bind:set='v => State.SetConn("database", v)'>
-        @foreach (string o in _databases) { <option value="@o">@o</option> }
-      </select>
-      <label class="dbi-flab" style="margin-top:10px">@T("schema")</label>
-      <select class="dbi-input" @bind:get="State.Conn.Schema" @bind:set='v => State.SetConn("schema", v)'>
-        @foreach (string o in _schemas) { <option value="@o">@o</option> }
-      </select>
-    </div>
-  }
-
-  @* templates popover *@
-  @if (State.TplOpen)
-  {
-    <div class="dbi-pop-scrim" @onclick="State.ClosePops"></div>
-    <div class="dbi-pop" style="right:120px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div style="font-weight:600;font-size:13px">@T("mappingTemplates")</div>
-        <button class="dbi-chip-btn" @onclick="State.SaveTpl">+ @T("saveCurrent")</button>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        @foreach (ImportTemplate tpl in State.Templates)
-        {
-          <div class="dbi-tpl-row">
-            <span style="font-size:15px">⌗</span>
-            <div style="flex:1;min-width:0">
-              <div class="dbi-ell" style="font-weight:550;font-size:12.5px">@tpl.Name</div>
-              <div style="font-size:10.5px;color:var(--text-3)">@($"{tpl.Sheets} {T("worksheets").ToLowerInvariant()} · {tpl.Cols} {T("cols")}")</div>
-            </div>
-            <button class="dbi-out-btn" @onclick="State.ApplyTpl">@T("apply")</button>
-          </div>
-        }
-        @if (State.Templates.Count == 0)
-        {
-          <div style="text-align:center;padding:18px;color:var(--text-3);font-size:12px">@T("noTemplates")</div>
-        }
-      </div>
-    </div>
-  }
 
   @* ===== STEPPER ===== *@
   <nav class="dbi-stepper dbi-scroll">
     <div style="display:flex;align-items:center;gap:4px;margin:0 auto;flex-shrink:0">
-      @for (int i = 0; i < 6; i++)
+      @for (int i = 0; i < DataImportState.StepCount; i++)
       {
         int idx = i;
         bool done = idx < State.MaxStep && idx != State.Step;
@@ -257,7 +138,7 @@
             <span style="font-size:13px;font-weight:@(cur ? 700 : 600);color:@(cur ? "var(--text)" : locked ? "var(--text-3)" : "var(--text-2)")">@_labels[idx]</span>
           </span>
         </button>
-        @if (idx < 5)
+        @if (idx < DataImportState.StepCount - 1)
         {
           <span class="dbi-conn-line" style="background:@(idx < State.MaxStep ? "var(--accent)" : "var(--border)");opacity:@(idx < State.MaxStep ? "0.6" : "1")"></span>
         }
@@ -267,7 +148,7 @@
 
   @* ===== BODY ===== *@
   <main class="dbi-body dbi-scroll">
-    <div style="max-width:1180px;margin:0 auto">
+    <div style="max-width:1100px;margin:0 auto">
 
       @* ---------- STEP 1: SOURCE ---------- *@
       @if (State.Step == 0)
@@ -278,125 +159,83 @@
             <p class="dbi-sub">@T("s1Sub")</p>
           </div>
 
-          @if (State.File is null)
+          @if (!State.HasFile)
           {
-            <label class="dbi-drop @(State.Drag ? "drag" : "")"
-                   @ondragover:preventDefault="true" @ondragover="() => State.SetDrag(true)"
-                   @ondragleave:preventDefault="true" @ondragleave="() => State.SetDrag(false)"
-                   @ondrop:preventDefault="true" @ondrop="OnDrop">
-              <input type="file" accept=".xlsx,.csv" @onchange="() => State.LoadSample()" style="display:none" />
+            <label class="dbi-drop">
+              <InputFile OnChange="OnFile" accept=".xlsx" disabled="@State.Busy" />
               <div class="dbi-drop-ic"><i></i></div>
-              <div style="font-weight:600;font-size:15px">@T("dropTitle")</div>
-              <div style="color:var(--text-2);font-size:13px">@T("dropOr") <span style="color:var(--accent-text);font-weight:600;text-decoration:underline">@T("dropBrowse")</span></div>
-              <div style="margin-top:10px;display:flex;gap:7px;align-items:center">
-                <span class="dbi-pill">.xlsx</span>
-                <span class="dbi-pill">.csv</span>
-                <span style="font-size:11px;font-weight:500;color:var(--text-3);padding:3px 4px">@T("maxSize")</span>
-              </div>
-              <button type="button" class="dbi-chip-btn" style="margin-top:16px;padding:8px 14px"
-                      @onclick:stopPropagation="true" @onclick:preventDefault="true" @onclick="() => State.LoadSample()">↧ @T("useSample")</button>
+              @if (State.Busy)
+              {
+                <div style="display:flex;align-items:center;gap:9px;font-weight:600;font-size:15px"><span class="dbi-spin"></span>@T("reading")</div>
+              }
+              else
+              {
+                <div style="font-weight:600;font-size:15px">@T("dropTitle")</div>
+                <div style="color:var(--text-2);font-size:13px">@T("dropOr") <span style="color:var(--accent-text);font-weight:600;text-decoration:underline">@T("dropBrowse")</span></div>
+                <div style="margin-top:10px;display:flex;gap:7px;align-items:center"><span class="dbi-pill">.xlsx</span><span style="font-size:11px;color:var(--text-3)">@T("accepted")</span></div>
+              }
             </label>
+            @if (State.ParseError is not null)
+            {
+              <div class="dbi-status err" style="margin-top:14px"><span>⚠</span>@State.ParseError</div>
+            }
           }
           else
           {
+            WorksheetData? preview = State.PopulatedSheets.FirstOrDefault();
+            List<string> previewCols = preview is null ? [] : preview.Rows[0].Keys.Take(6).ToList();
             <div class="dbi-file">
               <div class="dbi-file-ic">XLS</div>
               <div style="flex:1;min-width:0">
-                <div class="dbi-ell" style="font-weight:600">@State.File.Name</div>
+                <div class="dbi-ell" style="font-weight:600">@State.FileName</div>
                 <div class="mono dbi-file-meta">
-                  <span>@State.File.Size</span><span>@State.File.Type</span>
-                  <span>@($"{State.File.Sheets} {T("worksheets").ToLowerInvariant()}")</span>
-                  <span>@($"{State.FmtInt(State.File.Rows)} {T("rows")}")</span>
+                  <span>@DataImportState.FmtSize(State.FileSize)</span>
+                  <span>@($"{State.PopulatedSheets.Count()} {T("worksheets").ToLowerInvariant()}")</span>
+                  <span>@($"{State.FmtInt(State.TotalRows)} {T("rows")}")</span>
                 </div>
               </div>
               <div style="display:flex;align-items:center;gap:6px;color:var(--ok);font-size:12px;font-weight:600"><span style="font-size:14px">✓</span>@T("parsed")</div>
               <button class="dbi-x" @onclick="State.ClearFile">✕</button>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
-              @* parsing options *@
-              <div class="dbi-card">
-                <div class="dbi-card-h"><span style="color:var(--accent)">⚙</span>@T("parsingOptions")</div>
-                <label class="dbi-flab">@T("encoding")</label>
-                <select class="dbi-input" @bind:get="State.Parse.Encoding" @bind:set='v => State.SetParse("encoding", v)'>
-                  @foreach (string o in _encodings) { <option value="@o">@o</option> }
-                </select>
-                <div style="font-size:11px;color:var(--text-3);margin-top:5px">@(Lang.IsFrench ? "Par défaut : encodage de la feuille (UTF-8)." : "Default: sheet encoding (UTF-8).")</div>
-
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;opacity:.5">
-                  <div>
-                    <label class="dbi-flab">@T("delimiter")</label>
-                    <select class="dbi-input" disabled @bind:get="State.Parse.Delimiter" @bind:set='v => State.SetParse("delimiter", v)'>
-                      <option value=",">, (comma)</option><option value=";">; (semicolon)</option><option value="&#9;">⇥ (tab)</option><option value="|">| (pipe)</option>
-                    </select>
+            <div class="dbi-card" style="margin-bottom:16px">
+              <div class="dbi-card-h"><span style="color:var(--accent)">▦</span>@T("worksheets")</div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap">
+                @foreach (WorksheetVm ws in State.Worksheets())
+                {
+                  <div class="dbi-sheet">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:6px">
+                      <span style="font-weight:600;font-size:13px">@ws.Name <span class="mono" style="font-weight:500;color:var(--accent-text)">@T("mappedTo") @ws.Table</span></span>
+                      <span class="dbi-sheet-chk">✓</span>
+                    </div>
+                    <div class="mono" style="font-size:11px;color:var(--text-3)">
+                      @($"{State.FmtInt(ws.Rows)} {T("rows")} · {ws.MappedColumns}/{ws.SourceColumns} {T("cols")}")
+                      @if (ws.UnmappedHeaders.Count > 0) { <text> · @ws.UnmappedHeaders.Count @T("unmappedCols")</text> }
+                    </div>
                   </div>
-                  <div>
-                    <label class="dbi-flab">@T("quoteChar")</label>
-                    <select class="dbi-input" disabled @bind:get="State.Parse.Quote" @bind:set='v => State.SetParse("quote", v)'>
-                      <option value="&quot;">"  (double)</option><option value="'">'  (single)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="dbi-flab">@T("headerRow")</label>
-                    <select class="dbi-input" disabled @bind:get="State.Parse.Header" @bind:set='v => State.SetParse("header", v)'>
-                      <option value="1">1</option><option value="2">2</option><option value="0">@T("noHeader")</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="dbi-flab">@T("decimalSep")</label>
-                    <select class="dbi-input" disabled @bind:get="State.Parse.Decimal" @bind:set='v => State.SetParse("decimal", v)'>
-                      <option value=",">@T("comma")</option><option value=".">@T("dot")</option>
-                    </select>
-                  </div>
-                </div>
-                <div style="font-size:11px;color:var(--text-3);margin-top:8px">@(Lang.IsFrench ? "Options CSV — désactivées pour les fichiers Excel." : "CSV-only options — disabled for Excel files.")</div>
+                }
               </div>
+            </div>
 
-              @* live preview *@
+            @if (preview is not null)
+            {
               <div class="dbi-card">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-                  <div class="dbi-card-h" style="margin-bottom:0"><span style="color:var(--accent)">◉</span>@T("livePreview")</div>
-                  <span class="dbi-encbadge @(State.IsBadEncoding ? "bad" : "ok")">@State.Parse.Encoding</span>
-                </div>
+                <div class="dbi-card-h"><span style="color:var(--accent)">◉</span>@T("preview") · <span class="mono" style="font-weight:500">@preview.Worksheet</span></div>
                 <div style="border:1px solid var(--border);border-radius:9px;overflow:hidden">
                   <div style="overflow-x:auto" class="dbi-scroll">
                     <table class="dbi-prev">
-                      <thead><tr>
-                        @foreach (SourceColumn c in State.Sheets["Clients"].Cols.Take(5)) { <th>@c.Name</th> }
-                      </tr></thead>
+                      <thead><tr>@foreach (string c in previewCols) { <th>@c</th> }</tr></thead>
                       <tbody>
-                        @foreach (string[] r in State.Sheets["Clients"].Data.Take(5))
+                        @foreach (IReadOnlyDictionary<string, string?> row in preview.Rows.Take(5))
                         {
-                          <tr>
-                            @foreach (string cell in r.Take(5)) { <td class="mono">@(State.IsBadEncoding ? State.Garble(cell) : cell)</td> }
-                          </tr>
+                          <tr>@foreach (string c in previewCols) { <td class="mono">@row.GetValueOrDefault(c)</td> }</tr>
                         }
                       </tbody>
                     </table>
                   </div>
                 </div>
-                <div style="font-size:11px;margin-top:9px;display:flex;align-items:center;gap:6px;color:@(State.IsBadEncoding ? "var(--err)" : "var(--ok)")">
-                  <span>@(State.IsBadEncoding ? "⚠" : "✓")</span>@(State.IsBadEncoding ? T("parsed_bad") : T("parsed_ok"))
-                </div>
               </div>
-            </div>
-
-            @* worksheets *@
-            <div class="dbi-card" style="margin-top:16px">
-              <div class="dbi-card-h"><span style="color:var(--accent)">▦</span>@T("worksheets") <span style="color:var(--text-3);font-weight:500">· @($"{State.Sheets.Count} {T("worksheets").ToLowerInvariant()}")</span></div>
-              <div style="display:flex;gap:12px;flex-wrap:wrap">
-                @foreach (KeyValuePair<string, SourceSheet> kv in State.Sheets)
-                {
-                  <button class="dbi-sheet on" type="button">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:6px">
-                      <span style="font-weight:600;font-size:13px">@kv.Key</span>
-                      <span class="dbi-sheet-chk">✓</span>
-                    </div>
-                    <div class="mono" style="font-size:11px;color:var(--text-3)">@($"{kv.Value.Cols.Count} {T("cols")} · {(kv.Key == "Clients" ? "1 248" : "1 233")} {T("rows")}")</div>
-                  </button>
-                }
-              </div>
-            </div>
+            }
           }
         </div>
       }
@@ -404,10 +243,7 @@
       @* ---------- STEP 2: MAPPING ---------- *@
       else if (State.Step == 1)
       {
-        string ms = State.ActiveMapSheet;
-        TargetTable tgt = State.Target[ms];
-        List<TargetColumn> unmapped = UnmappedReq(ms);
-        int mmCount = MismatchCount(ms);
+        string sheet = ActiveMapSheet();
         <div class="dbi-fade">
           <div style="margin-bottom:18px">
             <h1 class="dbi-h1">@T("s2Title")</h1>
@@ -415,438 +251,179 @@
           </div>
 
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-            @foreach (string name in State.Sheets.Keys)
+            @foreach (WorksheetVm ws in State.Worksheets())
             {
-              bool active = name == ms;
-              <button class="dbi-tab @(active ? "on" : "")" @onclick="() => State.SetMapSheet(name)">@name <span class="mono" style="font-size:11px;opacity:.8">@($"{MappedCount(name)}/{State.Sheets[name].Cols.Count}")</span></button>
-            }
-            <div style="flex:1"></div>
-            @if (unmapped.Count > 0)
-            {
-              <div class="dbi-status err"><span>●</span>@unmapped.Count @T("requiredCols")</div>
-            }
-            else
-            {
-              <div class="dbi-status ok"><span>✓</span>@T("allMapped")</div>
-            }
-            @if (mmCount > 0)
-            {
-              <div class="dbi-status warn"><span>⚠</span>@mmCount · @T("typeMismatch")</div>
+              string name = ws.Name;
+              <button class="dbi-tab @(name == sheet ? "on" : "")" @onclick="() => _mapSheet = name">@name <span class="mono" style="font-size:11px;opacity:.8">@ws.Table</span></button>
             }
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 30px 1fr;align-items:center;margin-bottom:8px;padding:0 4px">
-            <div class="dbi-colhead">◧ @T("source") — @ms</div>
-            <div></div>
-            <div class="dbi-colhead" style="display:flex;align-items:center;gap:8px">◨ @T("target") — <span class="mono" style="color:var(--accent-text);text-transform:none;font-weight:600">@($"{State.Conn.Schema}.{tgt.Table}")</span></div>
+          <div style="display:grid;grid-template-columns:1fr 30px 1fr;margin-bottom:8px;padding:0 4px">
+            <div class="dbi-colhead">◧ @T("source")</div><div></div><div class="dbi-colhead">◨ @T("targetCol")</div>
           </div>
 
           <div class="dbi-card" style="padding:0;overflow:hidden">
-            @foreach (SourceColumn c in State.Sheets[ms].Cols)
+            @foreach (MapRowVm r in State.MapRows(sheet))
             {
-              MappingCell mc = State.MapCell(ms, c.Name);
-              TargetColumn? tc = TgtCol(ms, mc.Target);
-              int conf = Conf(ms, c.Name);
-              bool mism = Mismatch(c, tc);
-              <div class="dbi-maprow" style="background:@(mism ? "var(--warn-soft)" : "transparent")">
-                <div style="padding:11px 15px;display:flex;align-items:center;gap:12px;min-width:0">
-                  <div style="min-width:0;flex:1">
-                    <div class="dbi-ell" style="font-weight:600;font-size:13px">@c.Name</div>
-                    <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
-                      <span class="dbi-type mono">@c.Type</span>
-                      <span class="mono dbi-ell" style="font-size:11px;color:var(--text-3)">@c.Sample</span>
-                    </div>
-                  </div>
+              bool ignored = r.Target is null;
+              <div class="dbi-maprow" style="background:@(ignored ? "transparent" : "transparent")">
+                <div style="padding:11px 15px;min-width:0">
+                  <div class="dbi-ell" style="font-weight:600;font-size:13px;@(ignored ? "color:var(--text-3)" : "")">@r.Source</div>
+                  @if (!string.IsNullOrEmpty(r.Sample))
+                  {
+                    <div class="mono dbi-ell" style="font-size:11px;color:var(--text-3);margin-top:2px">@r.Sample</div>
+                  }
                 </div>
-                <div style="display:flex;align-items:center;justify-content:center;font-size:15px;color:@(mism ? "var(--warn)" : (string.IsNullOrEmpty(mc.Target) ? "var(--text-3)" : "var(--accent)"))">→</div>
-                <div style="padding:9px 15px;display:flex;align-items:center;gap:10px;min-width:0">
-                  <select class="dbi-mapsel mono" @bind:get="State.MapCell(ms, c.Name).Target" @bind:set="v => State.SetMapTarget(c.Name, v)">
-                    <option value="">@T("ignore")</option>
-                    @foreach (TargetColumn o in tgt.Cols) { <option value="@o.Name">@o.Name</option> }
-                  </select>
-                  <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
-                    @if (tc is not null)
-                    {
-                      @foreach (Flag fl in Flags(tc))
-                      {
-                        <span class="dbi-fl" style="color:@fl.Fg;background:@fl.Bg">@fl.Label</span>
-                      }
-                    }
-                  </div>
-                  <div style="width:46px;text-align:right;flex-shrink:0">
-                    <span class="mono" style="font-size:11px;font-weight:700;color:@ConfColor(conf)">@(conf > 0 ? conf + "%" : "—")</span>
-                  </div>
+                <div style="display:flex;align-items:center;justify-content:center;font-size:15px;color:@(ignored ? "var(--text-3)" : "var(--accent)")">→</div>
+                <div style="padding:11px 15px;display:flex;align-items:center;gap:8px;min-width:0">
+                  @if (ignored)
+                  {
+                    <span style="font-size:12.5px;color:var(--text-3);font-style:italic">@T("ignore")</span>
+                  }
+                  else
+                  {
+                    <span class="mono" style="font-weight:600;font-size:12.5px;color:var(--accent-text)">@r.Target</span>
+                    <span class="dbi-type mono">@r.TargetType</span>
+                    @if (r.Required) { <span class="dbi-fl" style="color:var(--err);background:var(--err-soft)">@T("required")</span> }
+                    @if (r.IsReference) { <span class="dbi-fl" style="color:var(--info);background:var(--info-soft)">@T("reference")</span> }
+                    @if (r.IsExpression) { <span class="dbi-fl" style="color:var(--accent-text);background:var(--accent-soft)">@T("expression")</span> }
+                  }
                 </div>
-                @if (mism)
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      @* ---------- STEP 3: VALIDATE ---------- *@
+      else if (State.Step == 2)
+      {
+        IReadOnlyList<ValidationVm> checks = State.Validate();
+        bool anyIssue = checks.Any(c => c.WouldSkip > 0 || c.MissingRequired.Count > 0);
+        <div class="dbi-fade">
+          <div style="margin-bottom:18px">
+            <h1 class="dbi-h1">@T("s3Title")</h1>
+            <p class="dbi-sub">@T("s3Sub")</p>
+          </div>
+
+          @if (!anyIssue)
+          {
+            <div class="dbi-status ok" style="margin-bottom:14px"><span>✓</span>@T("allValid")</div>
+          }
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            @foreach (ValidationVm c in checks)
+            {
+              <div class="dbi-card">
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                  <div style="font-weight:600;font-size:13.5px;min-width:150px">@c.Worksheet <span class="mono" style="font-weight:500;color:var(--text-3)">→ @c.Table</span></div>
+                  <div class="dbi-status ok"><span>✓</span>@State.FmtInt(c.WouldImport) @T("willImport")</div>
+                  @if (c.WouldSkip > 0)
+                  {
+                    <div class="dbi-status warn"><span>⚠</span>@State.FmtInt(c.WouldSkip) @T("willSkip")</div>
+                  }
+                  <div style="flex:1"></div>
+                  <span class="mono" style="font-size:11.5px;color:var(--text-3)">@State.FmtInt(c.Rows) @T("rows")</span>
+                </div>
+                @if (c.MissingRequired.Count > 0)
                 {
-                  <div style="grid-column:1 / -1;padding:0 15px 9px;display:flex;align-items:center;gap:7px;font-size:11px;color:var(--warn)"><span>⚠</span>@T("typeMismatch") — @c.Type → @tc!.Type</div>
+                  <div style="margin-top:10px;font-size:12px;color:var(--err);display:flex;align-items:center;gap:7px">
+                    <span>●</span>@T("missingReq") <span class="mono">@string.Join(", ", c.MissingRequired)</span>
+                  </div>
+                }
+                @if (c.UnmappedHeaders.Count > 0)
+                {
+                  <div style="margin-top:8px;font-size:11.5px;color:var(--text-3)">@T("unmapped"): <span class="mono">@string.Join(", ", c.UnmappedHeaders)</span></div>
                 }
               </div>
             }
           </div>
-
-          <div class="dbi-note">
-            <span style="color:var(--info);font-size:14px">ⓘ</span>
-            <div>
-              @foreach (TargetColumn sc in tgt.Cols.Where(x => x.Key == "surrogate"))
-              {
-                <span class="mono" style="font-weight:600;color:var(--text)">@sc.Name</span>
-              }
-              — <span>@T("sk")</span> · @(Lang.IsFrench ? "généré automatiquement, aucune correspondance source requise." : "auto-generated, no source mapping required.")
-            </div>
-          </div>
+          <div class="dbi-note"><span style="color:var(--info);font-size:14px">ⓘ</span><div>@T("skipNote")</div></div>
         </div>
       }
 
-      @* ---------- STEP 3: TRANSFORM ---------- *@
-      else if (State.Step == 2)
-      {
-        string ms = State.ActiveMapSheet;
-        SourceSheet sheet = State.Sheets[ms];
-        string activeCol = State.ActiveXfCol;
-        List<Transform> chain = State.Chain(activeCol);
-        int colIdx = sheet.Cols.ToList().FindIndex(c => c.Name == activeCol);
-        <div class="dbi-fade">
-          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap">
-            <div>
-              <h1 class="dbi-h1">@T("s3Title")</h1>
-              <p class="dbi-sub">@T("s3Sub")</p>
-            </div>
-            <div style="flex-shrink:0">
-              <label class="dbi-eyebrow" style="display:block;margin-bottom:5px">@T("worksheetSel")</label>
-              <div class="dbi-selbox">
-                <span style="color:var(--accent);font-size:14px">▦</span>
-                <select class="dbi-plain" @bind:get="State.ActiveMapSheet" @bind:set="v => State.SetXfSheet(v)">
-                  @foreach (string name in State.Sheets.Keys) { <option value="@name">@($"{name}  →  {State.Conn.Schema}.{State.Target[name].Table}")</option> }
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start">
-            <div class="dbi-card" style="padding:8px">
-              <div class="dbi-eyebrow" style="padding:8px 9px 6px">@T("column") — @ms</div>
-              <div style="display:flex;flex-direction:column;gap:2px">
-                @foreach (SourceColumn c in sheet.Cols)
-                {
-                  bool active = c.Name == activeCol;
-                  int count = State.Chain(c.Name).Count;
-                  <button class="dbi-collist @(active ? "on" : "")" @onclick="() => State.SetXfCol(c.Name)">
-                    <span class="dbi-ell">@c.Name</span>
-                    @if (count > 0) { <span class="dbi-colbadge @(active ? "on" : "")">@count</span> }
-                  </button>
-                }
-              </div>
-            </div>
-
-            <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
-              <div class="dbi-card">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
-                  <div style="font-weight:600;font-size:13px">@T("activeChain") · <span class="mono" style="color:var(--accent-text)">@activeCol</span></div>
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:36px">
-                  @if (chain.Count == 0)
-                  {
-                    <div style="color:var(--text-3);font-size:12.5px;font-style:italic">@T("noTransforms")</div>
-                  }
-                  @for (int i = 0; i < chain.Count; i++)
-                  {
-                    int ci = i;
-                    Transform ch = chain[ci];
-                    <div class="dbi-xchip">
-                      <span class="mono" style="font-size:11px;opacity:.7">@DataImportState.XfIcon(ch.Type)</span>@State.XfLabel(ch.Type)
-                      @if (!string.IsNullOrEmpty(ch.Param)) { <span class="mono dbi-xparam">@ch.Param</span> }
-                      <button class="dbi-xrem" @onclick="() => State.RemoveXf(ci)">✕</button>
-                    </div>
-                  }
-                </div>
-                <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:13px">
-                  <div class="dbi-eyebrow" style="margin-bottom:9px">@T("transformLib")</div>
-                  <div style="display:flex;flex-wrap:wrap;gap:7px">
-                    @foreach (string type in DataImportState.XfLibrary)
-                    {
-                      <button class="dbi-libbtn" @onclick="() => State.AddXf(type)">
-                        <span class="mono" style="font-size:11px;color:var(--accent)">@DataImportState.XfIcon(type)</span>@State.XfLabel(type)
-                      </button>
-                    }
-                  </div>
-                </div>
-              </div>
-
-              <div class="dbi-card">
-                <div style="font-weight:600;font-size:13px;margin-bottom:11px">@T("beforeAfter")</div>
-                <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
-                  <div class="dbi-ba-h">
-                    <div class="dbi-eyebrow" style="padding:7px 13px">@T("before")</div>
-                    <div></div>
-                    <div class="dbi-eyebrow" style="padding:7px 13px;color:var(--accent-text)">@T("after")</div>
-                  </div>
-                  @foreach (string[] r in sheet.Data.Take(6))
-                  {
-                    string before = colIdx >= 0 ? r[colIdx] : string.Empty;
-                    string after = before;
-                    foreach (Transform tf in chain) { after = State.ApplyXf(after, tf); }
-                    <div class="dbi-ba-row mono">
-                      <div class="dbi-ell" style="padding:8px 13px;color:var(--text-2)">@before</div>
-                      <div style="display:flex;align-items:center;justify-content:center;color:var(--text-3)">→</div>
-                      <div class="dbi-ell" style="padding:8px 13px;color:var(--text);font-weight:500">@after</div>
-                    </div>
-                  }
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      }
-
-      @* ---------- STEP 4: VALIDATE ---------- *@
+      @* ---------- STEP 4: LOAD ---------- *@
       else if (State.Step == 3)
       {
-        <div class="dbi-fade">
+        <div class="dbi-fade" style="max-width:660px;margin:0 auto">
           <div style="margin-bottom:18px">
             <h1 class="dbi-h1">@T("s4Title")</h1>
             <p class="dbi-sub">@T("s4Sub")</p>
           </div>
 
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
-            @foreach ((string label, string value, string color, string icon) in ValCards())
-            {
-              <div class="dbi-card" style="position:relative;overflow:hidden">
-                <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:@color"></div>
-                <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;font-weight:600;color:var(--text-2)">@label</span><span style="color:@color;font-size:14px">@icon</span></div>
-                <div class="mono" style="font-size:28px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:@color">@value</div>
-              </div>
-            }
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start">
-            <div class="dbi-card" style="padding:0;overflow:hidden">
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)">
-                <div style="font-weight:600;font-size:13px">@T("rejectionLog") <span class="mono" style="color:var(--text-3);font-weight:500">· @State.Rejects.Count+</span></div>
-                <button class="dbi-out-btn" style="display:flex;align-items:center;gap:6px">↧ @T("exportLog")</button>
-              </div>
-              <div style="overflow-x:auto" class="dbi-scroll">
-                <table class="dbi-log">
-                  <thead><tr>
-                    <th></th><th>@T("vSheet")</th><th style="text-align:right">@T("vRow")</th><th>@T("vColumn")</th><th>@T("vValue")</th><th>@T("vReason")</th>
-                  </tr></thead>
-                  <tbody>
-                    @foreach (RejectRecord r in State.Rejects)
-                    {
-                      <tr>
-                        <td><span class="dbi-kind @(r.Kind == "err" ? "err" : "warn")">@(r.Kind == "err" ? "✕" : "⚠")</span></td>
-                        <td style="color:var(--text-2)">@r.Sheet</td>
-                        <td class="mono" style="text-align:right;color:var(--text-2)">@r.Row</td>
-                        <td class="mono" style="color:var(--text)">@r.Col</td>
-                        <td class="mono" style="color:var(--err)">@r.Value</td>
-                        <td style="color:var(--text-2)">@Reason(r.Reason)</td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div class="dbi-card">
-              <div style="font-weight:600;font-size:13px;margin-bottom:13px">@T("constraintChecks")</div>
-              <div style="display:flex;flex-direction:column;gap:11px">
-                @foreach ((string label, string n, bool bad) in Checks())
-                {
-                  <div style="display:flex;align-items:center;gap:10px">
-                    <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:@(bad ? "var(--err)" : "var(--warn)")"></span>
-                    <span style="flex:1;font-size:12.5px;color:var(--text-2)">@label</span>
-                    <span class="mono" style="font-size:11.5px;color:@(bad ? "var(--err)" : "var(--warn)");font-weight:600">@n</span>
-                  </div>
-                }
-              </div>
-            </div>
-          </div>
-
-          <div style="margin-top:18px">
-            <div style="font-weight:600;font-size:13px;margin-bottom:11px">@T("loadModeTitle")</div>
-            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
-              @foreach ((string m, string name, string desc, string icon) in Modes())
-              {
-                bool active = State.LoadMode == m;
-                <button class="dbi-mode @(active ? "on" : "")" @onclick="() => State.SetMode(m)">
-                  <span class="dbi-radio @(active ? "on" : "")"><span class="dbi-radio-dot @(active ? "on" : "")"></span></span>
-                  <div style="min-width:0">
-                    <div style="font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px"><span style="opacity:.6">@icon</span>@name</div>
-                    <div style="font-size:12px;color:var(--text-2);margin-top:3px">@desc</div>
-                  </div>
-                </button>
-              }
-            </div>
-          </div>
-        </div>
-      }
-
-      @* ---------- STEP 5: LOAD ---------- *@
-      else if (State.Step == 4)
-      {
-        <div class="dbi-fade" style="max-width:680px;margin:0 auto">
-          <div style="margin-bottom:18px">
-            <h1 class="dbi-h1">@T("s5Title")</h1>
-            <p class="dbi-sub">@T("s5Sub")</p>
-          </div>
-
           <div class="dbi-card" style="margin-bottom:16px">
             <div class="dbi-card-h"><span style="color:var(--accent)">◎</span>@T("willHappen")</div>
             <div class="dbi-kv">
-              @foreach ((string k, string v) in LoadSummary())
-              {
-                <div class="dbi-kv-cell"><div style="font-size:11px;color:var(--text-3);font-weight:500">@k</div><div class="mono dbi-ell" style="font-weight:600;font-size:13.5px;margin-top:3px">@v</div></div>
-              }
+              <div class="dbi-kv-cell"><div style="font-size:11px;color:var(--text-3)">@T("rowsToLoad")</div><div class="mono" style="font-weight:600;margin-top:3px">@State.FmtInt(State.TotalRows)</div></div>
+              <div class="dbi-kv-cell"><div style="font-size:11px;color:var(--text-3)">@T("intoTables")</div><div class="mono dbi-ell" style="font-weight:600;margin-top:3px">@string.Join(", ", State.Worksheets().Select(w => w.Table))</div></div>
+              <div class="dbi-kv-cell"><div style="font-size:11px;color:var(--text-3)">@T("target")</div><div style="font-weight:600;margin-top:3px">@T("targetDb")</div></div>
+              <div class="dbi-kv-cell"><div style="font-size:11px;color:var(--text-3)">@T("changeSet")</div><div style="font-weight:600;margin-top:3px">Import</div></div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:13px;font-size:12px;color:var(--ok);font-weight:600"><span>✓</span>@T("preflight")</div>
           </div>
 
-          @if (!State.Loading && !State.LoadDone && !State.Cancelled)
+          @if (State.LoadError is not null)
           {
-            <button class="dbi-bigbtn" @onclick="State.StartLoad">▶ @T("confirmLoad")</button>
+            <div class="dbi-status err" style="margin-bottom:14px"><span>⚠</span>@State.LoadError</div>
           }
 
-          @if (State.Loading)
-          {
-            <div class="dbi-card">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-                <div style="display:flex;align-items:center;gap:10px"><span class="dbi-spin"></span><span style="font-weight:600;font-size:14px">@T("loadingRows")</span></div>
-                <span class="mono" style="font-weight:700;font-size:15px;color:var(--accent-text)">@State.Progress%</span>
-              </div>
-              <div class="dbi-bar"><div class="dbi-bar-fill" style="width:@(State.Progress)%"></div></div>
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
-                <span class="mono" style="font-size:12.5px;color:var(--text-2)">@($"{State.FmtInt(State.RowsDone)} / {State.FmtInt(State.TotValid)}") @T("rows")</span>
-                <button class="dbi-cancel" @onclick="State.CancelLoad">✕ @T("cancel")</button>
-              </div>
-            </div>
-          }
-
-          @if (State.Cancelled)
-          {
-            <div class="dbi-cancelled">
-              <span class="dbi-cancel-ic">✕</span>
-              <div style="flex:1"><div style="font-weight:600;font-size:14px;color:var(--err)">@T("cancelled")</div><div style="font-size:12px;color:var(--text-2);margin-top:2px">@($"{State.FmtInt(State.RowsDone)} / {State.FmtInt(State.TotValid)}") @T("rows")</div></div>
-              <button class="dbi-chip-btn" style="padding:9px 15px;color:#fff;background:var(--accent)" @onclick="State.StartLoad">▶ @T("startLoad")</button>
-            </div>
-          }
-
-          @if (State.LoadDone)
-          {
-            string statusLabel = State.TotRejected > 0 ? T("loadPartial") : T("loadComplete");
-            string statusColor = State.TotRejected > 0 ? "var(--warn)" : "var(--ok)";
-            <div class="dbi-done">
-              <div class="dbi-done-ic">✓</div>
-              <div style="font-weight:700;font-size:18px;color:@statusColor">@statusLabel</div>
-              <div style="display:flex;justify-content:center;gap:26px;margin-top:14px">
-                <div><div style="font-size:11px;color:var(--text-3)">@T("rowsValid")</div><div class="mono" style="font-weight:700;font-size:18px;margin-top:2px">@State.FmtInt(State.RowsDone)</div></div>
-                <div><div style="font-size:11px;color:var(--text-3)">@T("elapsed")</div><div class="mono" style="font-weight:700;font-size:18px;margin-top:2px;color:var(--accent-text)">4.2 s</div></div>
-                <div><div style="font-size:11px;color:var(--text-3)">@T("loadModeL")</div><div class="mono" style="font-weight:700;font-size:18px;margin-top:2px">@State.ModeName(State.LoadMode)</div></div>
-              </div>
-              <button class="dbi-bigbtn" style="width:auto;height:44px;padding:0 22px;margin-top:18px" @onclick="State.GotoRecap">@T("viewRecap")</button>
-            </div>
-          }
+          <button class="dbi-bigbtn" disabled="@(State.Loading || State.TotalRows == 0)" @onclick="State.RunImport">
+            @if (State.Loading) { <span class="dbi-spin"></span> <span>@T("loading")</span> }
+            else { <span>▶ @T("confirmLoad")</span> }
+          </button>
         </div>
       }
 
-      @* ---------- STEP 6: RECAP ---------- *@
-      else if (State.Step == 5)
+      @* ---------- STEP 5: RECAP ---------- *@
+      else if (State.Step == 4)
       {
+        ImportReport? rep = State.Report;
         <div class="dbi-fade">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap">
-            <div>
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px"><span class="dbi-okdot">✓</span><h1 class="dbi-h1" style="margin:0">@T("s6Title")</h1></div>
-              <p class="dbi-sub">@T("s6Sub")</p>
-            </div>
-          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px"><span class="dbi-okdot">✓</span><h1 class="dbi-h1" style="margin:0">@T("s5Title")</h1></div>
+          <p class="dbi-sub" style="margin-bottom:18px">@T("s5Sub")</p>
 
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
-            @foreach ((string k, string label, string value, string color, string soft) in RecapDefs())
-            {
-              bool active = State.RecapFilter == k;
-              <button class="dbi-metric" style="background:@(active ? soft : "var(--surface)");border-color:@(active ? color : "var(--border)")" @onclick="() => State.SetRecapFilter(k)">
-                <div style="font-size:12px;font-weight:600;color:var(--text-2)">@label</div>
-                <div class="mono" style="font-size:30px;font-weight:700;letter-spacing:-.6px;margin-top:5px;color:@color">@value</div>
-                <div style="font-size:10.5px;font-weight:600;color:@(active ? color : "var(--text-3)");margin-top:7px">@(active ? (Lang.IsFrench ? "▾ Affiché ci-dessous" : "▾ Shown below") : (Lang.IsFrench ? "Cliquer pour filtrer" : "Click to filter"))</div>
-              </button>
-            }
-          </div>
-
-          @if (State.RecapFilter is not null)
+          @if (rep is null)
           {
-            (string k, string label, string value, string color, string soft) = RecapDefs().First(d => d.Item1 == State.RecapFilter);
-            IReadOnlyList<RecapRecord> rows = State.RecapRows.TryGetValue(k, out IReadOnlyList<RecapRecord>? rr) ? rr : [];
-            <div class="dbi-card dbi-fade" style="padding:0;overflow:hidden;margin-bottom:16px">
-              <div style="display:flex;align-items:center;gap:11px;padding:13px 16px;border-bottom:1px solid var(--border);background:@soft">
-                <span style="width:9px;height:9px;border-radius:50%;background:@color"></span>
-                <div style="font-weight:600;font-size:13px">@(Lang.IsFrench ? "Lignes" : "Rows") · @label <span class="mono" style="color:var(--text-3);font-weight:500">· @value</span></div>
-                <div style="flex:1"></div>
-                <button class="dbi-out-btn" @onclick="State.ClearRecapFilter">✕</button>
-              </div>
+            <div class="dbi-status warn"><span>⚠</span>@T("nothingLoaded")</div>
+          }
+          else
+          {
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
+              <div class="dbi-metric"><div style="font-size:12px;font-weight:600;color:var(--text-2)">@T("created")</div><div class="mono" style="font-size:28px;font-weight:700;color:var(--ok);margin-top:5px">@State.FmtInt(rep.TotalCreated)</div></div>
+              <div class="dbi-metric"><div style="font-size:12px;font-weight:600;color:var(--text-2)">@T("updated")</div><div class="mono" style="font-size:28px;font-weight:700;color:var(--info);margin-top:5px">@State.FmtInt(rep.TotalUpdated)</div></div>
+              <div class="dbi-metric"><div style="font-size:12px;font-weight:600;color:var(--text-2)">@T("skipped")</div><div class="mono" style="font-size:28px;font-weight:700;color:var(--warn);margin-top:5px">@State.FmtInt(rep.TotalSkipped)</div></div>
+              <div class="dbi-metric"><div style="font-size:12px;font-weight:600;color:var(--text-2)">@T("resolved")</div><div class="mono" style="font-size:28px;font-weight:700;color:var(--accent-text);margin-top:5px">@State.FmtInt(rep.Worksheets.Sum(w => w.ResolvedReferences))</div></div>
+            </div>
+
+            <div class="dbi-card" style="padding:0;overflow:hidden;margin-bottom:16px">
               <div style="overflow-x:auto" class="dbi-scroll">
                 <table class="dbi-log">
-                  <thead><tr><th>@T("vSheet")</th><th style="text-align:right">@T("vRow")</th><th>@T("bk")</th><th>@T("vColumn")</th><th>@T("vReason")</th></tr></thead>
+                  <thead><tr>
+                    <th>@T("stepSource")</th><th>@T("table")</th>
+                    <th style="text-align:right">@T("created")</th><th style="text-align:right">@T("updated")</th>
+                    <th style="text-align:right">@T("skipped")</th><th style="text-align:right">@T("resolved")</th>
+                    <th style="text-align:right">@T("unresolved")</th><th>@T("unmapped")</th>
+                  </tr></thead>
                   <tbody>
-                    @foreach (RecapRecord r in rows)
+                    @foreach (WorksheetReport w in rep.Worksheets.Where(w => w.Created + w.Updated + w.Skipped > 0 || w.UnmappedColumns.Count > 0))
                     {
                       <tr>
-                        <td style="color:var(--text-2)">@r.Sheet</td>
-                        <td class="mono" style="text-align:right;color:var(--text-2)">@r.Row</td>
-                        <td class="mono" style="color:var(--text)">@r.Key</td>
-                        <td class="mono" style="color:@color">@r.Name</td>
-                        <td style="color:var(--text-2)">@r.Detail</td>
+                        <td style="color:var(--text-2)">@w.Worksheet</td>
+                        <td class="mono" style="color:var(--text)">@w.Table</td>
+                        <td class="mono" style="text-align:right;color:var(--ok)">@w.Created</td>
+                        <td class="mono" style="text-align:right;color:var(--info)">@w.Updated</td>
+                        <td class="mono" style="text-align:right;color:@(w.Skipped > 0 ? "var(--warn)" : "var(--text-3)")">@w.Skipped</td>
+                        <td class="mono" style="text-align:right;color:var(--text-2)">@w.ResolvedReferences</td>
+                        <td class="mono" style="text-align:right;color:@(w.UnresolvedReferences > 0 ? "var(--err)" : "var(--text-3)")">@w.UnresolvedReferences</td>
+                        <td class="mono dbi-ell" style="color:var(--text-3);max-width:180px">@string.Join(", ", w.UnmappedColumns)</td>
                       </tr>
                     }
                   </tbody>
                 </table>
               </div>
-              <div style="padding:9px 16px;font-size:11px;color:var(--text-3);border-top:1px solid var(--border)">ⓘ @(Lang.IsFrench ? "Échantillon représentatif — exportez le journal complet pour la liste intégrale." : "Representative sample — export the full log for the complete list.")</div>
             </div>
           }
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-            <div class="dbi-card" style="padding:18px">
-              <div style="font-weight:600;font-size:13px;margin-bottom:15px">@T("rowsByStatus")</div>
-              <div style="display:flex;flex-direction:column;gap:13px">
-                @foreach ((string label, int n, int pct, string color) in StatusChart())
-                {
-                  <div>
-                    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span style="color:var(--text-2);font-weight:500">@label</span><span class="mono" style="font-weight:600;color:@color">@State.FmtInt(n)</span></div>
-                    <div class="dbi-track"><div style="height:100%;border-radius:5px;background:@color;width:@(Math.Max(2, pct))%"></div></div>
-                  </div>
-                }
-              </div>
-            </div>
-            <div class="dbi-card" style="padding:18px">
-              <div style="font-weight:600;font-size:13px;margin-bottom:15px">@T("rowsByTable")</div>
-              <div style="display:flex;flex-direction:column;gap:16px">
-                @foreach ((string label, int n, string color) in TableChart())
-                {
-                  <div>
-                    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span class="mono" style="color:var(--text-2)">@label</span><span class="mono" style="font-weight:700;color:var(--text)">@State.FmtInt(n)</span></div>
-                    <div class="dbi-track" style="height:14px"><div style="height:100%;border-radius:5px;background:@color;width:@(Math.Round(n / 1248.0 * 100))%"></div></div>
-                  </div>
-                }
-              </div>
-            </div>
-          </div>
-
-          <div class="dbi-card" style="padding:18px;margin-bottom:16px">
-            <div style="font-weight:600;font-size:13px;margin-bottom:13px">@T("runDetails")</div>
-            <div class="dbi-rundet">
-              @foreach ((string k, string v) in RunDetails())
-              {
-                <div class="dbi-rundet-cell"><div class="dbi-eyebrow">@k</div><div class="mono dbi-ell" style="font-size:12.5px;margin-top:3px">@v</div></div>
-              }
-            </div>
-          </div>
-
           <div style="display:flex;gap:12px;flex-wrap:wrap">
-            <button class="dbi-act">↧ @T("exportRejects")</button>
-            <button class="dbi-act" @onclick="State.SaveTpl">⌗ @T("saveAsTemplate")</button>
-            @if (State.RecapSaved)
-            {
-              <div style="display:flex;align-items:center;gap:7px;height:44px;padding:0 14px;font-size:12.5px;font-weight:600;color:var(--ok)">@T("templateSaved")</div>
-            }
             <div style="flex:1"></div>
             <button class="dbi-act primary" @onclick="State.StartNew">＋ @T("startNew")</button>
           </div>
@@ -860,36 +437,56 @@
   <footer class="dbi-foot">
     <button class="dbi-back" disabled="@(State.Step == 0)" @onclick="State.GoBack">← @T("back")</button>
     <div style="flex:1;display:flex;align-items:center;gap:10px;color:var(--text-3);font-size:12px">
-      <span class="mono">@($"{State.Step + 1} / 6")</span>
-      <span>·</span><span>@_stepHints[State.Step]</span>
+      <span class="mono">@($"{State.Step + 1} / {DataImportState.StepCount}")</span>
     </div>
-    @if (State.Step != 5)
+    @if (State.Step < DataImportState.StepCount - 1)
     {
-      <button class="dbi-next" disabled="@(State.Step == 0 && State.File is null)" @onclick="State.GoNext">@NextLabel() →</button>
+      <button class="dbi-next" disabled="@NextDisabled()" @onclick="OnNext">@NextLabel() →</button>
     }
   </footer>
 </div>
 
 @code {
-    private static readonly string[] _servers = ["sql-prod-01", "sql-prod-02", "sql-stage-01"];
-    private static readonly string[] _databases = ["VentesDW", "VentesDW_Test", "Référentiel"];
-    private static readonly string[] _schemas = ["ventes", "dbo", "staging"];
-    private static readonly string[] _encodings = ["UTF-8", "UTF-8 (BOM)", "Windows-1252", "ISO-8859-1", "UTF-16"];
+    private string? _mapSheet;
 
     private string T(string k) => State.T(k);
 
-    private string[] _labels => [T("stepSource"), T("stepMapping"), T("stepTransform"), T("stepValidate"), T("stepLoad"), T("stepRecap")];
-    private string[] _kickers => [T("kSource"), T("kMapping"), T("kTransform"), T("kValidate"), T("kLoad"), T("kRecap")];
-    private string[] _stepHints => [T("s1hint"), T("s2Sub"), T("s3Sub"), T("s4Sub"), T("s5Sub"), T("s6Sub")];
+    private string[] _labels => [T("stepSource"), T("stepMapping"), T("stepValidate"), T("stepLoad"), T("stepRecap")];
+    private string[] _kickers => [T("kSource"), T("kMapping"), T("kValidate"), T("kLoad"), T("kRecap")];
+
+    private string ActiveMapSheet()
+    {
+        IReadOnlyList<WorksheetVm> sheets = State.Worksheets();
+        if (_mapSheet is null || sheets.All(s => s.Name != _mapSheet))
+        {
+            _mapSheet = sheets.FirstOrDefault()?.Name;
+        }
+
+        return _mapSheet ?? string.Empty;
+    }
+
+    private bool NextDisabled() => State.Step switch
+    {
+        0 => !State.HasFile,
+        3 => true, // the Load step advances via the import button, not Next
+        _ => false,
+    };
 
     private string NextLabel() => State.Step switch
     {
-        2 => T("runValidation"),
-        3 => T("startLoad"),
-        4 => T("viewRecap"),
-        5 => T("finish"),
+        1 => T("runValidation"),
+        2 => T("goLoad"),
         _ => T("next"),
     };
+
+    private void OnNext() => State.GoNext();
+
+    private async Task OnFile(InputFileChangeEventArgs e)
+    {
+        IBrowserFile file = e.File;
+        await using Stream stream = file.OpenReadStream(maxAllowedSize: 50L * 1024 * 1024);
+        await State.LoadFileAsync(file.Name, file.Size, stream);
+    }
 
     protected override void OnInitialized()
     {
@@ -914,143 +511,4 @@
         Lang.OnChange -= OnStateChanged;
         Theme.OnChange -= OnStateChanged;
     }
-
-    // ---------- mapping helpers ----------
-    private int Conf(string sheet, string col)
-        => State.Suggest.TryGetValue(sheet, out IReadOnlyDictionary<string, Suggestion>? d) && d.TryGetValue(col, out Suggestion? s)
-            ? (int)Math.Round(s.Conf * 100) : 0;
-
-    private static string ConfColor(int c) => c >= 85 ? "var(--ok)" : c >= 70 ? "var(--warn)" : c > 0 ? "var(--err)" : "var(--text-3)";
-
-    private TargetColumn? TgtCol(string sheet, string name)
-        => string.IsNullOrEmpty(name) ? null : State.Target[sheet].Cols.FirstOrDefault(x => x.Name == name);
-
-    private static bool Mismatch(SourceColumn sc, TargetColumn? tc) => tc is not null && tc.Type != "text" && tc.Type != sc.Type;
-
-    private record Flag(string Label, string Fg, string Bg);
-
-    private List<Flag> Flags(TargetColumn c)
-    {
-        List<Flag> f = [];
-        if (c.Key == "surrogate") { f.Add(new(T("sk"), "var(--info)", "var(--info-soft)")); }
-        if (c.Key == "business") { f.Add(new(T("bk"), "var(--accent-text)", "var(--accent-soft)")); }
-        if (c.Pk) { f.Add(new(T("pk"), "var(--text-2)", "var(--surface-3)")); }
-        if (c.Required) { f.Add(new(T("req"), "var(--err)", "var(--err-soft)")); }
-        return f;
-    }
-
-    private HashSet<string> UsedTargets(string sheet)
-    {
-        HashSet<string> set = new(StringComparer.Ordinal);
-        if (State.Mappings is not null && State.Mappings.TryGetValue(sheet, out Dictionary<string, MappingCell>? cells))
-        {
-            foreach (KeyValuePair<string, MappingCell> kv in cells)
-            {
-                if (!string.IsNullOrEmpty(kv.Value.Target)) { set.Add(kv.Value.Target); }
-            }
-        }
-
-        return set;
-    }
-
-    private List<TargetColumn> UnmappedReq(string sheet)
-    {
-        HashSet<string> used = UsedTargets(sheet);
-        return State.Target[sheet].Cols.Where(c => c.Required && c.Key != "surrogate" && !used.Contains(c.Name)).ToList();
-    }
-
-    private int MappedCount(string sheet)
-        => State.Mappings is not null && State.Mappings.TryGetValue(sheet, out Dictionary<string, MappingCell>? cells)
-            ? cells.Count(kv => !string.IsNullOrEmpty(kv.Value.Target)) : 0;
-
-    private int MismatchCount(string sheet)
-        => State.Sheets[sheet].Cols.Count(sc => Mismatch(sc, TgtCol(sheet, State.MapCell(sheet, sc.Name).Target)));
-
-    private void OnDrop() { State.SetDrag(false); State.LoadSample(); }
-
-    // ---------- step 4: validate ----------
-    private List<(string Label, string Value, string Color, string Icon)> ValCards() =>
-    [
-        (T("rowsRead"), State.FmtInt(State.TotRead), "var(--text)", "≡"),
-        (T("rowsValid"), State.FmtInt(State.TotValid), "var(--ok)", "✓"),
-        (T("rowsRejected"), State.FmtInt(State.TotRejected), "var(--err)", "✕"),
-        (T("warnings"), State.FmtInt(State.TotWarnings), "var(--warn)", "⚠"),
-    ];
-
-    private string Reason(string code) => (Lang.IsFrench, code) switch
-    {
-        (false, "required_null") => "Required column is null",
-        (false, "type_coerce") => "Cannot convert to target type",
-        (false, "dup_key") => "Duplicate business key",
-        (false, "length_overflow") => "Exceeds max length (truncated)",
-        (false, "range_warn") => "Negative value flagged",
-        (true, "required_null") => "Colonne requise vide",
-        (true, "type_coerce") => "Conversion vers le type cible impossible",
-        (true, "dup_key") => "Clé métier en double",
-        (true, "length_overflow") => "Dépasse la longueur max (tronqué)",
-        (true, "range_warn") => "Valeur négative signalée",
-        _ => code,
-    };
-
-    private List<(string Label, string N, bool Bad)> Checks() =>
-    [
-        (Lang.IsFrench ? "Coercition de type" : "Type coercion", $"41 {T("failed")}", true),
-        (Lang.IsFrench ? "Requis / valeurs nulles" : "Required / null", $"12 {T("failed")}", true),
-        (Lang.IsFrench ? "Clé primaire / substitution" : "Primary / surrogate key", $"7 {T("failed")}", true),
-        (Lang.IsFrench ? "Doublons" : "Duplicate detection", $"4 {T("failed")}", true),
-        (Lang.IsFrench ? "Dépassement de longueur" : "Length overflow", "25", false),
-    ];
-
-    private List<(string M, string Name, string Desc, string Icon)> Modes() =>
-    [
-        ("append", T("modeAppend"), T("modeAppendD"), "＋"),
-        ("truncate", T("modeTruncate"), T("modeTruncateD"), "⤓"),
-        ("upsert", T("modeUpsert"), T("modeUpsertD"), "⇄"),
-        ("scd", T("modeScd"), T("modeScdD"), "⧗"),
-    ];
-
-    // ---------- step 5: load ----------
-    private List<(string K, string V)> LoadSummary() =>
-    [
-        (T("rowsToLoad"), State.FmtInt(State.TotValid)),
-        (T("targetTables"), $"{State.Conn.Schema}.clients, {State.Conn.Schema}.products"),
-        (T("loadModeL"), State.ModeName(State.LoadMode)),
-        (T("encodingUsed"), State.Parse.Encoding),
-    ];
-
-    // ---------- step 6: recap ----------
-    private List<(string, string, string, string, string)> RecapDefs() =>
-    [
-        ("inserted", T("inserted"), State.FmtInt(State.TotInserted), "var(--ok)", "var(--ok-soft)"),
-        ("updated", T("updated"), State.FmtInt(State.TotUpdated), "var(--info)", "var(--info-soft)"),
-        ("skipped", T("skipped"), State.FmtInt(State.TotSkipped), "var(--warn)", "var(--warn-soft)"),
-        ("rejected", T("rejected"), State.FmtInt(State.TotRejected), "var(--err)", "var(--err-soft)"),
-    ];
-
-    private List<(string Label, int N, int Pct, string Color)> StatusChart() =>
-    [
-        (T("inserted"), State.TotInserted, (int)Math.Round(State.TotInserted / (double)State.TotRead * 100), "var(--ok)"),
-        (T("updated"), State.TotUpdated, (int)Math.Round(State.TotUpdated / (double)State.TotRead * 100), "var(--info)"),
-        (T("skipped"), State.TotSkipped, (int)Math.Round(State.TotSkipped / (double)State.TotRead * 100), "var(--warn)"),
-        (T("rejected"), State.TotRejected, (int)Math.Round(State.TotRejected / (double)State.TotRead * 100), "var(--err)"),
-    ];
-
-    private List<(string Label, int N, string Color)> TableChart() =>
-    [
-        ($"{State.Conn.Schema}.clients", 1248, "var(--accent)"),
-        ($"{State.Conn.Schema}.products", 1162, "var(--accent-2)"),
-    ];
-
-    private List<(string K, string V)> RunDetails() =>
-    [
-        (T("fileName"), State.File?.Name ?? "ventes_export_2026Q2.xlsx"),
-        (T("sourceHash"), $"sha256:{State.File?.Hash ?? "a3f9-7c2e-d104"}"),
-        (T("encodingUsed"), State.Parse.Encoding),
-        (T("targetTables"), $"{State.Conn.Schema}.clients, {State.Conn.Schema}.products"),
-        (T("loadModeL"), State.ModeName(State.LoadMode)),
-        (T("duration"), "4.2 s"),
-        (T("throughput"), $"≈ 552 {(Lang.IsFrench ? "lignes/s" : "rows/s")}"),
-        (T("timestamp"), "2026-06-27 14:32:08 UTC"),
-        (T("user"), "m.tremblay@ardlsoft.com"),
-    ];
 }

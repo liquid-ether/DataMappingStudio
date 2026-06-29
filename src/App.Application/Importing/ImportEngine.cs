@@ -5,7 +5,7 @@ using App.Domain.Data;
 using App.Domain.Expressions;
 using App.Domain.Values;
 
-namespace App.Importer;
+namespace App.Application.Importing;
 
 /// <summary>Worksheet rows: a list of (header → cell value) maps.</summary>
 public sealed record WorksheetData(string Worksheet, IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows);
@@ -15,9 +15,10 @@ public sealed record WorksheetData(string Worksheet, IReadOnlyList<IReadOnlyDict
 /// columns (derived/computed columns are intentionally not imported), normalize per the catalog,
 /// resolve FK references by natural key, resolve expression field-references to dictionary entries
 /// (free-text fallback), then upsert by natural key as one reviewable <see cref="ChangeOperation.Import"/>
-/// change set. Bad rows are skipped and reported, never aborting the run.
+/// change set. Bad rows are skipped and reported, never aborting the run. Lives in the Application layer
+/// so both the CLI (App.Importer) and the in-app Data Import wizard (App.UI) drive the same engine.
 /// </summary>
-public sealed class Importer(ICatalog catalog, ILocalStore store, RuleExpressionBuilder expressionBuilder)
+public sealed class ImportEngine(ICatalog catalog, ILocalStore store, RuleExpressionBuilder expressionBuilder)
 {
     public ImportReport Run(ImportMapping mapping, IReadOnlyList<WorksheetData> data, string changedBy)
     {
@@ -198,5 +199,5 @@ public sealed class Importer(ICatalog catalog, ILocalStore store, RuleExpression
             .ToList();
 
     private static string NaturalKeyValue(IReadOnlyList<string> naturalKey, IReadOnlyDictionary<string, string?> values)
-        => string.Join("", naturalKey.Select(k => values.GetValueOrDefault(k) ?? string.Empty));
+        => string.Join("", naturalKey.Select(k => values.GetValueOrDefault(k) ?? string.Empty));
 }

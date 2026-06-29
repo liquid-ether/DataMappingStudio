@@ -1,6 +1,7 @@
 using System.Text.Json;
 using App.Application;
 using App.Application.Abstractions;
+using App.Application.Importing;
 using App.Application.Provisioning;
 using App.Application.References;
 using App.Domain.Data;
@@ -64,8 +65,7 @@ static int Import(string dbPath, string dataDir, string mappingPath, string repo
     ImportMapping mapping = ImportMapping.FromJson(File.ReadAllText(mappingPath));
     List<WorksheetData> data = mapping.Worksheets.Select(ws => ReadWorksheet(dataDir, ws.Worksheet)).ToList();
 
-    Importer importer = new(catalog, store, provider.GetRequiredService<App.Application.Expressions.RuleExpressionBuilder>());
-    ImportReport report = importer.Run(mapping, data, changedBy: "import");
+    ImportReport report = provider.GetRequiredService<ImportEngine>().Run(mapping, data, changedBy: "import");
 
     File.WriteAllText(reportPath, report.ToJson());
     Console.WriteLine($"Import complete: {report.TotalCreated} created, {report.TotalUpdated} updated, {report.TotalSkipped} skipped. Report: {reportPath}");
@@ -102,10 +102,10 @@ static int ImportExcel(string workbookPath, string? dbArg, string? mappingArg, s
     store.EnsureSchema();
 
     ImportMapping mapping = ImportMapping.FromJson(File.ReadAllText(mappingPath));
-    List<WorksheetData> data = ExcelWorksheetReader.Read(workbookPath, mapping);
+    using FileStream workbookStream = File.OpenRead(workbookPath);
+    IReadOnlyList<WorksheetData> data = provider.GetRequiredService<IWorkbookReader>().Read(workbookStream, mapping);
 
-    Importer importer = new(catalog, store, provider.GetRequiredService<App.Application.Expressions.RuleExpressionBuilder>());
-    ImportReport report = importer.Run(mapping, data, config.ChangedBy);
+    ImportReport report = provider.GetRequiredService<ImportEngine>().Run(mapping, data, config.ChangedBy);
 
     File.WriteAllText(reportPath, report.ToJson());
     Console.WriteLine($"Imported '{Path.GetFileName(workbookPath)}' into {dbPath}: {report.TotalCreated} created, {report.TotalUpdated} updated, {report.TotalSkipped} skipped. Report: {reportPath}");

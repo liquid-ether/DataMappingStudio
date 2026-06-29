@@ -16,9 +16,9 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.6.0** — native Excel import (`import-excel`) + importer config |
+| Current version | **v1.7.0** — Data Import wizard performs real imports (shared engine) |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 197 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 200 passing (+4 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
 
 The desktop has a **working top-bar menu** that switches between all editors (Applications, Sources,
@@ -27,13 +27,14 @@ History and Publish — the Blazor Hybrid shell is a non-routed view switcher mi
 navigation. A **light/dark theme toggle** in the top bar flips an app-wide theme (`ThemeState`,
 persisted in the browser) that every screen honours.
 
-The **Data Import** tool (`/import`, App.UI.DataImport) is a six-step wizard — Source → Mapping →
-Transform → Validate → Load → Recap — for bringing a spreadsheet/CSV into a target table: parsing
-options with a live encoding-aware preview, name-similarity column mapping with confidence and
-type/key flags, per-column transform chains with before/after preview, a dry-run validation summary
-with rejection log and load modes (append / truncate+insert / upsert / SCD), an animated load, and an
-audit recap. It was ported from the approved "Data Import Tool" UI design, and its visual language
-(Inter + JetBrains Mono, teal accent, light/dark surfaces) is the basis for the **global design
+The **Data Import** tool (`/import`, App.UI.DataImport) is a five-step wizard — Source → Mapping →
+Validate → Load → Recap — that performs a **real import into the local database**: upload the team's
+`.xlsx`, it is parsed by the shared workbook reader using the built-in mapping, previewed and dry-run
+validated against the column catalog, then loaded through the **same `ImportEngine` the CLI uses** into
+the local SQLite working copy as one reviewable Import change set (re-running upserts by natural key,
+never duplicating). The recap is the real `ImportReport` (created/updated/skipped + resolved references
++ ignored columns per worksheet). Its visual language (Inter + JetBrains Mono, teal accent, light/dark
+surfaces) — ported from the approved "Data Import Tool" UI design — is the basis for the **global design
 system** in `_content/App.UI/css/app.css`.
 
 A **sample dataset** seeds automatically into a fresh desktop store: 10 applications, 100 data sources,

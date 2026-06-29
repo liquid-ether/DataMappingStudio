@@ -7,6 +7,29 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-29
+
+### Changed
+- **The in-app Data Import wizard now performs a real import into the local database.** Replaced the
+  mock (sample data + fake SQL-Server connection) with a live pipeline: an uploaded `.xlsx` is parsed by
+  the shared workbook reader using the built-in mapping, previewed and **dry-run validated** against the
+  column catalog, then loaded through the **same `ImportEngine` the CLI uses** into the local SQLite
+  working copy as one reviewable Import change set (re-running upserts by natural key). The 6-step mock
+  became **5 real steps**: Source (upload + worksheet preview) → Mapping (catalog-driven source→target)
+  → Validate (rows that would import vs. skip, with reasons) → Load → Recap (the real `ImportReport`:
+  created/updated/skipped + resolved references + ignored columns per worksheet). Reachable at `/import`
+  and via the desktop **Import** tab.
+- **Import engine moved to the Application layer** so the CLI and the UI share one engine:
+  `App.Application.Importing` now owns `ImportEngine` (renamed from `Importer`), `ImportMapping`,
+  `ImportReport`, `WorksheetData`, and the new `IWorkbookReader` abstraction. The ClosedXML reader is
+  `ClosedXmlWorkbookReader` in `App.Infrastructure.Local` (behind `IWorkbookReader`, registered in DI);
+  `App.Application.Provisioning.DefaultImportMapping` mirrors `build/import-mapping.json`. The CLI
+  `import-excel`/`import` verbs are unchanged for callers.
+
+### Added (tests)
+- `DataImportWizardTests`: drive `DataImportState` end-to-end — a real `.xlsx` parsed and imported into
+  the store (rows + FK resolution) plus dry-run validation of required-field skips. Suite: **200 passing**.
+
 ## [1.6.0] - 2026-06-29
 
 ### Added

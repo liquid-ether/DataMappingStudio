@@ -1,5 +1,6 @@
 using App.Application.Abstractions;
 using App.Application.Expressions;
+using App.Application.Importing;
 using App.Application.Lineage;
 using App.Application.Sync;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,10 @@ public static class DependencyInjection
         // Sync engines (pure; the remote store + publish service are wired by AddRemoteStore).
         services.TryAddSingleton<FieldMergeEngine>();
         services.TryAddSingleton<AutoRefreshPlanner>();
+
+        // Excel→DB import engine, shared by the CLI and the in-app Data Import wizard (the workbook
+        // reader is registered by the local-store infrastructure).
+        services.TryAddSingleton<ImportEngine>();
 
         return services;
     }

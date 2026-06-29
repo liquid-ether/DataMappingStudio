@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace App.Importer;
+namespace App.Application.Importing;
 
 /// <summary>An FK column resolved by natural key: the target table and the column whose value to match.</summary>
 public sealed record ColumnReference(

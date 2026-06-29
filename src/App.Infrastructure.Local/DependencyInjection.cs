@@ -1,4 +1,5 @@
 using App.Application.Abstractions;
+using App.Application.Importing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -13,6 +14,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddLocalStore(this IServiceCollection services, string? databasePath = null)
     {
+        // The workbook reader (Excel) needs no database, so register it even with no DB path configured.
+        services.TryAddSingleton<IWorkbookReader, ClosedXmlWorkbookReader>();
+
         if (databasePath is null)
         {
             return services;

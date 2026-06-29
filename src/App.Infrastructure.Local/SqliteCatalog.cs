@@ -22,27 +22,27 @@ public sealed class SqliteCatalog : ICatalog
     }
 
     public IReadOnlyList<ColumnCatalogEntry> GetAll()
-        => _db.Connection.Query($"{SelectColumns} FROM {Table} ORDER BY table_name, display_order, column_name", Map);
+        => _db.Locked(() => _db.Connection.Query($"{SelectColumns} FROM {Table} ORDER BY table_name, display_order, column_name", Map));
 
     public IReadOnlyList<ColumnCatalogEntry> GetForTable(string table)
-        => _db.Connection.Query(
+        => _db.Locked(() => _db.Connection.Query(
             $"{SelectColumns} FROM {Table} WHERE table_name = $t ORDER BY display_order, column_name",
             Map,
-            ("$t", table));
+            ("$t", table)));
 
     public IReadOnlyList<string> GetTables()
-        => _db.Connection.Query($"SELECT DISTINCT table_name FROM {Table} ORDER BY table_name", static r => r.GetString(0));
+        => _db.Locked(() => _db.Connection.Query($"SELECT DISTINCT table_name FROM {Table} ORDER BY table_name", static r => r.GetString(0)));
 
-    public void Seed(IEnumerable<ColumnCatalogEntry> entries)
+    public void Seed(IEnumerable<ColumnCatalogEntry> entries) => _db.Locked(() =>
     {
         foreach (ColumnCatalogEntry entry in entries)
         {
             Validate(entry);
             Insert(entry, ignoreIfExists: true);
         }
-    }
+    });
 
-    public void AddColumn(ColumnCatalogEntry entry)
+    public void AddColumn(ColumnCatalogEntry entry) => _db.Locked(() =>
     {
         Validate(entry);
         if (entry.IsCore)
@@ -58,7 +58,7 @@ public sealed class SqliteCatalog : ICatalog
         {
             c.Execute($"ALTER TABLE {SqlIdentifier.Quote(entry.TableName)} ADD COLUMN {SqlIdentifier.Quote(entry.ColumnName)} TEXT");
         }
-    }
+    });
 
     private void Insert(ColumnCatalogEntry e, bool ignoreIfExists)
     {
@@ -108,7 +108,7 @@ public sealed class SqliteCatalog : ICatalog
         DisplayOrder = (int)r.GetInt64(13),
     };
 
-    private void EnsureTable() => _db.Connection.Execute(
+    private void EnsureTable() => _db.Locked(() => _db.Connection.Execute(
         $"""
         CREATE TABLE IF NOT EXISTS {Table} (
           table_name       TEXT NOT NULL,
@@ -127,5 +127,5 @@ public sealed class SqliteCatalog : ICatalog
           display_order    INTEGER NOT NULL DEFAULT 0,
           PRIMARY KEY (table_name, column_name)
         )
-        """);
+        """));
 }

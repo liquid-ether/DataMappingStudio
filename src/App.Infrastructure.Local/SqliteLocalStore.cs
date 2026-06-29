@@ -27,7 +27,7 @@ public sealed class SqliteLocalStore : ILocalStore
         _clock = clock;
     }
 
-    public void EnsureSchema()
+    public void EnsureSchema() => _db.Locked(() =>
     {
         SqliteConnection c = _db.Connection;
         foreach (string table in _catalog.GetTables())
@@ -49,25 +49,25 @@ public sealed class SqliteLocalStore : ILocalStore
                 }
             }
         }
-    }
+    });
 
-    public Row? GetById(string table, Guid id)
+    public Row? GetById(string table, Guid id) => _db.Locked(() =>
     {
         IReadOnlyList<string> dataColumns = PhysicalDataColumns(table);
         string select = BuildSelect(table, dataColumns);
         List<Row> rows = _db.Connection.Query($"{select} WHERE {Q(LocalStoreSchema.Id)} = $id", r => MapRow(table, dataColumns, r), ("$id", id.ToString()));
         return rows.Count == 0 ? null : rows[0];
-    }
+    });
 
-    public IReadOnlyList<Row> GetAll(string table, bool includeDeleted = false)
+    public IReadOnlyList<Row> GetAll(string table, bool includeDeleted = false) => _db.Locked(() =>
     {
         IReadOnlyList<string> dataColumns = PhysicalDataColumns(table);
         string select = BuildSelect(table, dataColumns);
         string where = includeDeleted ? string.Empty : $" WHERE {Q(LocalStoreSchema.IsDeleted)} = 0";
         return _db.Connection.Query($"{select}{where} ORDER BY {Q(LocalStoreSchema.Id)}", r => MapRow(table, dataColumns, r));
-    }
+    });
 
-    public IReadOnlyList<ChangeLogEntry> Upsert(string table, Row row, string changeSetId, string changedBy, ChangeOperation? operation = null)
+    public IReadOnlyList<ChangeLogEntry> Upsert(string table, Row row, string changeSetId, string changedBy, ChangeOperation? operation = null) => _db.Locked<IReadOnlyList<ChangeLogEntry>>(() =>
     {
         Dictionary<string, ColumnCatalogEntry> catalog = _catalog.GetForTable(table)
             .Where(e => !e.IsCore && !LocalStoreSchema.CoreColumns.Contains(e.ColumnName))
@@ -168,9 +168,9 @@ public sealed class SqliteLocalStore : ILocalStore
         IReadOnlyList<ChangeLogEntry> written = _audit.Append(entries);
         row.RowVersion = newVersion;
         return written;
-    }
+    });
 
-    public IReadOnlyList<ChangeLogEntry> SoftDelete(string table, Guid id, string changeSetId, string changedBy)
+    public IReadOnlyList<ChangeLogEntry> SoftDelete(string table, Guid id, string changeSetId, string changedBy) => _db.Locked<IReadOnlyList<ChangeLogEntry>>(() =>
     {
         Row? existing = GetById(table, id);
         if (existing is null || existing.IsDeleted)
@@ -200,9 +200,9 @@ public sealed class SqliteLocalStore : ILocalStore
                 ChangedAtUtc = now,
             },
         ]);
-    }
+    });
 
-    public void AdoptCanonical(string table, Guid rowId, IReadOnlyDictionary<string, string?> values)
+    public void AdoptCanonical(string table, Guid rowId, IReadOnlyDictionary<string, string?> values) => _db.Locked(() =>
     {
         if (values.Count == 0)
         {
@@ -243,7 +243,7 @@ public sealed class SqliteLocalStore : ILocalStore
 
             c.Execute($"INSERT INTO {Q(table)} ({string.Join(", ", cols.Select(Q))}) VALUES ({string.Join(", ", vals)})", [.. ps]);
         }
-    }
+    });
 
     private IReadOnlyList<string> DataColumns(string table)
         => _catalog.GetForTable(table)

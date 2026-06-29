@@ -22,7 +22,7 @@ public sealed class SqliteAuditLog : IAuditLog
         EnsureTable();
     }
 
-    public IReadOnlyList<ChangeLogEntry> Append(IEnumerable<ChangeLogEntry> entries)
+    public IReadOnlyList<ChangeLogEntry> Append(IEnumerable<ChangeLogEntry> entries) => _db.Locked(() =>
     {
         List<ChangeLogEntry> written = [];
         SqliteConnection c = _db.Connection;
@@ -51,9 +51,9 @@ public sealed class SqliteAuditLog : IAuditLog
         }
 
         return written;
-    }
+    });
 
-    public IReadOnlyList<ChangeLogEntry> Query(string? table = null, Guid? rowId = null)
+    public IReadOnlyList<ChangeLogEntry> Query(string? table = null, Guid? rowId = null) => _db.Locked(() =>
     {
         string where = "WHERE 1 = 1";
         List<(string, object?)> ps = [];
@@ -73,13 +73,13 @@ public sealed class SqliteAuditLog : IAuditLog
             $"SELECT client_seq, change_id, change_set_id, table_name, row_id, column_name, old_value, new_value, operation, changed_by, changed_at FROM {Table} {where} ORDER BY client_seq",
             Map,
             [.. ps]);
-    }
+    });
 
     public IReadOnlyList<ChangeLogEntry> Pending(long afterClientSeq)
-        => _db.Connection.Query(
+        => _db.Locked(() => _db.Connection.Query(
             $"SELECT client_seq, change_id, change_set_id, table_name, row_id, column_name, old_value, new_value, operation, changed_by, changed_at FROM {Table} WHERE client_seq > $s ORDER BY client_seq",
             Map,
-            ("$s", afterClientSeq));
+            ("$s", afterClientSeq)));
 
     private static ChangeLogEntry Map(SqliteDataReader r) => new()
     {
@@ -96,7 +96,7 @@ public sealed class SqliteAuditLog : IAuditLog
         ChangedAtUtc = DateTimeOffset.Parse(r.GetString(10), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
     };
 
-    private void EnsureTable() => _db.Connection.Execute(
+    private void EnsureTable() => _db.Locked(() => _db.Connection.Execute(
         $"""
         CREATE TABLE IF NOT EXISTS {Table} (
           client_seq    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,5 +111,5 @@ public sealed class SqliteAuditLog : IAuditLog
           changed_by    TEXT NOT NULL,
           changed_at    TEXT NOT NULL
         )
-        """);
+        """));
 }

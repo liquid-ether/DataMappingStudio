@@ -7,6 +7,25 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-06-29
+
+### Changed
+- **Extended the v1.4.1 "read each table once" fix to the remaining per-row reference/computed
+  resolvers.** (The metadata grid fix in v1.4.1 already covers every catalog-driven table —
+  Applications, Sources, Dictionary, Config, Classification, Rules — since they share one component.)
+  - **Reporting views (`ReportingViewBuilder`).** Building a `<table>_report` resolved every reference
+    with a per-row `GetById` and re-evaluated every computed column per row — so the `data_source`
+    report re-scanned all 5000 `dictionary_entry` rows once per source (O(rows × table)). References
+    are now resolved from one read of each referenced table and computed columns via the bulk
+    `EvaluateColumn`, so a report over a large table reads each related table once.
+  - **Mapping Studio grid (`MappingStudioState`).** The grid requested `KnownReferences` once per
+    visible row, each call rebuilding the entire lineage scenario. The scenario and per-target
+    known-reference lists are now cached and invalidated on any row add/edit/delete.
+
+### Added
+- Tests: a reporting-view test over multiple parents with different child counts (guards the bulk
+  count map). Suite: **192 passing**.
+
 ## [1.4.1] - 2026-06-29
 
 ### Fixed

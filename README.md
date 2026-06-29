@@ -16,9 +16,9 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.4.1** — grid scroll-perf fix + non-blocking fonts |
+| Current version | **v1.4.2** — bulk reference/computed resolution across grids + reporting |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
-| Tests | `dotnet test DataMappingStudio.slnx` — 191 passing (+4 E2E skipped unless `DMS_E2E=1`) |
+| Tests | `dotnet test DataMappingStudio.slnx` — 192 passing (+4 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
 
 The desktop has a **working top-bar menu** that switches between all editors (Applications, Sources,
@@ -76,7 +76,7 @@ first run; the target/source alias structure used for lineage context remains se
 — reference-typed columns render as pickers and resolve to live display values (`ReferenceService`);
 computed columns evaluate `count(...)` and `lookup(...)` autofills read-only; opt-in denormalized
 **reporting views** (`ReportingViewBuilder` → `<table>_report.<ext>`) flatten references + computed for
-Power BI (see [reporting/](reporting/)); and `LogCompactor` archives old change-log entries. The
+Power BI (see [reporting/](reporting/)) — resolved in bulk, reading each referenced/child table once; and `LogCompactor` archives old change-log entries. The
 importer CLI gained `report` and `compact` verbs.
 
 **Importer & tooling (`App.Importer` + `build/`)** — the Excel→DB pipeline: an editable

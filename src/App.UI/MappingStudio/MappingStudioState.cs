@@ -53,6 +53,13 @@ public sealed class MappingStudioState(IMappingRepository repository, IMappingTa
     private readonly List<LineageTarget> _targets = [];
     private bool _loaded;
 
+    // The lineage scenario and per-target known-reference lists are derived from all rows. The mapping
+    // grid asks for KnownReferences once per visible row (for the expression editor's autocomplete), so
+    // rebuilding the scenario each call meant O(visible rows × all rows) work on every render. Cache
+    // them and invalidate on any row mutation.
+    private LineageScenario? _scenario;
+    private readonly Dictionary<string, IReadOnlyList<KnownReference>> _knownReferences = new(StringComparer.Ordinal);
+
     public IReadOnlyList<LineageTarget> Targets
     {
         get
@@ -72,9 +79,26 @@ public sealed class MappingStudioState(IMappingRepository repository, IMappingTa
     }
 
     public LineageScenario BuildScenario()
-        => new(Targets, Rows.Select(r => new LineageRow(r.Kind, r.Target, r.Field, r.Expression)).ToList());
+        => _scenario ??= new(Targets, Rows.Select(r => new LineageRow(r.Kind, r.Target, r.Field, r.Expression)).ToList());
 
-    public IReadOnlyList<KnownReference> KnownReferences(string target) => BuildScenario().KnownReferences(target);
+    public IReadOnlyList<KnownReference> KnownReferences(string target)
+    {
+        if (_knownReferences.TryGetValue(target, out IReadOnlyList<KnownReference>? cached))
+        {
+            return cached;
+        }
+
+        IReadOnlyList<KnownReference> refs = BuildScenario().KnownReferences(target);
+        _knownReferences[target] = refs;
+        return refs;
+    }
+
+    // Drop the cached scenario/known-references after any change to the rows so they rebuild on next read.
+    private void InvalidateDerived()
+    {
+        _scenario = null;
+        _knownReferences.Clear();
+    }
 
     public IReadOnlyList<string> TargetNames => Targets.Select(t => t.Name).ToList();
 
@@ -112,16 +136,22 @@ public sealed class MappingStudioState(IMappingRepository repository, IMappingTa
             _ => new MappingRow { Kind = MappingKind.Field, Target = target, Field = "new_field", Expression = "a.field", Type = "text" },
         };
         _rows.Add(row);
+        InvalidateDerived();
         repository.Save(row.ToRecord(), WriterId);
     }
 
     /// <summary>Persists an in-place edit of a row (call after changing kind/field/type/target/expression).</summary>
-    public void Save(MappingRow row) => repository.Save(row.ToRecord(), WriterId);
+    public void Save(MappingRow row)
+    {
+        InvalidateDerived();
+        repository.Save(row.ToRecord(), WriterId);
+    }
 
     public void DeleteRow(MappingRow row)
     {
         EnsureLoaded();
         _rows.Remove(row);
+        InvalidateDerived();
         repository.Delete(row.Id, WriterId);
     }
 

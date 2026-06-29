@@ -19,7 +19,9 @@ public static class DependencyInjection
     {
         services.AddLocalization(options => options.ResourcesPath = "Resources");
         services.AddScoped<LanguageState>();
+        services.AddScoped<Theme.ThemeState>();
         services.AddScoped<MappingStudioState>();
+        services.AddScoped<DataImport.DataImportState>();
 
         // Reference pickers + computed-column (autofill) evaluation over the local store.
         services.AddScoped<ReferenceService>();

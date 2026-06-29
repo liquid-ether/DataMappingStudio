@@ -1,0 +1,8 @@
+@page "/import"
+@inject LanguageState Lang
+
+@* Data Import wizard (the ported "Data Import Tool" design). The wizard owns its own toolbar,
+   stepper and footer; it fills the content area below the app's top bar. *@
+<PageTitle>@Lang.T("navImport")</PageTitle>
+
+<DataImportWizard />

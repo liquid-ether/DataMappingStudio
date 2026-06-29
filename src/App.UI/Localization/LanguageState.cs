@@ -23,6 +23,7 @@ public sealed class LanguageState
         ["navRules"] = ("Rules", "Règles"),
         ["navDemo"] = ("Catalog demo", "Démo catalogue"),
         ["navHistory"] = ("History", "Historique"),
+        ["navImport"] = ("Import", "Importer"),
         ["home"] = ("Home", "Accueil"),
         ["welcome"] = ("Metadata-driven data mapping & lineage.", "Mappage et traçabilité pilotés par métadonnées."),
         ["addRow"] = ("Add row", "Ajouter une ligne"),

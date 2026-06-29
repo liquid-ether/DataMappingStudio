@@ -1,5 +1,6 @@
 @implements IDisposable
 @inject LanguageState Lang
+@inject ThemeState Theme
 
 @* Dark top bar from the mockup: brand glyph, primary tabs, EN/FR toggle, Publish. *@
 <div class="ms-top">
@@ -23,6 +24,8 @@
         <button type="button" aria-pressed="@(!Lang.IsFrench)" @onclick='() => Lang.Set("en")'>EN</button>
         <button type="button" aria-pressed="@Lang.IsFrench" @onclick='() => Lang.Set("fr")'>FR</button>
     </div>
+    <button class="ms-theme" type="button" title="@(Theme.IsDark ? "Light theme" : "Dark theme")"
+            aria-pressed="@Theme.IsDark" @onclick="Theme.ToggleAsync">@(Theme.IsDark ? "☀" : "☾")</button>
     <button class="ms-publish" type="button" @onclick="OnPublish">@Lang.T("publish")</button>
 </div>
 
@@ -49,7 +52,25 @@
     /// <summary>The currently active tab's Href, used to mark the active button in desktop mode.</summary>
     [Parameter] public string? ActiveHref { get; set; }
 
-    protected override void OnInitialized() => Lang.OnChange += StateHasChanged;
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += StateHasChanged;
+        Theme.OnChange += StateHasChanged;
+    }
 
-    public void Dispose() => Lang.OnChange -= StateHasChanged;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // JS interop is only available post-render; sync our state to the theme the host page
+            // already applied to <html> so the toggle shows the right icon.
+            await Theme.EnsureInitializedAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= StateHasChanged;
+        Theme.OnChange -= StateHasChanged;
+    }
 }

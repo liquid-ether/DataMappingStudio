@@ -16,6 +16,10 @@
     {
         <LineageView />
     }
+    else if (_active == "import")
+    {
+        <DataImportWizard />
+    }
     else if (_active == "history")
     {
         <HistoryView />
@@ -41,6 +45,7 @@
         .. DefaultCatalog.Navigation.Select(n => ($"t/{n.Table}", n.NavKey)),
         ("mappings", "tabMappings"),
         ("lineage", "tabLineage"),
+        ("import", "navImport"),
         ("history", "navHistory"),
     ];
 

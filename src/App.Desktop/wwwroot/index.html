@@ -5,9 +5,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    <script>
+        window.dmsTheme = {
+            get() { try { return localStorage.getItem('dms_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) { return 'light'; } },
+            apply(t) { try { document.documentElement.setAttribute('data-theme', t); localStorage.setItem('dms_theme', t); } catch (e) { } }
+        };
+        document.documentElement.setAttribute('data-theme', window.dmsTheme.get());
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="_content/App.UI/css/app.css" />
     <title>Mapping Studio</title>
 </head>

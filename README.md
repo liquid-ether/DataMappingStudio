@@ -16,14 +16,25 @@ an ETL engine.
 
 | | |
 |---|---|
-| Current version | **v1.3.1** — full-height auto-sizing tables |
+| Current version | **v1.4.0** — Data Import wizard + app-wide light/dark theme |
 | Build | `dotnet build DataMappingStudio.slnx` — clean |
 | Tests | `dotnet test DataMappingStudio.slnx` — 189 passing (+4 E2E skipped unless `DMS_E2E=1`) |
 | Install | see **[INSTALL.md](INSTALL.md)** — desktop `.exe` + host page, web host, shared-folder setup |
 
 The desktop has a **working top-bar menu** that switches between all editors (Applications, Sources,
-Dictionary, Config, Classification, Rules), the Mapping Studio, Lineage, History and Publish — the
-Blazor Hybrid shell is a non-routed view switcher mirroring the web host's navigation.
+Dictionary, Config, Classification, Rules), the Mapping Studio, Lineage, the **Data Import** wizard,
+History and Publish — the Blazor Hybrid shell is a non-routed view switcher mirroring the web host's
+navigation. A **light/dark theme toggle** in the top bar flips an app-wide theme (`ThemeState`,
+persisted in the browser) that every screen honours.
+
+The **Data Import** tool (`/import`, App.UI.DataImport) is a six-step wizard — Source → Mapping →
+Transform → Validate → Load → Recap — for bringing a spreadsheet/CSV into a target table: parsing
+options with a live encoding-aware preview, name-similarity column mapping with confidence and
+type/key flags, per-column transform chains with before/after preview, a dry-run validation summary
+with rejection log and load modes (append / truncate+insert / upsert / SCD), an animated load, and an
+audit recap. It was ported from the approved "Data Import Tool" UI design, and its visual language
+(Inter + JetBrains Mono, teal accent, light/dark surfaces) is the basis for the **global design
+system** in `_content/App.UI/css/app.css`.
 
 A **sample dataset** seeds automatically into a fresh desktop store: 10 applications, 100 data sources,
 5000 dictionary entries (5–150 fields/source), classifications, lookups, rules, and a 30-target Mapping
@@ -93,8 +104,9 @@ normalized entities (principal columns, EN/FR labels, required natural keys); da
 tabs; and catalog-driven editors for Applications, Sources, Dictionary, Config, Classification and
 Rules (the metadata-driven grid pointed at each table — no per-entity code). Verified running.
 
-**UI foundation (`App.UI` + `App.Web` + `App.Desktop`)** — the mockup **design system** ported to
-`_content/App.UI/css/app.css` (IBM Plex, dark top bar, grid/cells/badges, lineage styles); the
+**UI foundation (`App.UI` + `App.Web` + `App.Desktop`)** — the **design system** in
+`_content/App.UI/css/app.css` (Inter + JetBrains Mono, themable `:root` tokens with a light/dark
+`data-theme` override, top bar, grid/cells/badges, lineage styles); the
 `MsTopBar` shell (brand, tabs, instant EN/FR toggle via `LanguageState`, Publish); and the
 cornerstone **`MetadataGrid`** that renders columns + rows from the catalog (inline edit, add-row,
 add-column, required validation). The **Blazor Server `App.Web`** host and the **Blazor Hybrid WPF

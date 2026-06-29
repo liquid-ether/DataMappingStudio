@@ -1,4 +1,6 @@
+using App.UI.Theme;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 using Bunit;
 
 namespace App.UI.Tests;
@@ -14,6 +16,9 @@ public abstract class AppTestContext : BunitContext
     protected AppTestContext()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // App-wide theme is consumed by MsTopBar (present in every shell); register it once here so
+        // components render. JS interop runs in loose mode, so the theme read is a no-op in tests.
+        Services.AddSingleton<ThemeState>();
         RenderTree.Add<CascadingValue<bool>>(parameters => parameters
             .Add(p => p.Name, "GridVirtualize")
             .Add(p => p.Value, false)

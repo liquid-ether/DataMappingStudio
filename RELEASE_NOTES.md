@@ -7,6 +7,32 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-29
+
+### Added
+- **Data Import tool** — a new six-step import wizard (*Source → Mapping → Transform → Validate →
+  Load → Recap*), ported from the approved "Data Import Tool" UI design. It covers drag-and-drop
+  file intake with parsing options and a live encoding-aware preview, name-similarity column mapping
+  to a target table (with confidence, type-mismatch and key/required flags), per-column transform
+  chains with a live before/after preview, a dry-run validation summary with a rejection log and load
+  modes (append / truncate+insert / upsert / SCD), an animated load run, and an audit recap with
+  filterable status metrics and charts. Backed by `DataImportState` (App.UI.DataImport); reachable at
+  `/import` on the web host and via the **Import** tab on the desktop shell. EN/FR throughout.
+- **App-wide light/dark theme.** A new `ThemeState` (App.UI.Theme) toggles a `data-theme` attribute on
+  the document root and persists the choice in `localStorage`; a host bootstrap script applies the
+  saved (or system-preferred) theme before first paint to avoid a flash. A theme toggle now sits in
+  the top bar of both hosts.
+
+### Changed
+- **The global design system is re-aligned to the Data Import tool's look.** `app.css` now defines a
+  single set of design tokens at `:root` (light) with a `:root[data-theme="dark"]` override, switches
+  the type to **Inter** + **JetBrains Mono**, and adopts the teal accent and surface palette. The
+  original token names are aliased onto the new palette so every existing component (top bar, grids,
+  editors, lineage) themes automatically in both light and dark. The dark top bar is now a light
+  surface bar matching the importer chrome.
+- The Data Import wizard no longer carries its own scoped palette/theme toggle — it consumes the
+  global theme like the rest of the app.
+
 ## [1.3.1] - 2026-06-23
 
 ### Changed

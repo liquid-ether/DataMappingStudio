@@ -369,7 +369,10 @@ else if (_view.Count == 0 && _rows.Count > 0)
         }
 
         row[col.ColumnName] = v;
-        Store.Upsert(Table, row, NewChangeSet(), Author);
+        if (!TrySave(() => Store.Upsert(Table, row, NewChangeSet(), Author)))
+        {
+            return;
+        }
 
         // Keep this row's computed cells (e.g. lookups off a reference) in sync with the edit without
         // a full reload — cheap, one row, and avoids losing the user's scroll position.
@@ -410,16 +413,21 @@ else if (_view.Count == 0 && _rows.Count > 0)
             return;
         }
 
-        Store.Upsert(Table, _draft, NewChangeSet(), Author);
+        if (!TrySave(() => Store.Upsert(Table, _draft, NewChangeSet(), Author)))
+        {
+            return;
+        }
+
         _draft = null;
-        _error = null;
         Reload();
     }
 
     private void DeleteRow(Row row)
     {
-        Store.SoftDelete(Table, row.Id, NewChangeSet(), Author);
-        Reload();
+        if (TrySave(() => Store.SoftDelete(Table, row.Id, NewChangeSet(), Author)))
+        {
+            Reload();
+        }
     }
 
     private void ConfirmAddColumn()
@@ -430,7 +438,20 @@ else if (_view.Count == 0 && _rows.Count > 0)
             return;
         }
 
-        Catalog.AddColumn(new ColumnCatalogEntry
+        // Validate up front so a bad name never reaches the store (where it would throw at ALTER TABLE).
+        if (!SqlName.IsValidIdentifier(name))
+        {
+            _error = Lang.T("invalidColumnName");
+            return;
+        }
+
+        if (IsCore(name) || _columns.Any(c => string.Equals(c.ColumnName, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            _error = Lang.T("duplicateColumn");
+            return;
+        }
+
+        bool added = TrySave(() => Catalog.AddColumn(new ColumnCatalogEntry
         {
             TableName = Table,
             ColumnName = name,
@@ -439,11 +460,33 @@ else if (_view.Count == 0 && _rows.Count > 0)
             LabelFr = name,
             IsUserAdded = true,
             DisplayOrder = _columns.Count + 1,
-        });
+        }));
+
+        if (!added)
+        {
+            return;
+        }
 
         _addingColumn = false;
         _newColumnName = string.Empty;
         Reload();
+    }
+
+    // Runs a store mutation, surfacing any failure as a friendly inline message instead of crashing the
+    // circuit. Returns true on success.
+    private bool TrySave(Action op)
+    {
+        try
+        {
+            op();
+            _error = null;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _error = $"{Lang.T("saveFailed")} {ex.Message}";
+            return false;
+        }
     }
 
     private bool IsInvalid(Row row, ColumnCatalogEntry col) => col.IsRequired && row[col.ColumnName] is null;

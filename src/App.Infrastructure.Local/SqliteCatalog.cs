@@ -50,6 +50,16 @@ public sealed class SqliteCatalog : ICatalog
             throw new InvalidOperationException("Core columns are managed by the store and cannot be added via AddColumn.");
         }
 
+        // Reject an unsafe identifier up front, before inserting the catalog row — otherwise the entry
+        // would persist but the physical ALTER TABLE (which quotes the name) would throw, leaving a
+        // phantom column the store can never materialize.
+        if (!SqlName.IsValidIdentifier(entry.ColumnName))
+        {
+            throw new ArgumentException(
+                $"Invalid column name '{entry.ColumnName}'. Use letters, digits and underscores, starting with a letter or underscore.",
+                nameof(entry));
+        }
+
         Insert(entry, ignoreIfExists: false);
 
         // Apply the physical column if the table already exists and lacks it.

@@ -100,6 +100,63 @@ public class MetadataGridTests : AppTestContext
     }
 
     [Fact]
+    public void Adding_an_invalid_column_name_shows_an_error_and_adds_nothing()
+    {
+        var cut = RenderGrid();
+
+        ClickButton(cut, "Add column");
+        cut.Find("input.ed-input").Change("my col"); // space -> not a valid identifier
+        ClickButton(cut, "Save");
+
+        Assert.Contains("use letters, digits and underscores", cut.Markup);
+        Assert.DoesNotContain(_catalog.GetForTable("widget"), e => e.ColumnName == "my col");
+    }
+
+    [Fact]
+    public void Adding_a_duplicate_column_name_shows_an_error()
+    {
+        var cut = RenderGrid();
+
+        ClickButton(cut, "Add column");
+        cut.Find("input.ed-input").Change("name"); // already exists
+        ClickButton(cut, "Save");
+
+        Assert.Contains("already exists", cut.Markup);
+    }
+
+    [Fact]
+    public void A_store_failure_surfaces_a_friendly_message_instead_of_crashing()
+    {
+        _catalog = new FakeCatalog(
+        [
+            new ColumnCatalogEntry { TableName = "widget", ColumnName = "name", ValueType = CatalogValueType.Text, IsRequired = true, LabelEn = "Name", LabelFr = "Nom", DisplayOrder = 1 },
+        ]);
+        Services.AddSingleton<ICatalog>(_catalog);
+        Services.AddSingleton<App.Application.Abstractions.ILocalStore>(new ThrowOnUpsertStore());
+        Services.AddSingleton<LanguageState>();
+        var cut = Render<MetadataGrid>(p => p.Add(c => c.Table, "widget"));
+
+        ClickButton(cut, "Add row");
+        cut.FindAll("input.gi")[0].Change("Widget A");
+        ClickButton(cut, "Save"); // store throws -> caught, message shown, circuit survives
+
+        Assert.Contains("could not be saved", cut.Markup);
+    }
+
+    // A store whose write fails, to exercise the grid's graceful error handling.
+    private sealed class ThrowOnUpsertStore : App.Application.Abstractions.ILocalStore
+    {
+        private readonly FakeLocalStore _inner = new();
+        public void EnsureSchema() => _inner.EnsureSchema();
+        public Row? GetById(string table, Guid id) => _inner.GetById(table, id);
+        public IReadOnlyList<Row> GetAll(string table, bool includeDeleted = false) => _inner.GetAll(table, includeDeleted);
+        public IReadOnlyList<ChangeLogEntry> Upsert(string table, Row row, string changeSetId, string changedBy, ChangeOperation? operation = null)
+            => throw new InvalidOperationException("simulated store failure");
+        public IReadOnlyList<ChangeLogEntry> SoftDelete(string table, Guid id, string changeSetId, string changedBy) => _inner.SoftDelete(table, id, changeSetId, changedBy);
+        public void AdoptCanonical(string table, Guid rowId, IReadOnlyDictionary<string, string?> values) => _inner.AdoptCanonical(table, rowId, values);
+    }
+
+    [Fact]
     public void Clicking_a_header_sorts_rows_ascending_then_descending()
     {
         var cut = RenderNames("Banana", "apple", "Cherry");

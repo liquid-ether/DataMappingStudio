@@ -39,6 +39,9 @@ public sealed class LanguageState
         ["noMatches"] = ("No rows match the current filters.", "Aucune ligne ne correspond aux filtres."),
         ["requiredMissing"] = ("Fill all required fields.", "Renseignez les champs obligatoires."),
         ["columnName"] = ("Column name", "Nom de colonne"),
+        ["saveFailed"] = ("The change could not be saved:", "La modification n'a pas pu être enregistrée :"),
+        ["invalidColumnName"] = ("Column name: use letters, digits and underscores, starting with a letter or underscore.", "Nom de colonne : lettres, chiffres et underscores, en commençant par une lettre ou un underscore."),
+        ["duplicateColumn"] = ("A column with that name already exists.", "Une colonne portant ce nom existe déjà."),
     };
 
     public string Current { get; private set; } = "en";

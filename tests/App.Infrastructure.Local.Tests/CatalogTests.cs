@@ -64,4 +64,27 @@ public class CatalogTests
             Kind = ColumnKind.Reference, // reference without a target -> invalid
         }));
     }
+
+    [Fact]
+    public void Column_name_that_is_not_a_safe_identifier_is_rejected_without_persisting()
+    {
+        using LocalStoreFixture fx = new();
+        int before = fx.Catalog.GetForTable(LocalStoreFixture.Table).Count;
+
+        // A name with a space would pass the catalog INSERT but throw at ALTER TABLE — reject it first
+        // so no phantom catalog row is left behind.
+        Assert.Throws<ArgumentException>(() => fx.Catalog.AddColumn(new ColumnCatalogEntry
+        {
+            TableName = LocalStoreFixture.Table,
+            ColumnName = "my col",
+            ValueType = CatalogValueType.Text,
+            LabelEn = "My col",
+            LabelFr = "My col",
+            IsUserAdded = true,
+            DisplayOrder = 9,
+        }));
+
+        Assert.Equal(before, fx.Catalog.GetForTable(LocalStoreFixture.Table).Count);
+        Assert.DoesNotContain(fx.Catalog.GetForTable(LocalStoreFixture.Table), e => e.ColumnName == "my col");
+    }
 }

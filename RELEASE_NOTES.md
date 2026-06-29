@@ -7,6 +7,19 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-06-29
+
+### Fixed
+- **The metadata editors fail gracefully.** Inline cell edits, add-row, delete and add-column now catch
+  store failures and surface a friendly inline message instead of crashing the Blazor circuit
+  (`MetadataGrid.TrySave`). The add-column flow validates the name up front — it must be a safe SQL
+  identifier and not duplicate an existing column — and `SqliteCatalog.AddColumn` now rejects an unsafe
+  identifier **before** inserting the catalog row, closing a gap where a bad name (e.g. one containing a
+  space) persisted a phantom catalog column that then threw at `ALTER TABLE` and could break later
+  schema/writes. New shared `SqlName.IsValidIdentifier` (App.Domain.Catalog) is the single source for
+  the rule. Tests: catalog rejects the bad name without persisting; the grid shows validation/duplicate
+  errors and survives a simulated store failure. Suite: **205 passing**.
+
 ## [1.8.0] - 2026-06-29
 
 ### Security & reliability (production hardening — top of the pre-production review list)

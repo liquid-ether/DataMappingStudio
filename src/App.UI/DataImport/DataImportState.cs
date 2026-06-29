@@ -29,13 +29,15 @@ public sealed class DataImportState
     private readonly ICatalog _catalog;
     private readonly ImportEngine _engine;
     private readonly IWorkbookReader _reader;
+    private readonly ICurrentUser _user;
 
-    public DataImportState(LanguageState lang, ICatalog catalog, ImportEngine engine, IWorkbookReader reader)
+    public DataImportState(LanguageState lang, ICatalog catalog, ImportEngine engine, IWorkbookReader reader, ICurrentUser user)
     {
         _lang = lang;
         _catalog = catalog;
         _engine = engine;
         _reader = reader;
+        _user = user;
     }
 
     public event Action? OnChange;
@@ -154,7 +156,7 @@ public sealed class DataImportState
         Notify();
         try
         {
-            Report = _engine.Run(Mapping, Parsed, _lang.IsFrench ? "import" : "import");
+            Report = _engine.Run(Mapping, Parsed, _user.Name);
             Done = true;
             Step = StepCount - 1; // jump to recap
             MaxStep = Math.Max(MaxStep, Step);

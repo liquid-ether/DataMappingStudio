@@ -36,7 +36,19 @@ public static class DependencyInjection
         services.TryAddSingleton<ISnapshotBuilder>(sp =>
             new SnapshotBuilder(canonicalFolder, sp.GetRequiredService<IRemoteFormatProvider>().Resolve(formatName)));
         services.TryAddSingleton<IPublishService, PublishService>();
-        services.TryAddSingleton<ISyncCoordinator, SyncCoordinator>();
+        // The writer id keys this working copy's per-writer remote log — a host-level identity (the OS
+        // account), distinct from the per-edit ICurrentUser. SyncCoordinator is a singleton, so it cannot
+        // depend on the scoped ICurrentUser; the OS account is correct for the single-writer desktop.
+        services.TryAddSingleton<ISyncCoordinator>(sp => new SyncCoordinator(
+            sp.GetRequiredService<ICatalog>(),
+            sp.GetRequiredService<ILocalStore>(),
+            sp.GetRequiredService<IAuditLog>(),
+            sp.GetRequiredService<IRemoteStore>(),
+            sp.GetRequiredService<IPublishService>(),
+            sp.GetRequiredService<AutoRefreshPlanner>())
+        {
+            WriterId = EnvironmentCurrentUser.Sanitize(Environment.UserName),
+        });
 
         // Background auto-refresh (no-op-safe; flags conflicts rather than clobbering local edits).
         if (enableAutoRefresh)

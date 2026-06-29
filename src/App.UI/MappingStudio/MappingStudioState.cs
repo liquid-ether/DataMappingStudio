@@ -1,3 +1,4 @@
+using App.Application.Abstractions;
 using App.Application.Catalog;
 using App.Application.Expressions;
 using App.Application.Lineage;
@@ -37,9 +38,9 @@ public sealed class MappingRow
 /// the change log and publish/sync (Architecture §6/§8). The target/source (alias) structure used for
 /// lineage context is seeded configuration for now. On first run (empty table) the demo is seeded.
 /// </summary>
-public sealed class MappingStudioState(IMappingRepository repository, IMappingTargetRepository targetRepository, ICatalogQuery catalogQuery)
+public sealed class MappingStudioState(IMappingRepository repository, IMappingTargetRepository targetRepository, ICatalogQuery catalogQuery, ICurrentUser currentUser)
 {
-    private const string WriterId = "analyst";
+    private string WriterId => currentUser.Name;
 
     private static readonly Dictionary<MappingKind, int> KindOrder = new()
     {

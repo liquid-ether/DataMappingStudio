@@ -18,6 +18,11 @@ public static class DependencyInjection
     {
         services.TryAddSingleton<IClock, SystemClock>();
 
+        // Who is acting now (recorded as change_by). Scoped so the web host can resolve the authenticated
+        // user per request; the default is the OS account (correct for the single-user desktop). Hosts
+        // with real authentication register their own ICurrentUser before this runs.
+        services.TryAddScoped<ICurrentUser, EnvironmentCurrentUser>();
+
         // Rule/expression engine + lineage engine (stateless, safe as singletons).
         services.TryAddSingleton<FunctionLibrary>();
         services.TryAddSingleton<ExpressionClassifier>();

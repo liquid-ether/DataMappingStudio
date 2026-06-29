@@ -8,7 +8,7 @@ namespace App.UI.Tests;
 public class MappingPersistenceTests
 {
     private static MappingStudioState Studio(FakeLocalStore store)
-        => new(new MappingRepository(store), new MappingTargetRepository(store), new CatalogQuery(store));
+        => new(new MappingRepository(store), new MappingTargetRepository(store), new CatalogQuery(store), new App.Application.Abstractions.EnvironmentCurrentUser());
 
     [Fact]
     public void Repository_round_trips_a_mapping_record()

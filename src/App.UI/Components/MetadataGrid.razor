@@ -2,6 +2,7 @@
 @inject ICatalog Catalog
 @inject ILocalStore Store
 @inject LanguageState Lang
+@inject ICurrentUser CurrentUser
 @inject IServiceProvider Services
 @using App.Application.References
 @using Microsoft.Extensions.DependencyInjection
@@ -147,7 +148,10 @@ else if (_view.Count == 0 && _rows.Count > 0)
 @code {
     [Parameter, EditorRequired] public string Table { get; set; } = string.Empty;
 
-    [Parameter] public string ChangedBy { get; set; } = "analyst";
+    /// <summary>Optional override for the change author; defaults to the current user.</summary>
+    [Parameter] public string? ChangedBy { get; set; }
+
+    private string Author => string.IsNullOrEmpty(ChangedBy) ? CurrentUser.Name : ChangedBy;
 
     [Parameter] public string? Title { get; set; }
 
@@ -365,7 +369,7 @@ else if (_view.Count == 0 && _rows.Count > 0)
         }
 
         row[col.ColumnName] = v;
-        Store.Upsert(Table, row, NewChangeSet(), ChangedBy);
+        Store.Upsert(Table, row, NewChangeSet(), Author);
 
         // Keep this row's computed cells (e.g. lookups off a reference) in sync with the edit without
         // a full reload — cheap, one row, and avoids losing the user's scroll position.
@@ -406,7 +410,7 @@ else if (_view.Count == 0 && _rows.Count > 0)
             return;
         }
 
-        Store.Upsert(Table, _draft, NewChangeSet(), ChangedBy);
+        Store.Upsert(Table, _draft, NewChangeSet(), Author);
         _draft = null;
         _error = null;
         Reload();
@@ -414,7 +418,7 @@ else if (_view.Count == 0 && _rows.Count > 0)
 
     private void DeleteRow(Row row)
     {
-        Store.SoftDelete(Table, row.Id, NewChangeSet(), ChangedBy);
+        Store.SoftDelete(Table, row.Id, NewChangeSet(), Author);
         Reload();
     }
 

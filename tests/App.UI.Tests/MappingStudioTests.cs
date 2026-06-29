@@ -27,7 +27,7 @@ public class MappingStudioTests : AppTestContext
     private static IReadOnlyList<KnownReference> Customer360Refs()
     {
         FakeLocalStore store = new();
-        return new MappingStudioState(new MappingRepository(store), new MappingTargetRepository(store), new CatalogQuery(store)).KnownReferences("CUSTOMER_360");
+        return new MappingStudioState(new MappingRepository(store), new MappingTargetRepository(store), new CatalogQuery(store), new App.Application.Abstractions.EnvironmentCurrentUser()).KnownReferences("CUSTOMER_360");
     }
 
     [Fact]

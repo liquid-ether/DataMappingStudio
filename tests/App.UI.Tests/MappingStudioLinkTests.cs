@@ -33,7 +33,7 @@ public class MappingStudioLinkTests
         }, "cs", "t");
         store.Upsert(TableNames.Mapping, new Row(TableNames.Mapping, Guid.NewGuid()) { ["target"] = "TG", ["field"] = "f", ["kind"] = "Field", ["expression"] = "a.real_col_1" }, "cs", "t");
 
-        var state = new App.UI.MappingStudio.MappingStudioState(new MappingRepository(store), new MappingTargetRepository(store), new CatalogQuery(store));
+        var state = new App.UI.MappingStudio.MappingStudioState(new MappingRepository(store), new MappingTargetRepository(store), new CatalogQuery(store), new App.Application.Abstractions.EnvironmentCurrentUser());
         return (state, store);
     }
 

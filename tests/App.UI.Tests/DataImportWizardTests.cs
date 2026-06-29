@@ -24,7 +24,7 @@ public sealed class DataImportWizardTests
         store = new FakeLocalStore();
         FunctionLibrary functions = new();
         ImportEngine engine = new(catalog, store, new RuleExpressionBuilder(functions, new ExpressionClassifier(functions)));
-        return new DataImportState(new LanguageState(), catalog, engine, new ClosedXmlWorkbookReader());
+        return new DataImportState(new LanguageState(), catalog, engine, new ClosedXmlWorkbookReader(), new App.Application.Abstractions.EnvironmentCurrentUser());
     }
 
     private static MemoryStream BuildWorkbook()

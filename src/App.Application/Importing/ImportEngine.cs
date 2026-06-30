@@ -119,7 +119,17 @@ public sealed class ImportEngine(ICatalog catalog, ILocalStore store, RuleExpres
             }
             else if (cols.TryGetValue(column, out ColumnCatalogEntry? entry))
             {
-                values[column] = ValueNormalizer.Normalize(entry.ValueType, raw);
+                // Normalize (throws FormatException on a malformed value -> the row is skipped + reported),
+                // then enforce the column's max length: over-length values are truncated and flagged, so
+                // the row still imports rather than being lost.
+                string? normalized = ValueNormalizer.Normalize(entry.ValueType, raw);
+                if (entry.MaxLength is int max && normalized is not null && normalized.Length > max)
+                {
+                    report.Warnings.Add($"'{column}': value of {normalized.Length} chars exceeded max {max} (truncated).");
+                    normalized = normalized[..max];
+                }
+
+                values[column] = normalized;
             }
         }
 

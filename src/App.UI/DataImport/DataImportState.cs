@@ -440,6 +440,7 @@ public sealed class DataImportState
         ["s5Title"] = ("Import complete", "Import terminé"),
         ["s5Sub"] = ("Rows were written to your local working copy. Review them in the editors, then Publish to share.", "Les lignes ont été écrites dans votre copie locale. Vérifiez-les dans les éditeurs, puis Publiez pour partager."),
         ["created"] = ("Created", "Créées"), ["updated"] = ("Updated", "Mises à jour"), ["skipped"] = ("Skipped", "Ignorées"),
+        ["warnings"] = ("Warnings", "Avertissements"), ["rejections"] = ("Rejections & warnings", "Rejets et avertissements"), ["more"] = ("more", "de plus"),
         ["resolved"] = ("Refs resolved", "Réf. résolues"), ["unresolved"] = ("Refs unresolved", "Réf. non résolues"),
         ["perTable"] = ("Per worksheet", "Par feuille"), ["table"] = ("Table", "Table"),
         ["unmapped"] = ("Ignored columns", "Colonnes ignorées"), ["errors"] = ("Skipped rows", "Lignes ignorées"),

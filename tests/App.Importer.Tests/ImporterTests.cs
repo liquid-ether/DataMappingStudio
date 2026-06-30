@@ -13,6 +13,7 @@ public sealed class ImporterTests : IDisposable
 {
     private readonly string _dir;
     private readonly LocalDatabase _db;
+    private readonly SqliteCatalog _catalog;
     private readonly SqliteLocalStore _store;
     private readonly ImportEngine _importer;
 
@@ -26,13 +27,13 @@ public sealed class ImporterTests : IDisposable
         _dir = Path.Combine(Path.GetTempPath(), "dms-importer-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
         _db = new LocalDatabase($"Data Source={Path.Combine(_dir, "local.db")}");
-        SqliteCatalog catalog = new(_db);
-        catalog.Seed(DefaultCatalog.Entries());
-        _store = new SqliteLocalStore(_db, catalog, new SqliteAuditLog(_db), new Clock());
+        _catalog = new SqliteCatalog(_db);
+        _catalog.Seed(DefaultCatalog.Entries());
+        _store = new SqliteLocalStore(_db, _catalog, new SqliteAuditLog(_db), new Clock());
         _store.EnsureSchema();
 
         FunctionLibrary functions = new();
-        _importer = new ImportEngine(catalog, _store, new RuleExpressionBuilder(functions, new ExpressionClassifier(functions)));
+        _importer = new ImportEngine(_catalog, _store, new RuleExpressionBuilder(functions, new ExpressionClassifier(functions)));
     }
 
     private static WorksheetData Sheet(string worksheet, params Dictionary<string, string?>[] rows)
@@ -145,6 +146,41 @@ public sealed class ImporterTests : IDisposable
         Assert.Equal(1, report.TotalCreated);
         Assert.Equal(1, report.TotalSkipped);
         Assert.Single(_store.GetAll(TableNames.Application));
+    }
+
+    [Fact]
+    public void Over_length_value_is_truncated_to_max_length_and_warned()
+    {
+        _catalog.AddColumn(new App.Domain.Catalog.ColumnCatalogEntry
+        {
+            TableName = TableNames.Application,
+            ColumnName = "code3",
+            ValueType = App.Domain.Catalog.CatalogValueType.Text,
+            MaxLength = 3,
+            LabelEn = "Code", LabelFr = "Code", IsUserAdded = true, DisplayOrder = 99,
+        });
+        _store.EnsureSchema();
+
+        ImportMapping mapping = new()
+        {
+            Worksheets =
+            [
+                new WorksheetMapping
+                {
+                    Worksheet = "Apps",
+                    Table = TableNames.Application,
+                    NaturalKey = ["app_code"],
+                    Columns = new Dictionary<string, string> { ["AppCode"] = "app_code", ["Code"] = "code3" },
+                },
+            ],
+        };
+
+        ImportReport report = _importer.Run(mapping,
+            [Sheet("Apps", new Dictionary<string, string?> { ["AppCode"] = "GDM1", ["Code"] = "ABCDEFG" })], "import");
+
+        Assert.Single(report.Worksheets[0].Warnings);          // the truncation is reported
+        Assert.Equal(1, report.TotalCreated);                  // the row still imported
+        Assert.Equal("ABC", _store.GetAll(TableNames.Application).Single()["code3"]); // truncated to max length
     }
 
     [Fact]

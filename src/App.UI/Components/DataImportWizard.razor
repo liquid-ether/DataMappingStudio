@@ -413,7 +413,7 @@
               <div class="dbi-metric"><div style="font-size:12px;font-weight:600;color:var(--text-2)">@T("created")</div><div class="mono" style="font-size:28px;font-weight:700;color:var(--ok);margin-top:5px">@State.FmtInt(rep.TotalCreated)</div></div>
               <div class="dbi-metric"><div style="font-size:12px;font-weight:600;color:var(--text-2)">@T("updated")</div><div class="mono" style="font-size:28px;font-weight:700;color:var(--info);margin-top:5px">@State.FmtInt(rep.TotalUpdated)</div></div>
               <div class="dbi-metric"><div style="font-size:12px;font-weight:600;color:var(--text-2)">@T("skipped")</div><div class="mono" style="font-size:28px;font-weight:700;color:var(--warn);margin-top:5px">@State.FmtInt(rep.TotalSkipped)</div></div>
-              <div class="dbi-metric"><div style="font-size:12px;font-weight:600;color:var(--text-2)">@T("resolved")</div><div class="mono" style="font-size:28px;font-weight:700;color:var(--accent-text);margin-top:5px">@State.FmtInt(rep.Worksheets.Sum(w => w.ResolvedReferences))</div></div>
+              <div class="dbi-metric"><div style="font-size:12px;font-weight:600;color:var(--text-2)">@T("warnings")</div><div class="mono" style="font-size:28px;font-weight:700;color:@(rep.TotalWarnings > 0 ? "var(--warn)" : "var(--text-3)");margin-top:5px">@State.FmtInt(rep.TotalWarnings)</div></div>
             </div>
 
             <div class="dbi-card" style="padding:0;overflow:hidden;margin-bottom:16px">
@@ -443,6 +443,31 @@
                 </table>
               </div>
             </div>
+
+            @if (RecapIssues().Count > 0)
+            {
+              <div class="dbi-card" style="margin-bottom:16px">
+                <div class="dbi-card-h"><span style="color:var(--warn)">⚠</span>@T("rejections")</div>
+                @foreach (WorksheetReport w in RecapIssues())
+                {
+                  <div style="margin-bottom:10px">
+                    <div style="font-weight:600;font-size:12.5px;margin-bottom:4px">@w.Worksheet <span class="mono" style="color:var(--text-3);font-weight:500">→ @w.Table</span></div>
+                    @foreach (string msg in w.Errors.Take(8))
+                    {
+                      <div style="font-size:11.5px;color:var(--err);display:flex;gap:6px"><span>✕</span><span class="dbi-ell">@msg</span></div>
+                    }
+                    @foreach (string msg in w.Warnings.Take(8))
+                    {
+                      <div style="font-size:11.5px;color:var(--warn);display:flex;gap:6px"><span>⚠</span><span class="dbi-ell">@msg</span></div>
+                    }
+                    @if (w.Errors.Count + w.Warnings.Count > 16)
+                    {
+                      <div style="font-size:11px;color:var(--text-3);margin-top:2px">… +@(w.Errors.Count + w.Warnings.Count - 16) @T("more")</div>
+                    }
+                  </div>
+                }
+              </div>
+            }
           }
 
           <div style="display:flex;gap:12px;flex-wrap:wrap">
@@ -502,6 +527,9 @@
     };
 
     private void OnNext() => State.GoNext();
+
+    private IReadOnlyList<WorksheetReport> RecapIssues()
+        => State.Report?.Worksheets.Where(w => w.Errors.Count > 0 || w.Warnings.Count > 0).ToList() ?? [];
 
     private async Task OnFile(InputFileChangeEventArgs e)
     {

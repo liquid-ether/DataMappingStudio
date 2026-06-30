@@ -12,7 +12,7 @@
    thousands of dictionary entries) stay responsive. Inline edit + add-row + add-column + validation. *@
 <div class="toolbar">
     <h2 class="page-title">@Title</h2>
-    <button class="add @(_showFilters ? "on" : null)" type="button" @onclick="() => _showFilters = !_showFilters" title="@Lang.T("filtersHint")">
+    <button class="add @(_showFilters ? "on" : null)" type="button" aria-pressed="@_showFilters" @onclick="() => _showFilters = !_showFilters" title="@Lang.T("filtersHint")">
         <span class="plus">⧩</span> @Lang.T("filters")
     </button>
     @if (_filters.Values.Any(v => !string.IsNullOrWhiteSpace(v)))
@@ -29,14 +29,15 @@
             ColumnCatalogEntry c = col;
             <TemplateColumn>
                 <HeaderTemplate>
-                    <div class="th">
-                        <button class="th-label" type="button" @onclick="() => ToggleSort(c)">
+                    <div class="th" role="columnheader" aria-sort="@AriaSort(c)">
+                        <button class="th-label" type="button" aria-label="@SortAria(c)" @onclick="() => ToggleSort(c)">
                             <span>@Lang.Label(c.LabelEn, c.LabelFr)</span>@if (c.IsRequired) {<span class="req">*</span>}
-                            <span class="th-sort">@SortIndicator(c)</span>
+                            <span class="th-sort" aria-hidden="true">@SortIndicator(c)</span>
                         </button>
                         @if (_showFilters)
                         {
                             <input class="th-filter" type="search" placeholder="@Lang.T("filter")"
+                                   aria-label="@($"{Lang.Label(c.LabelEn, c.LabelFr)} — {Lang.T("filter")}")"
                                    value="@Filter(c)" @oninput="e => SetFilter(c, e.Value?.ToString())"
                                    @onclick:stopPropagation="true" />
                         }
@@ -113,7 +114,7 @@ else if (_view.Count == 0 && _rows.Count > 0)
 
 @if (_error is not null)
 {
-    <div class="err">@_error</div>
+    <div class="err" role="alert">@_error</div>
 }
 
 <div class="addbar">
@@ -318,6 +319,20 @@ else if (_view.Count == 0 && _rows.Count > 0)
 
     private string SortIndicator(ColumnCatalogEntry col)
         => _sortColumn == col.ColumnName ? (_sortDescending ? "▼" : "▲") : "↕";
+
+    // ARIA: the column header's sort state, and a spoken label for the sort button.
+    private string AriaSort(ColumnCatalogEntry col)
+        => _sortColumn == col.ColumnName ? (_sortDescending ? "descending" : "ascending") : "none";
+
+    private string SortAria(ColumnCatalogEntry col)
+    {
+        string label = Lang.Label(col.LabelEn, col.LabelFr);
+        string state = _sortColumn != col.ColumnName
+            ? (Lang.IsFrench ? "non trié" : "not sorted")
+            : _sortDescending ? (Lang.IsFrench ? "trié décroissant" : "sorted descending")
+                              : (Lang.IsFrench ? "trié croissant" : "sorted ascending");
+        return $"{label} — {state}";
+    }
 
     // Apply the active filters then the active sort to produce the rows the grid renders.
     private void RecomputeView()

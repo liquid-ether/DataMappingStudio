@@ -84,6 +84,18 @@ public class PublishTests : AppTestContext
     }
 
     [Fact]
+    public void Unavailable_remote_shows_a_banner_with_the_reason()
+    {
+        _sync = new FakeSyncCoordinator { RemoteStatus = RemoteHealth.Down("offline", null) };
+        Services.AddSingleton<ISyncCoordinator>(_sync);
+        Services.AddSingleton<LanguageState>();
+        var cut = Render<PublishPanel>();
+
+        Assert.Contains("Shared folder unavailable", cut.Markup);
+        Assert.Contains("offline", cut.Markup);
+    }
+
+    [Fact]
     public void Conflict_dialog_emits_keep_theirs_resolution()
     {
         IReadOnlyList<ConflictResolution>? captured = null;

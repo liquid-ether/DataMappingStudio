@@ -7,6 +7,33 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-06-30
+
+### Added / Changed (production hardening — medium-tier review items #7–#12)
+- **#7 Supply-chain gate.** `build/check-dependencies.ps1` fails the build on any known-vulnerable NuGet
+  package (including transitive); deprecated packages are reported as a warning. Wired as a CI step
+  before build. Current scan: no vulnerable packages.
+- **#8 Deeper import validation.** Column **max length** is now enforced — over-length values are
+  truncated and flagged (the row still imports); malformed cells were already rejected and reported.
+  `ImportReport` gained a `Warnings` list + `TotalWarnings`, and the wizard recap adds a Warnings metric
+  and a "Rejections & warnings" panel listing the per-worksheet skip reasons + truncations.
+- **#9 Config / transport hygiene.** The web host logs its **effective configuration** at startup (data
+  dir, shared folder, auth required, seed) and **probes that the shared folder is writable**, warning
+  clearly instead of failing silently during a later publish/sync.
+- **#10 Accessibility.** ARIA across the metadata grid (sortable headers expose `aria-sort` + a spoken
+  sort state, filter inputs get labels, the Filters toggle is `aria-pressed`, errors are `role="alert"`),
+  the import wizard (stepper `aria-current`, dropzone label, progress bar `role="progressbar"`, live
+  alerts), and the conflict dialog (`scope="col"` headers + grouped label); plus a dark-mode muted-text
+  contrast bump.
+- **#11 Test gaps.** Added the import max-length test and a Publish-page "shared folder unavailable"
+  banner test (the conflict-resolution UI and the concurrency stress test were already covered).
+- **#12 Observability.** An anonymous **`/health`** probe (`WorkingCopyHealthCheck`): Healthy when the
+  local store is reachable and the shared folder is available, Degraded when the shared folder is down,
+  Unhealthy when the store is unreadable. The Data Import wizard logs each outcome (user, file,
+  created/updated/skipped) via `ILogger`.
+
+Suite: **212 passing**.
+
 ## [1.9.0] - 2026-06-29
 
 ### Changed (production hardening — high-tier review items #5 & #6)

@@ -133,7 +133,7 @@
         bool done = idx < State.MaxStep && idx != State.Step;
         bool cur = idx == State.Step;
         bool locked = idx > State.MaxStep;
-        <button class="dbi-step @(cur ? "cur" : "")" disabled="@locked" @onclick="() => State.GoToStep(idx)" style="@(locked ? "opacity:.55;cursor:not-allowed" : "")">
+        <button class="dbi-step @(cur ? "cur" : "")" disabled="@locked" aria-current="@(cur ? "step" : null)" @onclick="() => State.GoToStep(idx)" style="@(locked ? "opacity:.55;cursor:not-allowed" : "")">
           <span class="dbi-step-dot @(cur ? "cur" : done ? "done" : "idle")">@(done ? "✓" : (idx + 1).ToString())</span>
           <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.2">
             <span class="dbi-kicker">@_kickers[idx]</span>
@@ -163,7 +163,7 @@
 
           @if (!State.HasFile)
           {
-            <label class="dbi-drop">
+            <label class="dbi-drop" aria-label="@($"{T("dropTitle")} — {T("accepted")}")">
               <InputFile OnChange="OnFile" accept=".xlsx" disabled="@State.Busy" />
               <div class="dbi-drop-ic"><i></i></div>
               @if (State.Busy)
@@ -179,7 +179,7 @@
             </label>
             @if (State.ParseError is not null)
             {
-              <div class="dbi-status err" style="margin-top:14px"><span>⚠</span>@State.ParseError</div>
+              <div class="dbi-status err" role="alert" style="margin-top:14px"><span>⚠</span>@State.ParseError</div>
             }
           }
           else
@@ -365,7 +365,7 @@
 
           @if (State.LoadError is not null)
           {
-            <div class="dbi-status err" style="margin-bottom:14px"><span>⚠</span>@State.LoadError</div>
+            <div class="dbi-status err" role="alert" style="margin-bottom:14px"><span>⚠</span>@State.LoadError</div>
           }
 
           @if (State.Loading)
@@ -375,7 +375,7 @@
                 <div style="display:flex;align-items:center;gap:9px;font-weight:600"><span class="dbi-spin"></span>@T("loading")</div>
                 <span class="mono" style="color:var(--text-2)">@($"{State.FmtInt(State.RowsDone)} / {State.FmtInt(State.TotalRows)}")</span>
               </div>
-              <div class="dbi-bar"><div class="dbi-bar-fill" style="width:@(State.Progress)%"></div></div>
+              <div class="dbi-bar" role="progressbar" aria-valuenow="@State.Progress" aria-valuemin="0" aria-valuemax="100"><div class="dbi-bar-fill" style="width:@(State.Progress)%"></div></div>
             </div>
             <button class="dbi-act" @onclick="State.Cancel">✕ @T("cancel")</button>
           }

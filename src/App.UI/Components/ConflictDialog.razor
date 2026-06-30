@@ -1,10 +1,16 @@
 @inject LanguageState Lang
 
 @* Per-field conflict resolution (Architecture §7a): keep mine / keep theirs / edit. *@
-<div class="gridbox" style="margin-top:12px">
+<div class="gridbox" style="margin-top:12px" role="group" aria-label="@(Lang.IsFrench ? "Résolution des conflits" : "Conflict resolution")">
     <table class="grid">
         <thead>
-            <tr><th>Field</th><th>Base</th><th>Mine</th><th>Theirs</th><th>Resolution</th></tr>
+            <tr>
+                <th scope="col">@(Lang.IsFrench ? "Champ" : "Field")</th>
+                <th scope="col">Base</th>
+                <th scope="col">@(Lang.IsFrench ? "Les miens" : "Mine")</th>
+                <th scope="col">@(Lang.IsFrench ? "Les leurs" : "Theirs")</th>
+                <th scope="col">@(Lang.IsFrench ? "Résolution" : "Resolution")</th>
+            </tr>
         </thead>
         <tbody>
             @foreach (MergeConflict conflict in Conflicts)

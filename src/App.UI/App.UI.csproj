@@ -2,10 +2,15 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <Title>Mapping Studio UI</Title>
+    <Description>
+      Shared, metadata-driven Blazor (Razor) component library for Mapping Studio: the dynamic
+      catalog-driven grid/editor, Mapping Studio, field-level lineage graph, Excel import wizard,
+      publish/conflict UI, and instant EN/FR + light/dark theming. The same components are hosted by
+      both the Blazor Hybrid desktop shell (App.Desktop) and the Blazor Server web host (App.Web).
+      Register the library's services with AddAppUi().
+    </Description>
   </PropertyGroup>
-
 
   <ItemGroup>
     <SupportedPlatform Include="browser" />

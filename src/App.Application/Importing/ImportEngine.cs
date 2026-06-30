@@ -20,11 +20,23 @@ public sealed record WorksheetData(string Worksheet, IReadOnlyList<IReadOnlyDict
 /// </summary>
 public sealed class ImportEngine(ICatalog catalog, ILocalStore store, RuleExpressionBuilder expressionBuilder)
 {
-    public ImportReport Run(ImportMapping mapping, IReadOnlyList<WorksheetData> data, string changedBy)
+    /// <summary>
+    /// Imports the mapped worksheets. <paramref name="progress"/> receives the running count of rows
+    /// processed (so the UI can show a progress bar); if <paramref name="cancellationToken"/> is
+    /// cancelled the run stops at the next row and returns the report-so-far — rows already written stay
+    /// (upsert by natural key, so re-running completes them).
+    /// </summary>
+    public ImportReport Run(
+        ImportMapping mapping,
+        IReadOnlyList<WorksheetData> data,
+        string changedBy,
+        CancellationToken cancellationToken = default,
+        IProgress<int>? progress = null)
     {
         ImportReport report = new();
         string changeSetId = Guid.NewGuid().ToString();
         Dictionary<string, Dictionary<string, Guid>> referenceIndexes = new(StringComparer.Ordinal);
+        int processed = 0;
 
         foreach (WorksheetMapping ws in mapping.Worksheets)
         {
@@ -44,6 +56,12 @@ public sealed class ImportEngine(ICatalog catalog, ILocalStore store, RuleExpres
 
             foreach (IReadOnlyDictionary<string, string?> sourceRow in sheet.Rows)
             {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    wsReport.UnmappedColumns.AddRange(unmapped.OrderBy(c => c, StringComparer.Ordinal));
+                    return report; // cancelled: return what we have committed so far
+                }
+
                 try
                 {
                     ImportRow(ws, sourceRow, cols, naturalKeyIndex, referenceIndexes, knownRefs, unmapped, changeSetId, changedBy, wsReport);
@@ -53,6 +71,8 @@ public sealed class ImportEngine(ICatalog catalog, ILocalStore store, RuleExpres
                     wsReport.Skipped++;
                     wsReport.Errors.Add(ex.Message);
                 }
+
+                progress?.Report(++processed);
             }
 
             wsReport.UnmappedColumns.AddRange(unmapped.OrderBy(c => c, StringComparer.Ordinal));

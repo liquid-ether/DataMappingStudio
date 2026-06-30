@@ -61,8 +61,16 @@ public sealed class DataImportState
 
     public bool Loading { get; private set; }
     public bool Done { get; private set; }
+    public bool Cancelled { get; private set; }
+    public int Progress { get; private set; }
+    public int RowsDone { get; private set; }
     public ImportReport? Report { get; private set; }
     public string? LoadError { get; private set; }
+    private CancellationTokenSource? _cts;
+
+    /// <summary>Upload guard rails: reject pathological files before they can block the circuit.</summary>
+    public const long MaxFileBytes = 50L * 1024 * 1024;
+    public const int MaxRows = 100_000;
 
     public bool HasFile => Parsed is not null;
 
@@ -77,6 +85,14 @@ public sealed class DataImportState
     // ---------------- file load ----------------
     public async Task LoadFileAsync(string name, long size, Stream content)
     {
+        if (size > MaxFileBytes)
+        {
+            ParseError = T("fileTooLarge");
+            Parsed = null;
+            Notify();
+            return;
+        }
+
         Busy = true;
         ParseError = null;
         Notify();
@@ -93,6 +109,11 @@ public sealed class DataImportState
                 ParseError = IsFrench
                     ? "Aucune feuille reconnue. Vérifiez que le classeur suit la structure attendue (Apps, Source, Dictionnary…)."
                     : "No recognized worksheets. Check that the workbook follows the expected layout (Apps, Source, Dictionnary…).";
+                Parsed = null;
+            }
+            else if (parsed.Where(s => s.Rows.Count > 0).Sum(s => s.Rows.Count) > MaxRows)
+            {
+                ParseError = T("tooManyRows");
                 Parsed = null;
             }
             else
@@ -114,10 +135,19 @@ public sealed class DataImportState
         }
     }
 
+    /// <summary>Rejects a file the host already knows is too large (without opening its stream).</summary>
+    public void RejectTooLarge()
+    {
+        ParseError = T("fileTooLarge");
+        Parsed = null;
+        Notify();
+    }
+
     public void ClearFile()
     {
         Parsed = null; FileName = null; FileSize = 0; ParseError = null;
-        Step = 0; MaxStep = 0; Loading = false; Done = false; Report = null; LoadError = null;
+        Step = 0; MaxStep = 0; Loading = false; Done = false; Cancelled = false;
+        Progress = 0; RowsDone = 0; Report = null; LoadError = null;
         Notify();
     }
 
@@ -147,19 +177,58 @@ public sealed class DataImportState
     }
 
     // ---------------- run the import ----------------
-    public void RunImport()
+    /// <summary>
+    /// Runs the import off the UI thread (so a large workbook never freezes the circuit), reporting
+    /// progress and honouring <see cref="Cancel"/>. Rows already written stay on cancel (idempotent
+    /// upsert), so the partial result is surfaced and a re-run completes it.
+    /// </summary>
+    public async Task RunImportAsync()
     {
         if (Parsed is null || Loading) { return; }
 
         Loading = true;
         LoadError = null;
+        Cancelled = false;
+        Progress = 0;
+        RowsDone = 0;
+        _cts = new CancellationTokenSource();
         Notify();
+
+        int total = TotalRows;
+        int lastPct = -1;
+        // Throttle UI updates to whole-percent changes (~100 renders max, not one per row).
+        Progress<int> progress = new(done =>
+        {
+            RowsDone = done;
+            int pct = total > 0 ? (int)Math.Min(100, done * 100L / total) : 100;
+            if (pct != lastPct)
+            {
+                lastPct = pct;
+                Progress = pct;
+                Notify();
+            }
+        });
+
         try
         {
-            Report = _engine.Run(Mapping, Parsed, _user.Name);
-            Done = true;
-            Step = StepCount - 1; // jump to recap
-            MaxStep = Math.Max(MaxStep, Step);
+            CancellationToken token = _cts.Token;
+            IReadOnlyList<WorksheetData> sheets = Parsed;
+            Report = await Task.Run(() => _engine.Run(Mapping, sheets, _user.Name, token, progress), token);
+
+            if (token.IsCancellationRequested)
+            {
+                Cancelled = true;
+            }
+            else
+            {
+                Done = true;
+                Step = StepCount - 1; // jump to recap
+                MaxStep = Math.Max(MaxStep, Step);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Cancelled = true;
         }
         catch (Exception ex)
         {
@@ -168,8 +237,21 @@ public sealed class DataImportState
         finally
         {
             Loading = false;
+            _cts.Dispose();
+            _cts = null;
             Notify();
         }
+    }
+
+    /// <summary>Requests cancellation of an in-progress import.</summary>
+    public void Cancel() => _cts?.Cancel();
+
+    /// <summary>Jumps to the recap after a cancelled run to review the partial result.</summary>
+    public void GotoRecap()
+    {
+        Step = StepCount - 1;
+        MaxStep = Math.Max(MaxStep, Step);
+        Notify();
     }
 
     public void StartNew() => ClearFile();
@@ -340,6 +422,11 @@ public sealed class DataImportState
         ["s4Sub"] = ("Run the import. Rows are upserted by natural key as one reviewable change set — re-running updates instead of duplicating.", "Lancez l'import. Les lignes sont fusionnées par clé naturelle en un lot révisable — relancer met à jour au lieu de dupliquer."),
         ["confirmLoad"] = ("Import into local database", "Importer dans la base locale"),
         ["loading"] = ("Importing…", "Importation…"), ["willHappen"] = ("What will happen", "Ce qui va se passer"),
+        ["cancel"] = ("Cancel", "Annuler"), ["importCancelled"] = ("Import cancelled", "Import annulé"),
+        ["cancelledNote"] = ("Rows imported before cancelling were kept (re-running completes the rest).", "Les lignes importées avant l'annulation ont été conservées (relancer termine le reste)."),
+        ["rowsImported"] = ("rows imported", "lignes importées"),
+        ["fileTooLarge"] = ("File is too large (max 50 MB).", "Fichier trop volumineux (max 50 Mo)."),
+        ["tooManyRows"] = ("Workbook has too many rows (max 100,000).", "Le classeur contient trop de lignes (max 100 000)."),
         ["rowsToLoad"] = ("rows to import", "lignes à importer"), ["intoTables"] = ("target tables", "tables cibles"),
         ["mappingName"] = ("Mapping", "Correspondance"), ["changeSet"] = ("Change set", "Lot de modifications"),
         ["s5Title"] = ("Import complete", "Import terminé"),

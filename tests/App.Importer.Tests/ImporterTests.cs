@@ -148,6 +148,42 @@ public sealed class ImporterTests : IDisposable
     }
 
     [Fact]
+    public void Run_honours_cancellation_and_returns_a_partial_result()
+    {
+        ImportMapping mapping = new() { Worksheets = [AppsMapping()] };
+        using CancellationTokenSource cts = new();
+        cts.Cancel(); // already cancelled — the row loop should stop before writing anything
+
+        ImportReport report = _importer.Run(mapping,
+            [Sheet("Apps", new Dictionary<string, string?> { ["AppCode"] = "GDM1", ["Nom GDM"] = "X" })],
+            "import", cts.Token);
+
+        Assert.Equal(0, report.TotalCreated);
+        Assert.Empty(_store.GetAll(TableNames.Application));
+    }
+
+    [Fact]
+    public void Run_reports_progress_per_row()
+    {
+        ImportMapping mapping = new() { Worksheets = [AppsMapping()] };
+        SyncProgress progress = new();
+
+        _importer.Run(mapping,
+            [Sheet("Apps",
+                new Dictionary<string, string?> { ["AppCode"] = "A1", ["Nom GDM"] = "x" },
+                new Dictionary<string, string?> { ["AppCode"] = "A2", ["Nom GDM"] = "y" })],
+            "import", default, progress);
+
+        Assert.Equal([1, 2], progress.Reports); // one report per processed row, cumulative
+    }
+
+    private sealed class SyncProgress : IProgress<int>
+    {
+        public List<int> Reports { get; } = [];
+        public void Report(int value) => Reports.Add(value);
+    }
+
+    [Fact]
     public void Expression_field_references_resolve_with_free_text_fallback()
     {
         ImportMapping mapping = new()

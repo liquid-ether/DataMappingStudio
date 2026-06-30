@@ -95,6 +95,8 @@
   .dbi-log td{padding:8px 10px;border-top:1px solid var(--border)}
   .dbi-okdot{width:24px;height:24px;border-radius:50%;background:var(--ok);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px}
   .dbi-act{display:flex;align-items:center;gap:8px;height:44px;padding:0 18px;border-radius:11px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit}
+  .dbi-bar{height:10px;background:var(--surface-3);border-radius:6px;overflow:hidden}
+  .dbi-bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .15s linear}
   .dbi-act.primary{border:none;background:var(--accent);color:#fff;padding:0 20px}
 </style>
 
@@ -366,10 +368,30 @@
             <div class="dbi-status err" style="margin-bottom:14px"><span>⚠</span>@State.LoadError</div>
           }
 
-          <button class="dbi-bigbtn" disabled="@(State.Loading || State.TotalRows == 0)" @onclick="State.RunImport">
-            @if (State.Loading) { <span class="dbi-spin"></span> <span>@T("loading")</span> }
-            else { <span>▶ @T("confirmLoad")</span> }
-          </button>
+          @if (State.Loading)
+          {
+            <div class="dbi-card" style="margin-bottom:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                <div style="display:flex;align-items:center;gap:9px;font-weight:600"><span class="dbi-spin"></span>@T("loading")</div>
+                <span class="mono" style="color:var(--text-2)">@($"{State.FmtInt(State.RowsDone)} / {State.FmtInt(State.TotalRows)}")</span>
+              </div>
+              <div class="dbi-bar"><div class="dbi-bar-fill" style="width:@(State.Progress)%"></div></div>
+            </div>
+            <button class="dbi-act" @onclick="State.Cancel">✕ @T("cancel")</button>
+          }
+          else if (State.Cancelled)
+          {
+            <div class="dbi-status warn" style="margin-bottom:14px"><span>⚠</span>@T("importCancelled") · @State.FmtInt(State.Report?.TotalCreated + State.Report?.TotalUpdated ?? 0) @T("rowsImported")</div>
+            <div class="dbi-note" style="margin-bottom:14px"><span style="color:var(--info);font-size:14px">ⓘ</span><div>@T("cancelledNote")</div></div>
+            <div style="display:flex;gap:12px">
+              <button class="dbi-act primary" @onclick="State.GotoRecap">@T("viewRecap")</button>
+              <button class="dbi-act" @onclick="State.StartNew">＋ @T("startNew")</button>
+            </div>
+          }
+          else
+          {
+            <button class="dbi-bigbtn" disabled="@(State.TotalRows == 0)" @onclick="State.RunImportAsync">▶ @T("confirmLoad")</button>
+          }
         </div>
       }
 
@@ -484,7 +506,13 @@
     private async Task OnFile(InputFileChangeEventArgs e)
     {
         IBrowserFile file = e.File;
-        await using Stream stream = file.OpenReadStream(maxAllowedSize: 50L * 1024 * 1024);
+        if (file.Size > DataImportState.MaxFileBytes)
+        {
+            State.RejectTooLarge(); // reject before opening a too-large stream
+            return;
+        }
+
+        await using Stream stream = file.OpenReadStream(maxAllowedSize: DataImportState.MaxFileBytes);
         await State.LoadFileAsync(file.Name, file.Size, stream);
     }
 

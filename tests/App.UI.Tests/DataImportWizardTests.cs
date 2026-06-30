@@ -75,7 +75,7 @@ public sealed class DataImportWizardTests
         using MemoryStream workbook = BuildWorkbook();
         await state.LoadFileAsync("workbook.xlsx", workbook.Length, workbook);
 
-        state.RunImport();
+        await state.RunImportAsync();
 
         Assert.NotNull(state.Report);
         Assert.True(state.Done);
@@ -88,6 +88,18 @@ public sealed class DataImportWizardTests
         Row src = store.GetAll(TableNames.DataSource).Single();
         Assert.Equal("Orders", src["name"]);
         Assert.Equal(app.Id.ToString(), src["application_id"]); // FK resolved by natural key during import
+    }
+
+    [Fact]
+    public async Task Rejects_a_file_over_the_size_limit()
+    {
+        DataImportState state = NewState(out _);
+        using MemoryStream tiny = new([1, 2, 3]); // contents irrelevant; size is reported as over the cap
+
+        await state.LoadFileAsync("huge.xlsx", DataImportState.MaxFileBytes + 1, tiny);
+
+        Assert.False(state.HasFile);
+        Assert.NotNull(state.ParseError);
     }
 
     [Fact]

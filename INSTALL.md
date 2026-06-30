@@ -130,6 +130,35 @@ $env:Auth__Require = "true"   # require Windows (Negotiate) auth in production
 > under its data directory (`DataDir`, default `App_Data`; per-user copies under `<DataDir>/users/<user>`).
 > Point every host at the same `RemoteFolder` to collaborate.
 
+### Production deployment checklist
+
+Work through this before exposing the web host to the team. The application code is release-ready; these
+are the deployment knobs the rollout owner sets.
+
+1. **Require authentication.** Set `Auth__Require=true` (env) or `Auth:Require=true` (`appsettings.json`).
+   Confirm the host can reach your domain controller and that Negotiate works from a client browser — each
+   signed-in Windows user then gets their **own isolated workspace**, and their login is recorded as the
+   change author. Without this, anyone who can reach the URL shares one workspace and can read/edit/publish.
+2. **Terminate TLS.** Serve over HTTPS — either bind Kestrel to an `https://` URL with a certificate, or
+   (recommended) put the host behind a reverse proxy (IIS / Nginx) that terminates TLS and forwards. Behind
+   a proxy, enable forwarded headers so redirects and auth see the original scheme/host. The startup log
+   line `Failed to determine the https port for redirect` is expected when no HTTPS URL is bound directly.
+3. **Point every host at the shared folder.** Set the same `RemoteFolder` (a OneDrive/SharePoint-synced
+   path) on each host. Give **each host its own `DataDir`** (don't share working copies between hosts). The
+   host probes the folder is writable at startup and warns clearly if not.
+4. **Verify health + config at startup.** The host logs its effective configuration (data dir, shared
+   folder, auth required) on boot. The anonymous **`/health`** endpoint reports shared-folder reachability
+   and the active-workspace count — wire it into your load balancer / uptime monitor.
+5. **Plan the shared folder.** It is the single point of coordination for all hosts and users: make sure it
+   is backed up, has room to grow (per-writer logs + snapshots), and that the sync client (OneDrive) is
+   healthy on every host. A locked/offline folder surfaces as a "shared folder unavailable" banner and a
+   Degraded `/health`, not data loss — but publishing pauses until it recovers.
+6. **Capacity sanity check.** Correctness is covered by the test suite (per-user isolation, cross-user
+   publish, two hosts merging), but throughput under your real user/host count and folder latency has not
+   been load-tested — run a brief multi-user smoke before going wide.
+7. **Keep dependencies clean.** `build/check-dependencies.ps1` fails on any known-vulnerable NuGet package;
+   run it (it's already a CI step) as part of each release build.
+
 ---
 
 ## 4. Importing existing Excel data (optional)

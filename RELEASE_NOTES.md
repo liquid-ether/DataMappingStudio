@@ -7,6 +7,26 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-06-29
+
+### Changed (production hardening — high-tier review items #5 & #6)
+- **Import guard rails (#5).** The Data Import wizard now runs the import **off the UI thread** with a
+  live **progress bar** and a **Cancel** button — rows already written are kept (re-running completes the
+  rest, since the upsert is idempotent). Uploads are bounded: a file over **50 MB** or a workbook over
+  **100,000 rows** is rejected with a friendly message before it can block the circuit. `ImportEngine.Run`
+  gained optional `CancellationToken` and `IProgress<int>` parameters (it stops at the next row on cancel
+  and returns the partial report; the CLI callers are unchanged).
+- **Sync / OneDrive resilience (#6).** Remote file IO now **retries transient locks** (sync client /
+  anti-virus) with backoff (`RemoteIo`); the sync coordinator records remote **health**
+  (`ISyncCoordinator.RemoteStatus`) and the Publish page shows a banner when the shared folder is
+  unavailable instead of the background refresh failing silently; and auto-refresh **skips the full
+  refold when nothing changed remotely** — a cheap `IRemoteStore.RemoteVersion()` signature (file sizes
+  + timestamps, no content read) — avoiding a needless 30-second scan of every table on each tick.
+
+### Added (tests)
+- Engine cancellation + per-row progress; oversize-file rejection; remote-unavailable health, skip-when-
+  unchanged, and the version signature changing after an append. Suite: **210 passing**.
+
 ## [1.8.1] - 2026-06-29
 
 ### Fixed

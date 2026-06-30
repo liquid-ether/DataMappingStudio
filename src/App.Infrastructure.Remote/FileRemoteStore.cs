@@ -1,3 +1,4 @@
+using System.Text;
 using App.Application.Abstractions;
 using App.Domain.Data;
 
@@ -31,7 +32,8 @@ public sealed class FileRemoteStore : IRemoteStore
             return [];
         }
 
-        RemoteTable table = _format.Read(path);
+        // Retry the read: a sync client may briefly hold the file open.
+        RemoteTable table = RemoteIo.Retry(() => _format.Read(path));
         return table.Rows.Select(ChangeLogSchema.FromRow).ToList();
     }
 
@@ -44,16 +46,37 @@ public sealed class FileRemoteStore : IRemoteStore
 
         List<ChangeLogEntry> all = [.. ReadWriterChanges(writerId), .. entries];
         RemoteTable table = new(ChangeLogSchema.Columns, all.Select(ChangeLogSchema.ToRow).ToList());
-        AtomicWrite.Write(LogPath(writerId), temp => _format.Write(temp, table));
+        RemoteIo.Retry(() => AtomicWrite.Write(LogPath(writerId), temp => _format.Write(temp, table)));
     }
 
     public IReadOnlyList<string> Writers()
-        => Directory.EnumerateFiles(_changesDir, $"*{_format.Extension}")
+        => RemoteIo.Retry(() => Directory.EnumerateFiles(_changesDir, $"*{_format.Extension}")
             .Select(Path.GetFileNameWithoutExtension)
             .Where(n => !string.IsNullOrEmpty(n))
             .Select(n => n!)
             .OrderBy(n => n, StringComparer.Ordinal)
-            .ToList();
+            .ToList());
+
+    /// <summary>
+    /// A cheap signature of the remote logs (file names + sizes + last-write times) — no content read.
+    /// Lets the sync coordinator skip a full fold when nothing has changed remotely since the last refresh.
+    /// </summary>
+    public string RemoteVersion() => RemoteIo.Retry(() =>
+    {
+        if (!Directory.Exists(_changesDir))
+        {
+            return "0";
+        }
+
+        StringBuilder sb = new();
+        foreach (string file in Directory.EnumerateFiles(_changesDir, $"*{_format.Extension}").OrderBy(f => f, StringComparer.Ordinal))
+        {
+            FileInfo info = new(file);
+            sb.Append(info.Name).Append(':').Append(info.Length).Append(':').Append(info.LastWriteTimeUtc.Ticks).Append('|');
+        }
+
+        return sb.ToString();
+    });
 
     private string LogPath(string writerId) => Path.Combine(_changesDir, writerId + _format.Extension);
 }

@@ -6,12 +6,26 @@ namespace App.Application.Sync;
 public sealed record RefreshResult(int Applied, int Flagged);
 
 /// <summary>
+/// Health of the shared remote folder, surfaced to the UI so an offline / locked OneDrive share is
+/// visible instead of silently failing in the background.
+/// </summary>
+public sealed record RemoteHealth(bool Available, string? Message, DateTimeOffset? LastSuccessUtc)
+{
+    public static readonly RemoteHealth Unknown = new(true, null, null);
+    public static RemoteHealth Ok(DateTimeOffset now, DateTimeOffset? _ = null) => new(true, null, now);
+    public static RemoteHealth Down(string message, DateTimeOffset? lastSuccess) => new(false, message, lastSuccess);
+}
+
+/// <summary>
 /// Coordinates publish / preview / auto-refresh / history for the UI, tracking the analyst's
 /// last-published sequence so "pending" means local change-log entries newer than that.
 /// </summary>
 public interface ISyncCoordinator
 {
     string WriterId { get; }
+
+    /// <summary>Last-known health of the remote folder (updated on every refresh / publish).</summary>
+    RemoteHealth RemoteStatus { get; }
 
     int PendingCount();
 
@@ -38,8 +52,12 @@ public sealed class SyncCoordinator(
 {
     private readonly object _gate = new();
     private long _lastPublishedSeq;
+    private string? _lastRemoteVersion;
+    private RemoteHealth _remoteStatus = RemoteHealth.Unknown;
 
     public string WriterId { get; init; } = "analyst";
+
+    public RemoteHealth RemoteStatus => _remoteStatus;
 
     public int PendingCount() => Pending().Count;
 
@@ -50,19 +68,48 @@ public sealed class SyncCoordinator(
         lock (_gate)
         {
             IReadOnlyList<ChangeLogEntry> pending = Pending();
-            PublishResult result = publishService.Publish(WriterId, pending, resolutions);
-            if (result.Published && pending.Count > 0)
+            try
             {
-                _lastPublishedSeq = pending.Max(e => e.ClientSeq);
-            }
+                PublishResult result = publishService.Publish(WriterId, pending, resolutions);
+                if (result.Published && pending.Count > 0)
+                {
+                    _lastPublishedSeq = pending.Max(e => e.ClientSeq);
+                }
 
-            return result;
+                _lastRemoteVersion = null; // our own write changed the remote; force a refold next refresh
+                MarkRemoteOk();
+                return result;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                MarkRemoteDown(ex);
+                throw;
+            }
         }
     }
 
     public RefreshResult Refresh()
     {
-        FoldedState remote = ChangeFold.Fold(remoteStore.ReadAllChanges());
+        FoldedState remote;
+        try
+        {
+            // Skip the (full) fold when nothing changed remotely since the last successful refresh.
+            string version = remoteStore.RemoteVersion();
+            if (version == _lastRemoteVersion)
+            {
+                MarkRemoteOk();
+                return new RefreshResult(0, 0);
+            }
+
+            remote = ChangeFold.Fold(remoteStore.ReadAllChanges());
+            _lastRemoteVersion = version;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            MarkRemoteDown(ex);
+            return new RefreshResult(0, 0);
+        }
+
         FoldedState localKnown = BuildLocalState();
         HashSet<CellKey> pendingCells = Pending()
             .Select(e => new CellKey(e.Table, e.RowId, e.Column))
@@ -77,8 +124,13 @@ public sealed class SyncCoordinator(
             localStore.AdoptCanonical(group.Key.Table, group.Key.Row, values);
         }
 
+        MarkRemoteOk();
         return new RefreshResult(plan.Applied.Count, plan.Flagged.Count);
     }
+
+    private void MarkRemoteOk() => _remoteStatus = RemoteHealth.Ok(DateTimeOffset.UtcNow);
+
+    private void MarkRemoteDown(Exception ex) => _remoteStatus = RemoteHealth.Down(ex.Message, _remoteStatus.LastSuccessUtc);
 
     public IReadOnlyList<ChangeLogEntry> History(string? table = null, Guid? rowId = null) => audit.Query(table, rowId);
 

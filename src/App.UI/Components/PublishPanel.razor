@@ -6,6 +6,11 @@
    resolve conflicts first; plus a manual refresh and a status line. *@
 <h1 class="page-title">@Lang.T("publish")</h1>
 
+@if (!Sync.RemoteStatus.Available)
+{
+    <p class="err">⚠ @(Lang.IsFrench ? "Dossier partagé indisponible" : "Shared folder unavailable")@(string.IsNullOrEmpty(Sync.RemoteStatus.Message) ? null : $" — {Sync.RemoteStatus.Message}")</p>
+}
+
 <div class="addbar">
     <button class="ms-publish" @onclick="StartPublish">@Lang.T("publish") (@Sync.PendingCount())</button>
     <button class="add" @onclick="DoRefresh">@(Lang.IsFrench ? "Rafraîchir" : "Refresh")</button>

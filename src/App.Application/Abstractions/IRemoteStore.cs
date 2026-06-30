@@ -20,6 +20,12 @@ public interface IRemoteStore
 
     /// <summary>Known writer ids (from the <c>_changes/</c> folder).</summary>
     IReadOnlyList<string> Writers();
+
+    /// <summary>
+    /// A cheap signature of the remote state (no content read) that changes whenever any writer's log
+    /// changes. The coordinator compares it to skip a full refold when nothing changed remotely.
+    /// </summary>
+    string RemoteVersion();
 }
 
 /// <summary>Materializes table snapshots from the folded logs (read-optimization, Architecture §6a).</summary>

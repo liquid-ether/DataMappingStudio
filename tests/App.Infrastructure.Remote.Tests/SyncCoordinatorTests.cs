@@ -83,6 +83,49 @@ public sealed class SyncCoordinatorTests : IDisposable
         Assert.Equal("Carol", _store.GetById(Table, id)!["name"]);
     }
 
+    [Fact]
+    public void Refresh_skips_a_refold_when_the_remote_is_unchanged_and_tracks_health()
+    {
+        Guid id = Guid.NewGuid();
+        _remote.AppendChanges("bob", [RemoteTestData.Entry(Table, id, "name", null, "Carol", "bob", 1, 0)]);
+        string version1 = _remote.RemoteVersion();
+
+        Assert.Equal(1, _sync.Refresh().Applied);          // first refresh pulls the remote change
+        Assert.True(_sync.RemoteStatus.Available);
+        Assert.NotNull(_sync.RemoteStatus.LastSuccessUtc);
+
+        Assert.Equal(0, _sync.Refresh().Applied);          // unchanged remote -> nothing to apply (skipped)
+
+        Guid id2 = Guid.NewGuid();
+        _remote.AppendChanges("bob", [RemoteTestData.Entry(Table, id2, "name", null, "Dave", "bob", 2, 0)]);
+        Assert.NotEqual(version1, _remote.RemoteVersion()); // the cheap signature changed after the append
+        Assert.Equal(1, _sync.Refresh().Applied);           // and the next refresh refolds and applies it
+    }
+
+    [Fact]
+    public void Refresh_marks_the_remote_unavailable_when_the_folder_is_inaccessible()
+    {
+        ThrowingRemote throwing = new();
+        CsvRemoteFormat format = new();
+        PublishService publish = new(throwing, new SnapshotBuilder(Path.Combine(_dir, "r2"), format), _catalog, new FieldMergeEngine(), new FixedClock(RemoteTestData.T0));
+        SyncCoordinator sync = new(_catalog, _store, _audit, throwing, publish, new AutoRefreshPlanner()) { WriterId = "alice" };
+
+        RefreshResult result = sync.Refresh();
+
+        Assert.Equal(0, result.Applied);                    // no throw; degrades gracefully
+        Assert.False(sync.RemoteStatus.Available);
+        Assert.Equal("offline", sync.RemoteStatus.Message);
+    }
+
+    private sealed class ThrowingRemote : App.Application.Abstractions.IRemoteStore
+    {
+        public IReadOnlyList<ChangeLogEntry> ReadAllChanges() => throw new IOException("offline");
+        public IReadOnlyList<ChangeLogEntry> ReadWriterChanges(string writerId) => throw new IOException("offline");
+        public void AppendChanges(string writerId, IReadOnlyList<ChangeLogEntry> entries) => throw new IOException("offline");
+        public IReadOnlyList<string> Writers() => throw new IOException("offline");
+        public string RemoteVersion() => throw new IOException("offline");
+    }
+
     public void Dispose()
     {
         _db.Dispose();

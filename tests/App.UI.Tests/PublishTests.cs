@@ -11,6 +11,7 @@ namespace App.UI.Tests;
 public sealed class FakeSyncCoordinator : ISyncCoordinator
 {
     public string WriterId => "test";
+    public RemoteHealth RemoteStatus { get; set; } = RemoteHealth.Unknown;
     public int Pending { get; set; }
     public MergeResult PreviewResult { get; set; } = new([], []);
     public PublishResult PublishResult { get; set; } = new(true, 0, []);

@@ -68,9 +68,12 @@ public partial class DesktopApp : System.Windows.Application
             provider.GetRequiredService<ICatalog>().Seed(DefaultCatalog.Entries());
             provider.GetRequiredService<ILocalStore>().EnsureSchema();
 
-            // On a fresh store, seed the demo dataset (all entities + a 30-target lineage model).
-            int seeded = new SampleDataSeeder(provider.GetRequiredService<LocalDatabase>()).SeedIfEmpty();
-            logProvider.Append($"{DateTimeOffset.Now:O} [Information] Provisioned local store (seeded {seeded} sample rows); opening window.");
+            // Seed the demo dataset only when explicitly requested (MAPPINGSTUDIO_SEED_SAMPLE=true) — a
+            // production install must start clean (and then import the real workbook), not with demo data.
+            bool seedSample = string.Equals(
+                Environment.GetEnvironmentVariable("MAPPINGSTUDIO_SEED_SAMPLE"), "true", StringComparison.OrdinalIgnoreCase);
+            int seeded = seedSample ? new SampleDataSeeder(provider.GetRequiredService<LocalDatabase>()).SeedIfEmpty() : 0;
+            logProvider.Append($"{DateTimeOffset.Now:O} [Information] Provisioned local store (seeded {seeded} sample rows, sampleData={seedSample}); opening window.");
 
             new MainWindow(provider).Show();
         }

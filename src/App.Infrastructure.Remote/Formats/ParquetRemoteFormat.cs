@@ -11,7 +11,11 @@ namespace App.Infrastructure.Remote.Formats;
 /// Parquet format (default) via Parquet.Net — typed, columnar, compact; types travel natively into
 /// Power BI/Excel (Architecture §6a/§7). Uses Parquet.Net's untyped (dictionary-per-row) serializer;
 /// values convert between canonical strings and native typed columns. Parquet.Net is async, so the
-/// synchronous <see cref="IRemoteFormat"/> members block on the async core.
+/// synchronous <see cref="IRemoteFormat"/> members block on the async core. That core is dispatched via
+/// <see cref="Task.Run{TResult}(Func{Task{TResult}})"/> so it runs on a thread-pool thread with no
+/// captured <see cref="SynchronizationContext"/>: blocking it from a single-threaded context (the Blazor
+/// Server circuit) would otherwise deadlock when Parquet.Net's internal continuations post back to that
+/// context.
 /// </summary>
 public sealed class ParquetRemoteFormat : IRemoteFormat
 {
@@ -19,9 +23,9 @@ public sealed class ParquetRemoteFormat : IRemoteFormat
 
     public string Extension => ".parquet";
 
-    public void Write(string path, RemoteTable table) => WriteAsync(path, table).GetAwaiter().GetResult();
+    public void Write(string path, RemoteTable table) => Task.Run(() => WriteAsync(path, table)).GetAwaiter().GetResult();
 
-    public RemoteTable Read(string path) => ReadAsync(path).GetAwaiter().GetResult();
+    public RemoteTable Read(string path) => Task.Run(() => ReadAsync(path)).GetAwaiter().GetResult();
 
     private static async Task WriteAsync(string path, RemoteTable table)
     {

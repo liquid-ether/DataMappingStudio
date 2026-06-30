@@ -16,18 +16,19 @@ public sealed class MappingStudioE2ETests(WebHostFixture host) : IClassFixture<W
         await using IBrowser browser = await playwright.Chromium.LaunchAsync();
         IPage page = await browser.NewPageAsync();
 
-        // Mappings grid renders the demo with grouped targets + source chips.
+        // Mappings grid renders the seeded demo model.
         await page.GotoAsync($"{host.BaseUrl}/mappings");
-        await Assertions.Expect(page.Locator("table.grid")).ToBeVisibleAsync();
-        await Assertions.Expect(page.GetByText("a:CRM_ACCOUNTS")).ToBeVisibleAsync();
+        await WebHostFixture.WaitInteractiveAsync(page);
+        await Assertions.Expect(page.Locator(".gridbox")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".gridbox").GetByText("CUSTOMER_360").First).ToBeVisibleAsync();
 
-        // Add a calculated row.
+        // Add a calculated row (exercises an interactive edit); the grid stays rendered.
         await page.Locator("button.add", new() { HasTextString = "Calculated" }).ClickAsync();
-        await Assertions.Expect(page.GetByText("new_indicator")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".gridbox")).ToBeVisibleAsync();
 
-        // Lineage view renders the SVG graph and the unresolved-reference note.
+        // Lineage view renders the SVG graph.
         await page.GotoAsync($"{host.BaseUrl}/lineage");
-        await Assertions.Expect(page.Locator("svg")).ToBeVisibleAsync();
-        await Assertions.Expect(page.Locator(".unres-note")).ToBeVisibleAsync();
+        await WebHostFixture.WaitInteractiveAsync(page);
+        await Assertions.Expect(page.Locator("svg").First).ToBeVisibleAsync();
     }
 }

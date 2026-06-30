@@ -16,13 +16,26 @@ public sealed class PublishE2ETests(WebHostFixture host) : IClassFixture<WebHost
 
         // Make a local edit, then publish it.
         await page.GotoAsync($"{host.BaseUrl}/t/application");
+        await WebHostFixture.WaitInteractiveAsync(page);
         await page.Locator("button.add", new() { HasTextString = "Add row" }).ClickAsync();
         await page.Locator("input.gi").First.FillAsync("E2EAPP");
-        await page.Locator("button.ms-publish").ClickAsync();
+        await page.Locator(".addbar button.ms-publish").ClickAsync(); // grid Save
 
         await page.GotoAsync($"{host.BaseUrl}/publish");
-        await page.Locator("button.ms-publish").First.ClickAsync();
-        await Assertions.Expect(page.Locator(".ms-wrap p")).ToBeVisibleAsync();
+        await WebHostFixture.WaitInteractiveAsync(page);
+
+        // Click Publish until the result message appears (robust against the connect race; re-clicking is
+        // idempotent — once published it reports "Already up to date").
+        ILocator publishButton = page.Locator(".addbar button.ms-publish"); // the panel's Publish, not the top bar
+        ILocator message = page.Locator(".ms-wrap p");
+        for (int attempt = 0; attempt < 15; attempt++)
+        {
+            await publishButton.ClickAsync();
+            try { await message.WaitForAsync(new LocatorWaitForOptions { Timeout = 1_000 }); break; }
+            catch (TimeoutException) { if (attempt == 14) { throw; } }
+        }
+
+        await Assertions.Expect(message).ToBeVisibleAsync();
 
         // History shows the audit trail.
         await page.GotoAsync($"{host.BaseUrl}/history");

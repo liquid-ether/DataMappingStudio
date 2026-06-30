@@ -113,15 +113,22 @@ $env:RemoteFolder = "C:\Users\<name>\OneDrive - Contoso\MappingStudio"
 ```
 
 > **Production note — authentication.** The web host is **unauthenticated by default** (so local
-> development and the E2E suite work without credentials). Before exposing it beyond localhost, require
-> an authenticated Windows user for every endpoint by setting `Auth__Require=true` (or `Auth:Require` in
-> `appsettings.json`). The authenticated identity is then recorded as the change author. Without this,
-> anyone who can reach the URL can read, edit, and publish.
+> development and the E2E suite work without credentials), in which case all browsers share a single
+> OS-account workspace. Before exposing it beyond localhost, require an authenticated Windows user for
+> every endpoint by setting `Auth__Require=true` (or `Auth:Require` in `appsettings.json`). With auth on,
+> **each user gets their own isolated working copy** keyed by their Windows identity (also recorded as the
+> change author). Without this, anyone who can reach the URL can read, edit, and publish.
 
 ```powershell
 $env:Auth__Require = "true"   # require Windows (Negotiate) auth in production
 .\publish\web\App.Web.exe --urls "https://+:5001"
 ```
+
+> **Multi-user / multi-host.** One host serves many users (a working copy per user), and you can run
+> **several hosts against the same shared folder** for scale or availability — writer ids are
+> host-namespaced (`user@host`) so per-writer logs never collide. Each host stores its working copies
+> under its data directory (`DataDir`, default `App_Data`; per-user copies under `<DataDir>/users/<user>`).
+> Point every host at the same `RemoteFolder` to collaborate.
 
 ---
 

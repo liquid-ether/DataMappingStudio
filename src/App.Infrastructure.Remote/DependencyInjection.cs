@@ -18,7 +18,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         string? canonicalFolder = null,
         string formatName = "parquet",
-        bool enableAutoRefresh = true)
+        bool enableAutoRefresh = true,
+        bool enableCoordinator = true)
     {
         // Format providers are always available so format conversion utilities can resolve any of them.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRemoteFormat, ParquetRemoteFormat>());
@@ -35,6 +36,15 @@ public static class DependencyInjection
             new FileRemoteStore(canonicalFolder, sp.GetRequiredService<IRemoteFormatProvider>().Resolve(formatName)));
         services.TryAddSingleton<ISnapshotBuilder>(sp =>
             new SnapshotBuilder(canonicalFolder, sp.GetRequiredService<IRemoteFormatProvider>().Resolve(formatName)));
+
+        // Per-user hosts (web) build a PublishService + SyncCoordinator per workspace instead of these
+        // singletons, because both bind to a (per-user) catalog/store; the shared remote store + snapshot
+        // builder above are still singletons over the one shared folder.
+        if (!enableCoordinator)
+        {
+            return services;
+        }
+
         services.TryAddSingleton<IPublishService, PublishService>();
         // The writer id keys this working copy's per-writer remote log — a host-level identity (the OS
         // account), distinct from the per-edit ICurrentUser. SyncCoordinator is a singleton, so it cannot

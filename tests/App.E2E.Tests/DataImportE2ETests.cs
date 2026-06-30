@@ -23,11 +23,20 @@ public sealed class DataImportE2ETests(WebHostFixture host) : IClassFixture<WebH
             IPage page = await browser.NewPageAsync();
 
             await page.GotoAsync($"{host.BaseUrl}/import");
-            await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            await WebHostFixture.WaitInteractiveAsync(page);
 
-            // Step 1 — upload the workbook; the wizard parses it and surfaces the file summary.
-            await page.Locator("input[type='file']").SetInputFilesAsync(workbook);
-            await Assertions.Expect(page.GetByText("import_e2e.xlsx")).ToBeVisibleAsync();
+            // Step 1 — upload the workbook; the wizard parses it and surfaces the file summary. Re-set the
+            // file until the circuit's OnChange fires (robust against the connect race), then assert.
+            ILocator fileInput = page.Locator("input[type='file']");
+            ILocator summary = page.GetByText("import_e2e.xlsx");
+            for (int attempt = 0; attempt < 20; attempt++)
+            {
+                await fileInput.SetInputFilesAsync(workbook);
+                try { await summary.WaitForAsync(new LocatorWaitForOptions { Timeout = 1_000 }); break; }
+                catch (TimeoutException) { if (attempt == 19) { throw; } }
+            }
+
+            await Assertions.Expect(summary).ToBeVisibleAsync();
 
             // Walk Source → Mapping → Validate → Load (Next auto-waits until each step is actionable).
             await page.Locator("button.dbi-next").ClickAsync(); // → Mapping

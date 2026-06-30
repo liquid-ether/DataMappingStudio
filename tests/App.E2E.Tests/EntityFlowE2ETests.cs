@@ -18,13 +18,15 @@ public sealed class EntityFlowE2ETests(WebHostFixture host) : IClassFixture<WebH
         IPage page = await browser.NewPageAsync();
 
         await page.GotoAsync($"{host.BaseUrl}/t/application");
+        await WebHostFixture.WaitInteractiveAsync(page);
 
         await page.Locator("button.add", new() { HasTextString = "Add row" }).ClickAsync();
         await page.Locator("input.gi").First.FillAsync("MYAPP");
-        await page.Locator("button.ms-publish").ClickAsync();
+        await page.Locator(".addbar button.ms-publish").ClickAsync(); // the grid's Save (not the top bar's Publish)
 
-        // Reload from the local store and confirm it persisted.
+        // Reload from the local store and confirm it persisted (cell values live in <input>s).
         await page.ReloadAsync();
-        await Assertions.Expect(page.GetByText("MYAPP")).ToBeVisibleAsync();
+        await WebHostFixture.WaitInteractiveAsync(page);
+        await Assertions.Expect(page.Locator("input.gi").First).ToHaveValueAsync("MYAPP");
     }
 }

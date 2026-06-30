@@ -12,8 +12,8 @@
 }
 
 <div class="addbar">
-    <button class="ms-publish" @onclick="StartPublish">@Lang.T("publish") (@Sync.PendingCount())</button>
-    <button class="add" @onclick="DoRefresh">@(Lang.IsFrench ? "Rafraîchir" : "Refresh")</button>
+    <button class="ms-publish" type="button" @onclick="StartPublish">@Lang.T("publish") (@Sync.PendingCount())</button>
+    <button class="add" type="button" @onclick="DoRefresh">@(Lang.IsFrench ? "Rafraîchir" : "Refresh")</button>
 </div>
 
 @if (_message is not null)

@@ -19,14 +19,15 @@ public sealed class SmokeE2ETests(WebHostFixture host) : IClassFixture<WebHostFi
         IPage page = await browser.NewPageAsync();
 
         await page.GotoAsync(host.BaseUrl);
+        await WebHostFixture.WaitInteractiveAsync(page);
         await Assertions.Expect(page.Locator(".ms-brand")).ToContainTextAsync("Mapping Studio");
 
         // Instant EN/FR toggle.
         await page.Locator(".ms-lang button", new() { HasTextString = "FR" }).ClickAsync();
         await Assertions.Expect(page.Locator(".ms-brand")).ToContainTextAsync("Studio de mappage");
 
-        // Navigate to the metadata-driven grid and confirm a catalog column renders.
-        await page.GotoAsync($"{host.BaseUrl}/t/widget");
-        await Assertions.Expect(page.Locator("table.grid")).ToBeVisibleAsync();
+        // Navigate to a real metadata-driven grid and confirm a catalog column renders.
+        await page.GotoAsync($"{host.BaseUrl}/t/application");
+        await Assertions.Expect(page.GetByText("App code").First).ToBeVisibleAsync();
     }
 }

@@ -1,18 +1,21 @@
 using App.Application;
 using App.Application.Abstractions;
-using App.Application.Provisioning;
 using App.Infrastructure.Local;
 using App.Infrastructure.Remote;
 using App.UI;
 using App.Web;
 using App.Web.Components;
+using App.Web.Workspaces;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // The Blazor Server host reuses App.UI verbatim — this is also the §15 web-port proof and the
-// Playwright E2E target. A local SQLite working copy + a per-writer remote folder live under App_Data.
-string dataDir = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+// Playwright E2E target. Per-user working copies + the per-writer remote folder live under the data dir
+// (configurable via "DataDir" so each host instance / test run can be isolated; default App_Data).
+string dataDir = builder.Configuration["DataDir"] is { Length: > 0 } configuredDataDir
+    ? configuredDataDir
+    : Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 Directory.CreateDirectory(dataDir);
 
 // The shared (synced) folder; set "RemoteFolder" (appsettings.json or the RemoteFolder env var) to a
@@ -24,26 +27,30 @@ string remoteFolder = builder.Configuration["RemoteFolder"] is { Length: > 0 } s
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services
     .AddApplication()
-    .AddLocalStore(Path.Combine(dataDir, "local.db"))
-    .AddRemoteStore(remoteFolder)
+    .AddLocalStore()                                                   // workbook reader only; no shared DB
+    .AddRemoteStore(remoteFolder, enableAutoRefresh: false, enableCoordinator: false) // shared remote; per-user coordinators
     .AddAppUi();
 
-// Record the authenticated request user as the change author (overrides the OS-account default).
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+// Per-user workspaces: each authenticated user gets their own SQLite working copy + sync coordinator
+// (writer id = user@host), so one host serves many users and many hosts can run against the shared
+// folder concurrently. The store/catalog/coordinator/import services resolve per user from here.
+builder.Services.AddScoped<ICurrentUser, CircuitCurrentUser>();
+builder.Services.AddPerUserWorkspaces(Path.Combine(dataDir, "users"));
 
-// Ops health probe (anonymous) at /health: local working copy reachable + shared-folder status.
-builder.Services.AddHealthChecks().AddCheck<WorkingCopyHealthCheck>("working-copy");
+// Ops health probe (anonymous) at /health: shared-folder reachable + active-workspace count.
+builder.Services.AddHealthChecks().AddCheck<WorkingCopyHealthCheck>("workspaces");
 
-// Authentication is OFF by default (so local dev and the E2E suite work without credentials). In
-// production set Auth:Require=true (or env Auth__Require=true): the host then requires an authenticated
-// Windows user (Negotiate / Kerberos / NTLM) for every endpoint, and that identity feeds ICurrentUser.
+// Authentication is OFF by default (so local dev and the E2E suite work without credentials, collapsing
+// to a single shared "dev" workspace). In production set Auth:Require=true (or env Auth__Require=true):
+// the host then requires an authenticated Windows user (Negotiate) for every endpoint, and that identity
+// keys each user's workspace and is recorded as the change author.
 bool requireAuth = builder.Configuration.GetValue("Auth:Require", false);
 if (requireAuth)
 {
     builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
     builder.Services.AddAuthorizationBuilder().SetFallbackPolicy(
         new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+    builder.Services.AddCascadingAuthenticationState(); // surfaces the user to the circuit (and to CircuitCurrentUser)
 }
 
 WebApplication app = builder.Build();
@@ -67,18 +74,8 @@ catch (Exception ex)
     app.Logger.LogWarning(ex, "Shared folder '{RemoteFolder}' is not writable; publishing/sync will be unavailable until this is fixed.", remoteFolder);
 }
 
-// Provision the local working copy: seed the entity catalog, then create tables/columns from it.
-ICatalog catalog = app.Services.GetRequiredService<ICatalog>();
-catalog.Seed(DefaultCatalog.Entries());
-app.Services.GetRequiredService<ILocalStore>().EnsureSchema();
-
-// Optionally seed the demo dataset on a fresh store (off by default so tests/CI stay deterministic):
-// set "SeedSampleData=true" (appsettings or the SeedSampleData env var) to populate all tables.
-if (app.Configuration.GetValue("SeedSampleData", false))
-{
-    int seeded = new SampleDataSeeder(app.Services.GetRequiredService<LocalDatabase>()).SeedIfEmpty();
-    app.Logger.LogInformation("Seeded {Count} sample rows.", seeded);
-}
+// Per-user working copies are provisioned on first use by the workspace registry (catalog seed +
+// schema + initial refold from the shared folder) — there is no single shared store to provision here.
 
 if (!app.Environment.IsDevelopment())
 {

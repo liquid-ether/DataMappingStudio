@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Sockets;
+using Microsoft.Playwright;
 
 namespace App.E2E.Tests;
 
@@ -11,6 +12,7 @@ namespace App.E2E.Tests;
 public sealed class WebHostFixture : IAsyncLifetime
 {
     private Process? _process;
+    private string? _dataDir;
 
     public static bool Enabled => Environment.GetEnvironmentVariable("DMS_E2E") == "1";
 
@@ -27,7 +29,11 @@ public sealed class WebHostFixture : IAsyncLifetime
         BaseUrl = $"http://127.0.0.1:{port}";
         string dll = typeof(Program).Assembly.Location;
 
-        _process = Process.Start(new ProcessStartInfo("dotnet", $"exec \"{dll}\" --urls {BaseUrl} --environment Development")
+        // Each fixture (test class) gets its own data dir so parallel host processes never share the
+        // per-user SQLite working copies or the shared folder.
+        _dataDir = Path.Combine(Path.GetTempPath(), "dms-e2e-" + Guid.NewGuid().ToString("N"));
+
+        _process = Process.Start(new ProcessStartInfo("dotnet", $"exec \"{dll}\" --urls {BaseUrl} --environment Development --DataDir \"{_dataDir}\"")
         {
             UseShellExecute = false,
             WorkingDirectory = Path.GetDirectoryName(dll)!,
@@ -52,6 +58,16 @@ public sealed class WebHostFixture : IAsyncLifetime
         throw new InvalidOperationException("App.Web did not become ready.");
     }
 
+    /// <summary>
+    /// Waits until the Blazor Server circuit is interactive, so event handlers (clicks, file uploads) are
+    /// wired before the test interacts — otherwise an early interaction silently no-ops (the connect race).
+    /// </summary>
+    public static async Task WaitInteractiveAsync(IPage page)
+    {
+        await page.WaitForFunctionAsync("() => window.Blazor !== undefined", new PageWaitForFunctionOptions { Timeout = 15_000 });
+        await page.WaitForTimeoutAsync(1_000); // let the circuit's websocket connect + first interactive render settle
+    }
+
     public Task DisposeAsync()
     {
         if (_process is { HasExited: false })
@@ -61,6 +77,12 @@ public sealed class WebHostFixture : IAsyncLifetime
         }
 
         _process?.Dispose();
+
+        if (_dataDir is not null)
+        {
+            try { Directory.Delete(_dataDir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+
         return Task.CompletedTask;
     }
 

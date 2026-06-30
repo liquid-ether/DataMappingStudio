@@ -125,6 +125,14 @@ cornerstone **`MetadataGrid`** that renders columns + rows from the catalog (inl
 add-column, required validation). The **Blazor Server `App.Web`** host and the **Blazor Hybrid WPF
 `App.Desktop`** shell both reuse these components verbatim (the §15 web-port proof).
 
+The web host is **multi-user, multi-host**: each authenticated user gets an **isolated SQLite working
+copy + sync coordinator**, provisioned on first use and keyed by their Windows identity (read from the
+`AuthenticationStateProvider`, so it works on the live circuit). Writer ids are **host-namespaced**
+(`user@host`), so any host can serve any user and several hosts can run against the same shared folder
+concurrently without their per-writer logs colliding. Enable authentication with `Auth:Require=true`
+(Negotiate); with auth off it collapses to a single OS-account workspace for local dev. The data
+directory is configurable via `DataDir` (per-user copies live under `<DataDir>/users/<user>`).
+
 **Engine (`App.Application`)** — the rule/expression engine and lineage engine ported from the
 mockup: `ExpressionTokenizer`, `FunctionLibrary` (function/keyword metadata + autocomplete),
 `ExpressionClassifier` (syntax-highlight classification), `RuleExpressionBuilder` (text →

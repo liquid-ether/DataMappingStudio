@@ -117,15 +117,22 @@ public sealed class SyncCoordinator(
 
         RefreshPlan plan = planner.Plan(pendingCells, localKnown, remote);
 
+        // Only adopt tables this catalog actually has: the shared folder may carry logs for tables this
+        // host/version doesn't know (or stale ones), and we must skip them rather than crash on a missing
+        // table. The applied count reflects only what was adopted.
+        HashSet<string> known = catalog.GetTables().ToHashSet(StringComparer.Ordinal);
+        int applied = 0;
         foreach (IGrouping<(string Table, Guid Row), CellChange> group in plan.Applied
+            .Where(c => known.Contains(c.Cell.Table))
             .GroupBy(c => (c.Cell.Table, c.Cell.RowId)))
         {
             Dictionary<string, string?> values = group.ToDictionary(c => c.Cell.Column, c => c.Value, StringComparer.Ordinal);
             localStore.AdoptCanonical(group.Key.Table, group.Key.Row, values);
+            applied += values.Count;
         }
 
         MarkRemoteOk();
-        return new RefreshResult(plan.Applied.Count, plan.Flagged.Count);
+        return new RefreshResult(applied, plan.Flagged.Count);
     }
 
     private void MarkRemoteOk() => _remoteStatus = RemoteHealth.Ok(DateTimeOffset.UtcNow);

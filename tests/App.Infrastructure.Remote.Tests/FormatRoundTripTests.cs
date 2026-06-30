@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using App.Application.Abstractions;
 using App.Domain.Catalog;
 using App.Domain.Data;
@@ -63,5 +64,66 @@ public class FormatRoundTripTests
         RemoteTable read = format.Read(path);
 
         Assert.Empty(read.Rows);
+    }
+
+    // Regression: the Parquet format bridges Parquet.Net's async API synchronously. Run from a
+    // single-threaded SynchronizationContext (as the Blazor Server circuit does), a naive sync-over-async
+    // bridge deadlocks because the library's continuations post back to the one blocked thread. The format
+    // must escape the captured context (Task.Run) so a synchronous publish from the web host completes.
+    [Fact]
+    public void Parquet_write_and_read_do_not_deadlock_under_a_single_threaded_context()
+    {
+        using TempFolder dir = new();
+        Directory.CreateDirectory(dir.Path);
+        string path = Path.Combine(dir.Path, "ctx.parquet");
+        ParquetRemoteFormat format = new();
+        RemoteTable original = Sample();
+
+        Exception? error = null;
+        bool completed = false;
+        using ManualResetEventSlim done = new();
+
+        Thread thread = new(() =>
+        {
+            SingleThreadedSyncContext ctx = new();
+            SynchronizationContext.SetSynchronizationContext(ctx);
+            ctx.Post(_ =>
+            {
+                try
+                {
+                    format.Write(path, original);
+                    RemoteTable read = format.Read(path);
+                    completed = read.Rows.Count == original.Rows.Count;
+                }
+                catch (Exception ex) { error = ex; }
+                finally { ctx.Complete(); }
+            }, null);
+            ctx.RunOnCurrentThread();
+            done.Set();
+        }) { IsBackground = true };
+
+        thread.Start();
+
+        Assert.True(done.Wait(TimeSpan.FromSeconds(15)), "Parquet IO deadlocked under a single-threaded SynchronizationContext.");
+        Assert.Null(error);
+        Assert.True(completed);
+    }
+
+    /// <summary>A minimal single-threaded message pump, mimicking the Blazor Server circuit's context.</summary>
+    private sealed class SingleThreadedSyncContext : SynchronizationContext
+    {
+        private readonly BlockingCollection<(SendOrPostCallback Callback, object? State)> _queue = [];
+
+        public override void Post(SendOrPostCallback d, object? state) => _queue.Add((d, state));
+
+        public void Complete() => _queue.CompleteAdding();
+
+        public void RunOnCurrentThread()
+        {
+            foreach ((SendOrPostCallback callback, object? state) in _queue.GetConsumingEnumerable())
+            {
+                callback(state);
+            }
+        }
     }
 }

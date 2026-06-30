@@ -7,6 +7,47 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-06-30
+
+### Added — per-user web workspaces (multi-user, multi-host)
+- **Isolated working copy per user.** The Blazor Server host now serves **one workspace per authenticated
+  user**: each user gets their own SQLite working copy, catalog, audit log, import engine and sync
+  coordinator, provisioned on first use and cached (idle workspaces are evicted after 30 min). One host
+  serves many users concurrently; the store/catalog/coordinator/import services resolve per-user from a
+  scoped accessor. The previous single shared store is gone.
+- **Affinity model B (host-namespaced writer ids).** A writer id is `user@host`, so **any host can serve
+  any user** and multiple hosts can run against the same shared folder at once without their per-writer
+  remote logs ever colliding. Published edits flow through the shared folder to that user's other hosts
+  and to other users; unpublished edits stay private to the workspace.
+- **Circuit-safe identity.** The current user is read from the `AuthenticationStateProvider` (which works
+  both during prerender and on the live circuit, unlike `IHttpContextAccessor`). With `Auth:Require=true`
+  the host requires an authenticated Windows user (Negotiate) and keys each workspace + change author by
+  that identity; with auth off (dev / E2E) it collapses to a single OS-account workspace.
+- **Configurable data dir.** The host data directory is now configurable via `DataDir` (command line,
+  `appsettings`, or env), defaulting to `App_Data`; per-user copies live under `<DataDir>/users/<user>`.
+  `/health` now reports shared-folder reachability plus the active-workspace count, and a host-wide
+  background service fast-forwards every active workspace from the shared fold on an interval.
+
+### Fixed
+- **Web publish/refresh deadlock (critical).** The Parquet remote format bridges Parquet.Net's async API
+  synchronously; called from the Blazor Server circuit's single-threaded `SynchronizationContext`, the
+  library's continuations posted back to the blocked thread and **deadlocked every publish/refresh from
+  the web**. The sync bridge now runs the async core on the thread pool (no captured context). A
+  regression test drives the format under a single-threaded context to guard it.
+- **Tolerate unknown remote tables.** `SyncCoordinator.Refresh` now skips remote change-log groups for
+  tables not in the local catalog instead of throwing `no such table`, so a host stays healthy when the
+  shared folder carries logs for tables it doesn't know (other versions / stale data).
+- **Concurrent snapshot writes.** `SnapshotBuilder.Rebuild` is serialized so concurrent per-user publishes
+  to the shared folder can't interleave a snapshot rebuild.
+
+### Changed
+- **Desktop demo seed is opt-in.** The desktop shell seeds the sample dataset only when
+  `MAPPINGSTUDIO_SEED_SAMPLE=true` — a production install starts clean and imports the real workbook.
+- **E2E hardening.** Each browser-test host runs in its own data dir (no cross-process SQLite contention);
+  tests wait for the circuit to become interactive before acting and use accurate selectors. The suite
+  now covers the per-user model (isolation, cross-user publish, two hosts merging through the shared
+  folder) and a real web publish round-trip.
+
 ## [1.10.0] - 2026-06-30
 
 ### Added / Changed (production hardening — medium-tier review items #7–#12)

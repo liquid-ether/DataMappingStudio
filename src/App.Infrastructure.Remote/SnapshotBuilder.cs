@@ -18,6 +18,9 @@ public sealed class SnapshotBuilder : ISnapshotBuilder
     private readonly string _root;
     private readonly string _metaDir;
     private readonly IRemoteFormat _format;
+    // Snapshots are shared in the remote folder; serialize rebuilds so concurrent publishes (multiple
+    // per-user workspaces on a host) can't interleave the read-fold-write of a table's snapshot/sidecar.
+    private readonly object _gate = new();
 
     public SnapshotBuilder(string rootFolder, IRemoteFormat format)
     {
@@ -29,24 +32,27 @@ public sealed class SnapshotBuilder : ISnapshotBuilder
 
     public void Rebuild(string table, IReadOnlyList<RemoteColumn> columns, IReadOnlyList<ChangeLogEntry> allChanges)
     {
-        List<ChangeLogEntry> relevant = allChanges.Where(e => e.Table == table).ToList();
-        Dictionary<string, long> sidecar = ReadSidecar(table);
-
-        FoldedState state;
-        if (sidecar.Count > 0 && File.Exists(SnapshotPath(table)))
+        lock (_gate)
         {
-            // Incremental: seed from the existing snapshot, fold only entries newer than the sidecar.
-            state = SeedFromSnapshot(table, columns);
-            IEnumerable<ChangeLogEntry> newer = relevant.Where(e => e.ClientSeq > sidecar.GetValueOrDefault(e.ChangedBy, long.MinValue));
-            ChangeFold.Apply(state, newer);
-        }
-        else
-        {
-            state = ChangeFold.Fold(relevant);
-        }
+            List<ChangeLogEntry> relevant = allChanges.Where(e => e.Table == table).ToList();
+            Dictionary<string, long> sidecar = ReadSidecar(table);
 
-        WriteSnapshot(table, columns, state);
-        WriteSidecar(table, relevant);
+            FoldedState state;
+            if (sidecar.Count > 0 && File.Exists(SnapshotPath(table)))
+            {
+                // Incremental: seed from the existing snapshot, fold only entries newer than the sidecar.
+                state = SeedFromSnapshot(table, columns);
+                IEnumerable<ChangeLogEntry> newer = relevant.Where(e => e.ClientSeq > sidecar.GetValueOrDefault(e.ChangedBy, long.MinValue));
+                ChangeFold.Apply(state, newer);
+            }
+            else
+            {
+                state = ChangeFold.Fold(relevant);
+            }
+
+            WriteSnapshot(table, columns, state);
+            WriteSidecar(table, relevant);
+        }
     }
 
     public RemoteTable? ReadSnapshot(string table)

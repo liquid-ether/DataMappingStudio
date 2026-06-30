@@ -23,6 +23,10 @@ jobs:
       - name: Restore
         run: dotnet restore DataMappingStudio.slnx
 
+      - name: Dependency scan (fail on vulnerable packages)
+        shell: pwsh
+        run: ./build/check-dependencies.ps1
+
       - name: Build
         run: dotnet build DataMappingStudio.slnx -c Release --no-restore
 

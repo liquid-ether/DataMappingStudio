@@ -252,7 +252,8 @@ src/
   App.Infrastructure.Local/        (Microsoft.Data.Sqlite generic repo, catalog, audit)
   App.Infrastructure.Remote/       (per-writer log store + snapshot builder + format providers)
   App.UI/                          (shared Razor components — grid, editors, lineage graph)
-  App.Desktop/                     (Blazor Hybrid shell, thin)   ← swap for App.Web later
+  App.Desktop/                     (Blazor Hybrid shell, thin — single-user, local working copy)
+  App.Web/                         (ASP.NET Core Blazor Server host — per-user workspaces; see §15)
   App.Importer/                    (Excel → DB import CLI; pairs with PowerShell)
 build/                             (PowerShell publish/provision/import/convert scripts)
 reporting/                         (Power Query workbook + Power BI .pbit templates)
@@ -283,7 +284,9 @@ only if folder-level SharePoint permissions per Application become a requirement
   publishing means *appending* rows to a file nobody else touches, so two analysts publishing
   simultaneously physically cannot collide. OneDrive conflict copies on `_changes/*` become
   structurally near-impossible rather than something the merge engine has to reconcile after
-  the fact.
+  the fact. (On the multi-host web tier the writer id is **host-namespaced**, `<user>@<host>`, so
+  the "only the owning writer writes their file" invariant holds per *(user, host)* pair even when
+  several hosts serve the same user — see §15, affinity model B.)
 - A log row is one published field change: `(ChangeId, ChangeSetId, Table, RowId, Column,
   OldValue, NewValue, Operation, ChangedBy, ChangedAtUtc, ClientSeq)`. This **is** the audit log
   — see revised §8.
@@ -583,17 +586,48 @@ discarded locally before it ever reaches the shared canonical store.
 
 ---
 
-## 15. Path to multi-tier web app
+## 15. Path to multi-tier web app — realized
 
-Blazor Hybrid (§5a) means most of this work is already done by construction:
+Blazor Hybrid (§5a) made most of this free by construction; the web tier now **ships** as **App.Web**
+(ASP.NET Core **Blazor Server**), and the path proved out as designed — "swap the host," not rewrite
+the UI:
 
-- **App.UI's Razor components are reused as-is** by a server-hosted **App.Web (ASP.NET Core
-  Blazor Server or WebAssembly)** — the same metadata-driven editors, grid, and lineage graph
-  render in a browser with no rewrite. Only **App.Desktop's thin host shell** is replaced.
-- Swap **`IRemoteStore`** (per-writer logs/snapshots on a synced folder → server DB/API). The
-  publish/merge model can remain (offline-capable clients keep their local SQLite + log-append
-  model) or collapse into server-side transactions for purely server-side deployments.
-- Generic Host, column catalog, and `.resx` localization carry straight over.
+- **App.UI's Razor components are reused as-is** — the same metadata-driven editors, grid, and
+  lineage graph render in the browser with no rewrite. Only **App.Desktop's thin host shell** is
+  replaced by App.Web's. `IRemoteStore`, the column catalog, and `.resx` localization carry over
+  unchanged.
+- **Per-user workspaces (multi-user, multi-host).** Unlike the single-user desktop, one App.Web
+  process serves many users: each authenticated user gets their **own isolated SQLite working copy +
+  sync coordinator + import engine**, provisioned on first use, cached, and evicted when idle. The
+  shared App.UI services (`ILocalStore`, `ICatalog`, `IAuditLog`, `ISyncCoordinator`,
+  `ImportEngine`) become **scoped**, resolved per request/circuit from the current user's workspace
+  via a scoped accessor — so the same components run unmodified against per-user state.
+- **Affinity model B (host-namespaced writer ids).** A writer id is `<user>@<host>`, so the §6a
+  per-writer-log invariant (only the owning writer writes their file) holds **per (user, host)**.
+  Any host can serve any user, and **multiple App.Web hosts can run against the same shared folder
+  concurrently** without their logs colliding — horizontal scale/availability with the §6a/§7a sync
+  model intact. No server DB is required; the synced folder remains the system of record.
+- **Identity & auth.** The acting user (§8 `changed_by`; the workspace key) is read from the
+  `AuthenticationStateProvider` — the **circuit-safe** source, valid during prerender *and* on the
+  live SignalR circuit (unlike `IHttpContextAccessor`, which is null on the circuit). Windows
+  (Negotiate) auth is opt-in via `Auth:Require`; with auth off the host collapses to a single
+  OS-account workspace for local dev / E2E.
+- **Lifecycle safety.** A `CircuitHandler` tracks each user's live circuits so the idle sweeper never
+  disposes a workspace an open session still holds (its scoped store is cached for the circuit's
+  lifetime). A host-wide background service fast-forwards each active workspace from the shared fold
+  (§9). The data directory is configurable (`DataDir`, default `App_Data`); per-user copies live
+  under `<DataDir>/users/<user>`. A `/health` probe reports shared-folder reachability + active
+  workspace count.
+
+**Implementation note — sync-over-async on the circuit.** The format providers (§6/§7) expose a
+synchronous `IRemoteFormat`; the Parquet provider bridges `Parquet.Net`'s async API. Called from the
+Blazor Server circuit's single-threaded `SynchronizationContext`, a naive sync-over-async bridge
+**deadlocks** (the library's continuations post back to the blocked thread). The bridge runs the async
+core on the **thread pool** (no captured context) — the rule for any sync-over-async reached from a
+circuit. (Desktop has no such context, so the desktop never hit this.)
+
+For a purely server-side deployment, `IRemoteStore` could instead collapse into server-DB transactions;
+the per-user/per-host model above keeps the offline-capable, synced-folder design as the shipping default.
 
 ---
 

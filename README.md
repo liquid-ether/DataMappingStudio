@@ -221,3 +221,7 @@ Each development phase ships as a minor pre-release; the first feature-complete 
 | v0.9.0 | Publish & conflict-resolution UI + sync/audit |
 | v0.10.0 | Importer + PowerShell build tooling |
 | v1.0.0 | References/computed columns, reporting, retention, web port (feature-complete) |
+
+## License
+
+Released under the [MIT License](LICENSE). Copyright (c) 2026 ardlsoft.com.

@@ -4,6 +4,7 @@ using App.Application.Provisioning;
 using App.Domain.Catalog;
 using App.Domain.Data;
 using App.UI.Localization;
+using Microsoft.Extensions.Logging;
 
 namespace App.UI.DataImport;
 
@@ -30,14 +31,16 @@ public sealed class DataImportState
     private readonly ImportEngine _engine;
     private readonly IWorkbookReader _reader;
     private readonly ICurrentUser _user;
+    private readonly ILogger<DataImportState>? _logger;
 
-    public DataImportState(LanguageState lang, ICatalog catalog, ImportEngine engine, IWorkbookReader reader, ICurrentUser user)
+    public DataImportState(LanguageState lang, ICatalog catalog, ImportEngine engine, IWorkbookReader reader, ICurrentUser user, ILogger<DataImportState>? logger = null)
     {
         _lang = lang;
         _catalog = catalog;
         _engine = engine;
         _reader = reader;
         _user = user;
+        _logger = logger;
     }
 
     public event Action? OnChange;
@@ -218,12 +221,16 @@ public sealed class DataImportState
             if (token.IsCancellationRequested)
             {
                 Cancelled = true;
+                _logger?.LogWarning("Data import cancelled by {User} ({File}): {Created} created, {Updated} updated before cancel.",
+                    _user.Name, FileName, Report.TotalCreated, Report.TotalUpdated);
             }
             else
             {
                 Done = true;
                 Step = StepCount - 1; // jump to recap
                 MaxStep = Math.Max(MaxStep, Step);
+                _logger?.LogInformation("Data import by {User} ({File}): {Created} created, {Updated} updated, {Skipped} skipped.",
+                    _user.Name, FileName, Report.TotalCreated, Report.TotalUpdated, Report.TotalSkipped);
             }
         }
         catch (OperationCanceledException)
@@ -233,6 +240,7 @@ public sealed class DataImportState
         catch (Exception ex)
         {
             LoadError = ex.Message;
+            _logger?.LogError(ex, "Data import by {User} ({File}) failed.", _user.Name, FileName);
         }
         finally
         {

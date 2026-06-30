@@ -32,6 +32,9 @@ builder.Services
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 
+// Ops health probe (anonymous) at /health: local working copy reachable + shared-folder status.
+builder.Services.AddHealthChecks().AddCheck<WorkingCopyHealthCheck>("working-copy");
+
 // Authentication is OFF by default (so local dev and the E2E suite work without credentials). In
 // production set Auth:Require=true (or env Auth__Require=true): the host then requires an authenticated
 // Windows user (Negotiate / Kerberos / NTLM) for every endpoint, and that identity feeds ICurrentUser.
@@ -44,6 +47,25 @@ if (requireAuth)
 }
 
 WebApplication app = builder.Build();
+
+// Log the effective configuration so an operator can confirm where data lives and how auth is set.
+app.Logger.LogInformation(
+    "Mapping Studio web host starting. dataDir={DataDir}; remoteFolder={RemoteFolder}; authRequired={Auth}; seedSampleData={Seed}",
+    dataDir, remoteFolder, requireAuth, app.Configuration.GetValue("SeedSampleData", false));
+
+// Fail fast (clearly) if the shared folder is misconfigured: probe that it is writable. The app can
+// still run locally, but publishing/sync would be broken — surface it at startup, not silently later.
+try
+{
+    Directory.CreateDirectory(remoteFolder);
+    string probe = Path.Combine(remoteFolder, ".write-probe");
+    File.WriteAllText(probe, "ok");
+    File.Delete(probe);
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning(ex, "Shared folder '{RemoteFolder}' is not writable; publishing/sync will be unavailable until this is fixed.", remoteFolder);
+}
 
 // Provision the local working copy: seed the entity catalog, then create tables/columns from it.
 ICatalog catalog = app.Services.GetRequiredService<ICatalog>();
@@ -74,6 +96,7 @@ if (requireAuth)
 
 app.UseAntiforgery();
 app.MapStaticAssets();
+app.MapHealthChecks("/health").AllowAnonymous(); // reachable even when Auth:Require is on (for probes)
 app.MapRazorComponents<AppRoot>().AddInteractiveServerRenderMode();
 
 app.Run();

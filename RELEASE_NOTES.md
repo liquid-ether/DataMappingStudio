@@ -39,6 +39,10 @@ All notable changes to Mapping Studio are documented here. The format follows
   shared folder carries logs for tables it doesn't know (other versions / stale data).
 - **Concurrent snapshot writes.** `SnapshotBuilder.Rebuild` is serialized so concurrent per-user publishes
   to the shared folder can't interleave a snapshot rebuild.
+- **Never evict a live session's workspace.** A `CircuitHandler` tracks each user's open circuits, and the
+  idle sweeper skips any user with a live circuit — so a workspace can't be disposed out from under an
+  open browser tab (its scoped store is cached for the circuit's lifetime). Idle workspaces with no open
+  circuit are still evicted after 30 min.
 
 ### Changed
 - **Desktop demo seed is opt-in.** The desktop shell seeds the sample dataset only when
@@ -46,7 +50,9 @@ All notable changes to Mapping Studio are documented here. The format follows
 - **E2E hardening.** Each browser-test host runs in its own data dir (no cross-process SQLite contention);
   tests wait for the circuit to become interactive before acting and use accurate selectors. The suite
   now covers the per-user model (isolation, cross-user publish, two hosts merging through the shared
-  folder) and a real web publish round-trip.
+  folder) and a real web publish round-trip. The authenticated path is covered without a browser:
+  `CircuitCurrentUser` resolves the signed-in Windows identity (and falls back to the OS account), the
+  scoped accessor resolves an isolated workspace per user, and the idle sweeper preserves a live session.
 
 ## [1.10.0] - 2026-06-30
 

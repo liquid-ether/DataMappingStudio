@@ -11,6 +11,10 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.9" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="App.E2E.Tests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>

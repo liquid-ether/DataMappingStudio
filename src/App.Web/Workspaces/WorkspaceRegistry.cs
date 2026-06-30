@@ -11,8 +11,11 @@ public interface IWorkspaceRegistry
     /// <summary>Workspaces currently instantiated on this host (for background refresh / health).</summary>
     IReadOnlyCollection<Workspace> Active { get; }
 
-    /// <summary>Disposes workspaces untouched for longer than <paramref name="maxIdle"/>.</summary>
-    void SweepIdle(TimeSpan maxIdle);
+    /// <summary>
+    /// Disposes workspaces untouched for longer than <paramref name="maxIdle"/>, skipping any whose key
+    /// <paramref name="isActive"/> reports as having a live circuit (so an open session is never evicted).
+    /// </summary>
+    void SweepIdle(TimeSpan maxIdle, Func<string, bool>? isActive = null);
 }
 
 /// <summary>
@@ -36,11 +39,16 @@ public sealed class WorkspaceRegistry(string usersRoot, string host, WorkspaceDe
     public IReadOnlyCollection<Workspace> Active =>
         _workspaces.Values.Where(l => l.IsValueCreated).Select(l => l.Value).ToList();
 
-    public void SweepIdle(TimeSpan maxIdle)
+    public void SweepIdle(TimeSpan maxIdle, Func<string, bool>? isActive = null)
     {
         DateTimeOffset cutoff = DateTimeOffset.UtcNow - maxIdle;
         foreach (KeyValuePair<string, Lazy<Workspace>> entry in _workspaces.ToArray())
         {
+            if (isActive?.Invoke(entry.Key) == true)
+            {
+                continue; // a live circuit still holds this workspace's services — never evict it
+            }
+
             if (entry.Value is { IsValueCreated: true, Value.LastAccessUtc: var last } && last < cutoff
                 && _workspaces.TryRemove(entry.Key, out Lazy<Workspace>? removed) && removed.IsValueCreated)
             {

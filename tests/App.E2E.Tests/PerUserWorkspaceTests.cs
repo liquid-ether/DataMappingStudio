@@ -99,6 +99,59 @@ public sealed class PerUserWorkspaceTests : IDisposable
         Assert.Contains(onA.Store.GetAll(TableNames.Application), r => r["app_code"] == "FROM_B");
     }
 
+    [Fact]
+    public void The_accessor_resolves_an_isolated_workspace_for_the_current_user()
+    {
+        WorkspaceRegistry hostA = Host("hostA");
+
+        // The same wiring the host uses: the scoped accessor maps ICurrentUser.Name -> the user's workspace.
+        Workspace forAlice = new WorkspaceAccessor(hostA, new FakeUser(@"CONTOSO\alice")).Current;
+        Workspace forBob = new WorkspaceAccessor(hostA, new FakeUser("bob")).Current;
+
+        Assert.Equal("CONTOSO_alice@hostA", forAlice.WriterId);
+        Assert.Equal("bob@hostA", forBob.WriterId);
+        Assert.NotSame(forAlice.Store, forBob.Store);
+    }
+
+    [Fact]
+    public void Sweep_evicts_idle_workspaces_but_never_one_with_a_live_circuit()
+    {
+        WorkspaceRegistry hostA = Host("hostA");
+        Workspace alice = hostA.Get("alice");
+        Workspace bob = hostA.Get("bob");
+        alice.LastAccessUtc = bob.LastAccessUtc = DateTimeOffset.UtcNow - TimeSpan.FromHours(1);
+
+        // Alice has a live circuit; bob does not. Bob is evicted; Alice is preserved (her connection stays
+        // open, so her open circuit's cached store keeps working).
+        hostA.SweepIdle(TimeSpan.FromMinutes(30), key => key == "alice");
+
+        Assert.Single(hostA.Active);
+        Assert.Same(alice, hostA.Get("alice"));
+        Assert.DoesNotContain(bob, hostA.Active);
+    }
+
+    [Fact]
+    public void Liveness_is_active_while_any_circuit_is_open_and_clears_when_all_close()
+    {
+        WorkspaceLiveness liveness = new();
+        Assert.False(liveness.IsActive("alice"));
+
+        liveness.Enter("alice");
+        liveness.Enter("alice"); // two tabs / circuits
+        Assert.True(liveness.IsActive("alice"));
+
+        liveness.Leave("alice");
+        Assert.True(liveness.IsActive("alice")); // one circuit still open
+
+        liveness.Leave("alice");
+        Assert.False(liveness.IsActive("alice"));
+    }
+
+    private sealed class FakeUser(string name) : ICurrentUser
+    {
+        public string Name => name;
+    }
+
     public void Dispose()
     {
         foreach (WorkspaceRegistry registry in _registries)

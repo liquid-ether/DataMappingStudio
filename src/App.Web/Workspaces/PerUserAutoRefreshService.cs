@@ -8,7 +8,10 @@ namespace App.Web.Workspaces;
 /// workspace from the shared remote fold (the per-workspace coordinator skips the fold when nothing
 /// changed remotely) and evicts idle workspaces. Replaces the single-workspace AutoRefreshService.
 /// </summary>
-public sealed class PerUserAutoRefreshService(IWorkspaceRegistry registry, ILogger<PerUserAutoRefreshService> logger) : BackgroundService
+public sealed class PerUserAutoRefreshService(
+    IWorkspaceRegistry registry,
+    WorkspaceLiveness liveness,
+    ILogger<PerUserAutoRefreshService> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MaxIdle = TimeSpan.FromMinutes(30);
@@ -30,7 +33,7 @@ public sealed class PerUserAutoRefreshService(IWorkspaceRegistry registry, ILogg
                 }
             }
 
-            registry.SweepIdle(MaxIdle);
+            registry.SweepIdle(MaxIdle, liveness.IsActive);
         }
     }
 }

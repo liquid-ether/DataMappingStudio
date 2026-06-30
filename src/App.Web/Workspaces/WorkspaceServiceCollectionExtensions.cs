@@ -30,6 +30,11 @@ public static class WorkspaceServiceCollectionExtensions
 
         services.AddScoped<IWorkspaceAccessor, WorkspaceAccessor>();
 
+        // Track live circuits per user so the idle sweeper never evicts a workspace an open session still
+        // holds (its scoped services are cached for the circuit's lifetime).
+        services.AddSingleton<WorkspaceLiveness>();
+        services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, WorkspaceCircuitHandler>();
+
         // The per-user working copy: every DB-bound service resolves from the current user's workspace.
         services.AddScoped<ICatalog>(sp => sp.GetRequiredService<IWorkspaceAccessor>().Current.Catalog);
         services.AddScoped<ILocalStore>(sp => sp.GetRequiredService<IWorkspaceAccessor>().Current.Store);

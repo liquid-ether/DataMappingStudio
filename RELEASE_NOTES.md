@@ -7,6 +7,29 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-07-01
+
+### Added — security phase 5 (final): migrations, MFA enforcement, invites, threat model
+- **EF migrations for the security store.** The schema now ships as migrations — **one migrations assembly
+  per provider** (`…Migrations.Sqlite` / `…Migrations.SqlServer`, the supported pattern for a
+  provider-pluggable DbContext) — applied automatically at startup (`MigrateAsync`). Replaces
+  `EnsureCreated`, so future schema changes upgrade existing deployments in place.
+- **Per-role MFA enforcement.** `Auth:Providers:Local:Mfa:Require` = `None` (opt-in) | `Administrators` |
+  `All`. Covered users who haven't enrolled are marked at sign-in and **confined to the account pages**
+  until they set up their authenticator; the session is re-issued on enrolment.
+- **Admin invite-by-email.** "Invite by email" in the Users admin creates a **passwordless** account with
+  the chosen role and emails a set-password link (reuses the reset flow; shown only when SMTP is
+  configured).
+- **Threat model.** New `SECURITY.md`: assets, controls-by-threat, federation posture, the desktop
+  trust-boundary decision (deliberately single-user), deploy-time requirements, and the explicit
+  rationale for out-of-scope items (passkeys, SAML, per-table ACLs, runtime provider editor).
+
+### Notes
+- Tests: MFA policy marks only covered, non-enrolled users (and clears after enrolment); invite creates a
+  passwordless user whose token sets the first password (Identity tests → 20). Full suite green.
+- This closes the security roadmap's planned phases; remaining ideas are tracked as out-of-scope items in
+  `SECURITY.md`.
+
 ## [1.15.0] - 2026-07-01
 
 ### Added — security phase 4: hardening + admin depth

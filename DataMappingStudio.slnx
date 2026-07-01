@@ -4,6 +4,8 @@
     <Project Path="src/App.Desktop/App.Desktop.csproj" />
     <Project Path="src/App.Domain/App.Domain.csproj" />
     <Project Path="src/App.Importer/App.Importer.csproj" />
+    <Project Path="src/App.Infrastructure.Identity.Migrations.Sqlite/App.Infrastructure.Identity.Migrations.Sqlite.csproj" />
+    <Project Path="src/App.Infrastructure.Identity.Migrations.SqlServer/App.Infrastructure.Identity.Migrations.SqlServer.csproj" />
     <Project Path="src/App.Infrastructure.Identity/App.Infrastructure.Identity.csproj" />
     <Project Path="src/App.Infrastructure.Local/App.Infrastructure.Local.csproj" />
     <Project Path="src/App.Infrastructure.Remote/App.Infrastructure.Remote.csproj" />

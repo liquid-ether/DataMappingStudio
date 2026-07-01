@@ -141,7 +141,10 @@ $env:Auth__BootstrapAdmin__Password = "<a strong password>"   # user "admin" unl
 > reset, email verification and (opt-in) self-registration send email — configure SMTP under `Auth:Email`
 > (`Host`, `Port`, `From`; password out-of-band via `Auth__Email__Password`). With no SMTP configured those
 > links are logged (dev only) and admins can still create + reset users directly. Enable self-registration
-> with `Auth:Providers:Local:AllowSelfRegistration=true`.
+> with `Auth:Providers:Local:AllowSelfRegistration=true`. To **require** two-factor, set
+> `Auth:Providers:Local:Mfa:Require` to `Administrators` or `All` — covered users must enrol before using
+> the app. With SMTP configured, admins can also **invite users by email** (Users → Invite by email): the
+> invitee receives a set-password link. See **SECURITY.md** for the full threat model and posture.
 
 > **Built-in hardening.** With auth on, the host applies a strict **Content-Security-Policy** + baseline
 > security headers on every response, **rate-limits** the sign-in / reset endpoints per client IP (on top

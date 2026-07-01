@@ -194,10 +194,13 @@ internal static class AccountSelfService
             return Results.Redirect(result.Succeeded ? "/account/password?changed=true" : "/account/password?error=1");
         }).RequireAuthorization().DisableAntiforgery();
 
-        app.MapGet("/account/mfa", async (HttpContext ctx, IAntiforgery af, AccountService accounts, int? error) =>
+        app.MapGet("/account/mfa", async (HttpContext ctx, IAntiforgery af, AccountService accounts, int? error, int? required) =>
         {
             string userId = ctx.User.FindFirstValue(SecurityClaims.UserId)!;
             AntiforgeryTokenSet t = af.GetAndStoreTokens(ctx);
+            string requiredBanner = required == 1
+                ? "<p class=\"err\">Your role requires two-factor authentication — set it up to continue.</p>"
+                : "";
             string inner;
             if (await accounts.IsMfaEnabledAsync(userId))
             {
@@ -214,7 +217,7 @@ internal static class AccountSelfService
             {
                 MfaEnrollment enrol = await accounts.BeginMfaEnrollmentAsync(userId);
                 string msg = error == 1 ? "<p class=\"err\">That code was invalid. Try again.</p>" : "";
-                inner = AccountHtml.Brand("Set up two-factor authentication") + $$"""
+                inner = AccountHtml.Brand("Set up two-factor authentication") + requiredBanner + $$"""
                     <p class="sub">Scan the QR with an authenticator app (or type the key), then enter a code to confirm.</p>
                     <img class="qr" src="{{enrol.QrPngDataUri}}" alt="Authenticator QR code">
                     <div class="key">{{enrol.SharedKey}}</div>
@@ -230,7 +233,8 @@ internal static class AccountSelfService
             return Html(AccountHtml.Shell("Two-factor", inner));
         }).RequireAuthorization();
 
-        app.MapPost("/account/mfa", async (HttpContext ctx, IAntiforgery af, AccountService accounts, ISecurityAudit audit) =>
+        app.MapPost("/account/mfa", async (HttpContext ctx, IAntiforgery af, AccountService accounts,
+            SignInManager<AppUser> signIn, UserManager<AppUser> users, ISecurityAudit audit) =>
         {
             if (!await ValidAsync(ctx, af)) { return Results.Redirect("/account/mfa?error=1"); }
             string? userId = ctx.User.FindFirstValue(SecurityClaims.UserId);
@@ -239,6 +243,12 @@ internal static class AccountSelfService
 
             (OperationResult Result, IReadOnlyList<string> RecoveryCodes) done = await accounts.CompleteMfaEnrollmentAsync(userId, form["code"].ToString());
             if (!done.Result.Succeeded) { return Results.Redirect("/account/mfa?error=1"); }
+
+            // Re-issue the cookie: with 2FA now enabled the claims factory drops the mfa_pending marker.
+            if (await users.FindByIdAsync(userId) is { } enrolled)
+            {
+                await signIn.RefreshSignInAsync(enrolled);
+            }
 
             await audit.RecordAsync("mfa.enabled", ctx.User.Identity?.Name, true);
             string codes = "<div class=\"codes\">" + string.Join("<br>", done.RecoveryCodes.Select(WebUtility.HtmlEncode)) + "</div>";

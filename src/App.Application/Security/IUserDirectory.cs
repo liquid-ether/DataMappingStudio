@@ -28,6 +28,9 @@ public sealed record RoleSummary(
     IReadOnlyList<string> Permissions,
     int MemberCount);
 
+/// <summary>Outcome of an invitation: the created user's id + a set-password token to email as a link.</summary>
+public sealed record InviteResult(OperationResult Result, string? UserId, string? Token);
+
 /// <summary>Outcome of an admin mutation, carrying provider error messages for the UI.</summary>
 public sealed record OperationResult(bool Succeeded, IReadOnlyList<string> Errors)
 {
@@ -45,6 +48,9 @@ public interface IUserDirectory
     Task<IReadOnlyList<UserSummary>> ListUsersAsync(string? search = null, CancellationToken ct = default);
 
     Task<OperationResult> CreateUserAsync(CreateUserRequest request, CancellationToken ct = default);
+
+    /// <summary>Creates a passwordless account (roles assigned) and returns a set-password token to email.</summary>
+    Task<InviteResult> InviteUserAsync(string userName, string email, IReadOnlyList<string> roles, CancellationToken ct = default);
 
     Task<OperationResult> SetEnabledAsync(string userId, bool enabled, CancellationToken ct = default);
 

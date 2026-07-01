@@ -26,19 +26,23 @@ public static class SecurityServiceCollectionExtensions
         services.Configure<SecurityOptions>(section);
         SecurityOptions options = section.Get<SecurityOptions>() ?? new SecurityOptions();
 
+        // Schema evolution ships as EF migrations, one migrations assembly per provider (the supported
+        // pattern for a provider-pluggable context); the seeder applies pending migrations at startup.
         services.AddDbContext<SecurityDbContext>(db =>
         {
             if (string.Equals(options.Store.Provider, "SqlServer", StringComparison.OrdinalIgnoreCase))
             {
-                db.UseSqlServer(options.Store.ConnectionString
-                    ?? throw new InvalidOperationException("Auth:Store:ConnectionString is required when Provider=SqlServer."));
+                db.UseSqlServer(
+                    options.Store.ConnectionString
+                        ?? throw new InvalidOperationException("Auth:Store:ConnectionString is required when Provider=SqlServer."),
+                    sql => sql.MigrationsAssembly("App.Infrastructure.Identity.Migrations.SqlServer"));
             }
             else
             {
                 string connection = string.IsNullOrWhiteSpace(options.Store.ConnectionString)
                     ? $"Data Source={defaultSqlitePath}"
                     : options.Store.ConnectionString!;
-                db.UseSqlite(connection);
+                db.UseSqlite(connection, sqlite => sqlite.MigrationsAssembly("App.Infrastructure.Identity.Migrations.Sqlite"));
             }
         });
 

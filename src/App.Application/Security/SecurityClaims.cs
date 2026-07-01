@@ -8,4 +8,10 @@ public static class SecurityClaims
 
     /// <summary>Friendly display name.</summary>
     public const string DisplayName = "display_name";
+
+    /// <summary>
+    /// Present when policy requires two-factor for this user but they haven't enrolled yet — the host
+    /// restricts such a session to the account pages until enrolment completes.
+    /// </summary>
+    public const string MfaPending = "mfa_pending";
 }

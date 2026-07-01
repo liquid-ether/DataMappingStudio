@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\App.Infrastructure.Identity\App.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\..\src\App.Infrastructure.Identity.Migrations.Sqlite\App.Infrastructure.Identity.Migrations.Sqlite.csproj" />
   </ItemGroup>
 
 </Project>

@@ -109,6 +109,14 @@ public sealed class LocalProviderOptions
     public PasswordPolicyOptions Password { get; set; } = new();
 
     public LockoutPolicyOptions Lockout { get; set; } = new();
+
+    public MfaPolicyOptions Mfa { get; set; } = new();
+}
+
+/// <summary>Two-factor enforcement: "None" (opt-in), "Administrators", or "All".</summary>
+public sealed class MfaPolicyOptions
+{
+    public string Require { get; set; } = "None";
 }
 
 public sealed class PasswordPolicyOptions

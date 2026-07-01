@@ -1,4 +1,6 @@
 @inject IUserDirectory Directory
+@inject IAppEmailSender Email
+@inject NavigationManager Nav
 @inject LanguageState Lang
 
 <h1 class="page-title">@(Lang.IsFrench ? "Utilisateurs" : "Users")</h1>
@@ -31,6 +33,11 @@
                 }
             </select>
             <button class="ms-publish" type="button" @onclick="CreateAsync">@Lang.T("save")</button>
+            @if (Email.IsConfigured)
+            {
+                <button class="add" type="button" title="@(Lang.IsFrench ? "Créer sans mot de passe et envoyer un lien d'invitation" : "Create without a password and email a set-password link")"
+                        @onclick="InviteAsync">@(Lang.IsFrench ? "Inviter par courriel" : "Invite by email")</button>
+            }
             <button class="add" type="button" @onclick="() => _creating = false">@(Lang.IsFrench ? "Annuler" : "Cancel")</button>
         </div>
     </div>
@@ -146,6 +153,27 @@
         Show(await Directory.CreateUserAsync(new CreateUserRequest(_new.UserName.Trim(), _new.Email, _new.DisplayName, _new.Password, [_new.Role])),
             Lang.IsFrench ? "Utilisateur créé." : "User created.");
         if (_ok) { _creating = false; _new = new(); await ReloadAsync(); }
+    }
+
+    private async Task InviteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_new.Email))
+        {
+            _ok = false;
+            _message = Lang.IsFrench ? "Une adresse courriel est requise pour inviter." : "An email address is required to invite.";
+            return;
+        }
+
+        InviteResult invite = await Directory.InviteUserAsync(_new.UserName.Trim(), _new.Email!.Trim(), [_new.Role]);
+        Show(invite.Result, Lang.IsFrench ? "Invitation envoyée." : "Invitation sent.");
+        if (!invite.Result.Succeeded) { return; }
+
+        string link = $"{Nav.BaseUri}account/reset?userId={Uri.EscapeDataString(invite.UserId!)}&token={Uri.EscapeDataString(invite.Token!)}";
+        await Email.SendAsync(_new.Email!.Trim(), "You've been invited to Mapping Studio",
+            $"<p>An administrator invited you to Mapping Studio. Set your password to get started:</p><p><a href=\"{link}\">{link}</a></p>");
+        _creating = false;
+        _new = new();
+        await ReloadAsync();
     }
 
     private async Task SetEnabledAsync(UserSummary u, bool enabled)

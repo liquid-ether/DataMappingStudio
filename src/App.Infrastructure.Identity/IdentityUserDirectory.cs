@@ -64,6 +64,33 @@ public sealed class IdentityUserDirectory(
         bool SecurityRolesExist(string r) => roles.RoleExistsAsync(r).GetAwaiter().GetResult();
     }
 
+    public async Task<InviteResult> InviteUserAsync(string userName, string email, IReadOnlyList<string> roleNames, CancellationToken ct = default)
+    {
+        AppUser user = new()
+        {
+            UserName = userName,
+            Email = email,
+            EmailConfirmed = true, // following the emailed set-password link proves control of the mailbox
+            DisplayName = userName,
+            IsEnabled = true,
+            Origin = "Local",
+        };
+
+        IdentityResult created = await users.CreateAsync(user); // passwordless until the invitee sets one
+        if (!created.Succeeded)
+        {
+            return new InviteResult(ToResult(created), null, null);
+        }
+
+        foreach (string role in roleNames.Where(r => roles.RoleExistsAsync(r).GetAwaiter().GetResult()))
+        {
+            await users.AddToRoleAsync(user, role);
+        }
+
+        string token = await users.GeneratePasswordResetTokenAsync(user);
+        return new InviteResult(OperationResult.Ok, user.Id.ToString(), token);
+    }
+
     public async Task<OperationResult> SetEnabledAsync(string userId, bool enabled, CancellationToken ct = default)
     {
         AppUser? user = await users.FindByIdAsync(userId);

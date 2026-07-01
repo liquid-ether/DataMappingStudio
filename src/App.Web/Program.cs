@@ -111,6 +111,7 @@ if (requireAuth)
 {
     app.UseRateLimiter(); // throttle the auth endpoints (brute-force protection)
     app.UseAuthentication();
+    app.UseMfaEnforcement(); // users whose role requires 2FA must enrol before using the app
     app.UseAuthorization();
 }
 

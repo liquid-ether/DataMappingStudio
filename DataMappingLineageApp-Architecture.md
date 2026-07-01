@@ -671,9 +671,18 @@ admin (local dev / E2E). With it on, the **security module** (`App.Infrastructur
   interval — live circuits pick it up on reconnect); and an admin **dashboard** (user/role/lockout counts
   + recent security events).
 
-Passkeys (WebAuthn), SAML, Windows Negotiate as a provider, per-table ACLs, admin invite-by-email,
-per-role MFA enforcement, and a runtime provider-config editor are designed as later phases on this
-foundation.
+- **Enforcement + lifecycle.** **Per-role MFA enforcement** (`Auth:Providers:Local:Mfa:Require` =
+  `Administrators`/`All`): the claims factory marks non-enrolled covered users `mfa_pending` and the host
+  confines them to the account pages until they enrol (the cookie is re-issued after enrolment). Admins
+  can **invite by email** (a passwordless account + a set-password link, reusing the reset flow). The
+  security schema ships as **EF migrations** — one migrations assembly per store provider (the supported
+  pattern for a provider-pluggable context), applied at startup.
+- **Desktop trust boundary.** The desktop shell stays deliberately **single-user**: it runs as the local
+  OS account with a private working copy and full permissions — its trust boundary is the Windows session,
+  and per-user authorization is the web host's job.
+
+Passkeys (WebAuthn), SAML, Windows Negotiate as a provider, per-table ACLs, and a runtime provider-config
+editor are **deliberately out of scope** — see `SECURITY.md` (threat model & posture) for the rationale.
 
 ---
 

@@ -13,7 +13,8 @@ namespace App.Infrastructure.Identity;
 public sealed class PermissionClaimsPrincipalFactory(
     UserManager<AppUser> userManager,
     RoleManager<AppRole> roleManager,
-    IOptions<IdentityOptions> options)
+    IOptions<IdentityOptions> options,
+    IOptions<SecurityOptions> securityOptions)
     : UserClaimsPrincipalFactory<AppUser, AppRole>(userManager, roleManager, options)
 {
     public override async Task<ClaimsPrincipal> CreateAsync(AppUser user)
@@ -48,6 +49,17 @@ public sealed class PermissionClaimsPrincipalFactory(
         foreach (string permission in permissions)
         {
             identity.AddClaim(new Claim(Permissions.ClaimType, permission));
+        }
+
+        // Per-role MFA enforcement: mark the session pending when policy requires two-factor for this
+        // user and they haven't enrolled — the host then restricts them to the account pages.
+        string require = securityOptions.Value.Providers.Local.Mfa.Require;
+        bool mfaRequired = string.Equals(require, "All", StringComparison.OrdinalIgnoreCase)
+            || (string.Equals(require, "Administrators", StringComparison.OrdinalIgnoreCase)
+                && principal.IsInRole(SecurityRoles.Administrator));
+        if (mfaRequired && !await UserManager.GetTwoFactorEnabledAsync(user))
+        {
+            identity.AddClaim(new Claim(SecurityClaims.MfaPending, "1"));
         }
 
         return principal;

@@ -19,7 +19,7 @@ public static class SecuritySeeder
         IServiceProvider sp = scope.ServiceProvider;
 
         SecurityDbContext db = sp.GetRequiredService<SecurityDbContext>();
-        await db.Database.EnsureCreatedAsync(ct);
+        await db.Database.MigrateAsync(ct); // creates the schema on first run, applies pending migrations after
 
         RoleManager<AppRole> roleManager = sp.GetRequiredService<RoleManager<AppRole>>();
         foreach (string roleName in SecurityRoles.All)

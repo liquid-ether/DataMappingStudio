@@ -51,6 +51,21 @@ if (requireAuth)
 {
     builder.Services.AddSecurity(builder.Configuration, Path.Combine(dataDir, "security.db"));
     builder.Services.AddCascadingAuthenticationState(); // surfaces the user to the circuit (and to CircuitCurrentUser)
+
+    // Brute-force throttle for the auth POST endpoints (the "auth" policy): a fixed window per client IP.
+    builder.Services.AddRateLimiter(limiter =>
+    {
+        limiter.AddPolicy("auth", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = 12, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
+
+        limiter.OnRejected = async (context, cancellationToken) =>
+        {
+            context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            context.HttpContext.Response.Headers.RetryAfter = "300";
+            await context.HttpContext.Response.WriteAsync("Too many attempts. Please try again later.", cancellationToken);
+        };
+    });
 }
 
 WebApplication app = builder.Build();
@@ -91,8 +106,10 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
+app.UseSecurityHeaders(); // baseline headers + a strict CSP on every response
 if (requireAuth)
 {
+    app.UseRateLimiter(); // throttle the auth endpoints (brute-force protection)
     app.UseAuthentication();
     app.UseAuthorization();
 }

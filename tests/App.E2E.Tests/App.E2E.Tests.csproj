@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Each host-fixture test spawns a real App.Web process; cap parallelism so many hosts don't contend. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\App.Web\App.Web.csproj" />
   </ItemGroup>
 

@@ -143,6 +143,12 @@ $env:Auth__BootstrapAdmin__Password = "<a strong password>"   # user "admin" unl
 > links are logged (dev only) and admins can still create + reset users directly. Enable self-registration
 > with `Auth:Providers:Local:AllowSelfRegistration=true`.
 
+> **Built-in hardening.** With auth on, the host applies a strict **Content-Security-Policy** + baseline
+> security headers on every response, **rate-limits** the sign-in / reset endpoints per client IP (on top
+> of per-account lockout), and lets an admin **revoke a user's sessions** (Users → Revoke sessions) — their
+> cookies stop validating within a couple of minutes. The **/admin** dashboard summarises users, lockouts
+> and recent security events.
+
 > **Single sign-on (OpenID Connect).** To let users sign in with **Entra ID / Google / Okta / any OIDC**
 > provider, add an entry under `Auth:Providers:Oidc` (an example is in `appsettings.json`). Set `Name`,
 > `Authority`, `ClientId`, and `Enabled=true`; supply the secret out-of-band

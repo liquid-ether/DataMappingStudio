@@ -93,6 +93,7 @@
                                 <button class="add" type="button" @onclick="() => UnlockAsync(u)">@(Lang.IsFrench ? "Déverrouiller" : "Unlock")</button>
                             }
                             <button class="add" type="button" @onclick="() => _resetFor = u.Id">@(Lang.IsFrench ? "Réinit. mot de passe" : "Reset password")</button>
+                            <button class="add" type="button" @onclick="() => RevokeSessionsAsync(u)">@(Lang.IsFrench ? "Révoquer les sessions" : "Revoke sessions")</button>
                         </div>
                         @if (_resetFor == u.Id)
                         {
@@ -158,6 +159,9 @@
         Show(await Directory.UnlockAsync(u.Id), Lang.IsFrench ? "Déverrouillé." : "Unlocked.");
         await ReloadAsync();
     }
+
+    private async Task RevokeSessionsAsync(UserSummary u)
+        => Show(await Directory.RevokeSessionsAsync(u.Id), Lang.IsFrench ? "Sessions révoquées." : "Sessions revoked.");
 
     private async Task ToggleRoleAsync(UserSummary u, string role, bool on)
     {

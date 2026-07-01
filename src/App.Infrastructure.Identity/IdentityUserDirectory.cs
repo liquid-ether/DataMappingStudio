@@ -127,6 +127,12 @@ public sealed class IdentityUserDirectory(
         return ToResult(await users.ResetAccessFailedCountAsync(user));
     }
 
+    public async Task<OperationResult> RevokeSessionsAsync(string userId, CancellationToken ct = default)
+    {
+        AppUser? user = await users.FindByIdAsync(userId);
+        return user is null ? OperationResult.Fail("User not found.") : ToResult(await users.UpdateSecurityStampAsync(user));
+    }
+
     public async Task<IReadOnlyList<RoleSummary>> ListRolesAsync(CancellationToken ct = default)
     {
         List<AppRole> list = await roles.Roles.AsNoTracking().OrderBy(r => r.Name).ToListAsync(ct);

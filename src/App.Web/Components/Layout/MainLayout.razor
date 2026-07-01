@@ -10,7 +10,7 @@
         {
             @if (User.HasPermission(Permissions.UsersManage) || User.HasPermission(Permissions.RolesManage) || User.HasPermission(Permissions.SecurityConfigure))
             {
-                <a class="ms-tabs" style="text-decoration:none" href="admin/users">Admin</a>
+                <a class="ms-tabs" style="text-decoration:none" href="admin">Admin</a>
             }
             <a class="ms-tabs" style="text-decoration:none;font-size:12px" href="account/password" title="@(Lang.IsFrench ? "Paramètres du compte" : "Account settings") — @User.Name">@User.DisplayName</a>
             <form method="post" action="account/logout" style="margin:0">

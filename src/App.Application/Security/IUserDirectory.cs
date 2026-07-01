@@ -54,6 +54,9 @@ public interface IUserDirectory
 
     Task<OperationResult> UnlockAsync(string userId, CancellationToken ct = default);
 
+    /// <summary>Invalidates the user's existing sessions (rotates their security stamp).</summary>
+    Task<OperationResult> RevokeSessionsAsync(string userId, CancellationToken ct = default);
+
     Task<IReadOnlyList<RoleSummary>> ListRolesAsync(CancellationToken ct = default);
 
     Task<OperationResult> CreateRoleAsync(string name, string? description, IReadOnlyList<string> permissions, CancellationToken ct = default);

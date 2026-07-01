@@ -104,7 +104,7 @@ internal static class AccountEndpoints
 
             await audit.RecordAsync(result.IsLockedOut ? SecurityEvents.LoginLockedOut : SecurityEvents.LoginFailed, userName, false, null, ip);
             return Results.Redirect(LoginUrl(result.IsLockedOut ? 2 : 1, returnUrl));
-        }).DisableAntiforgery(); // validated explicitly above
+        }).DisableAntiforgery().RequireRateLimiting("auth"); // validated explicitly above; throttled per IP
 
         account.MapPost("/logout", async (HttpContext ctx, SignInManager<AppUser> signIn, ISecurityAudit audit) =>
         {

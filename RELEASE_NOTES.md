@@ -7,6 +7,29 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-07-01
+
+### Added — security phase 4: hardening + admin depth
+- **Content-Security-Policy + security headers.** A strict CSP on every response (no inline scripts — the
+  theme bootstrap moved to an external file — `frame-ancestors 'none'`, `object-src 'none'`), plus
+  `X-Content-Type-Options`, `Referrer-Policy` and `X-Frame-Options`. The policy still allows what the app
+  needs (inline styles, Google Fonts, `data:` QR images, same-origin SignalR).
+- **Rate limiting.** The auth POST endpoints (login, password reset, register, 2FA) are throttled per
+  client IP (fixed window) — brute-force protection on top of per-account lockout.
+- **Session revocation.** Admins can **revoke a user's sessions** (Users → Revoke sessions); rotating the
+  security stamp invalidates their existing cookies within the ~2-minute validation interval (live circuits
+  pick it up on reconnect).
+- **Admin dashboard** at **/admin**: user / disabled / locked / role counts, recent failed sign-ins, and a
+  recent-security-events table; a Dashboard tab joins the admin sub-nav.
+
+### Notes
+- Tests: session revocation rotates the security stamp; the auth E2E asserts the CSP + `nosniff` headers
+  and opens the dashboard. The E2E project now caps parallelism (`xunit.runner.json`) so its many
+  host processes don't contend. Full suite green.
+- Still designed for later phases: passkeys (WebAuthn), SAML, Windows Negotiate as a provider, per-table
+  ACLs, admin invite-by-email, per-role MFA enforcement, and a runtime provider-config editor. The security
+  store still uses `EnsureCreated` — EF migrations remain a pre-production follow-up.
+
 ## [1.14.0] - 2026-07-01
 
 ### Added — security phase 3: two-factor + self-service

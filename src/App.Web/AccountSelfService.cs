@@ -50,7 +50,7 @@ internal static class AccountSelfService
             }
 
             return Results.Redirect("/account/forgot?sent=true");
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RequireRateLimiting("auth");
 
         account.MapGet("/reset", (HttpContext ctx, IAntiforgery af, string userId, string token, int? error) =>
         {
@@ -76,7 +76,7 @@ internal static class AccountSelfService
             return result.Succeeded
                 ? Results.Redirect("/account/login?notice=1")
                 : Results.Redirect($"/account/reset?userId={WebUtility.UrlEncode(userId)}&token={WebUtility.UrlEncode(form["token"].ToString())}&error=1");
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RequireRateLimiting("auth");
 
         account.MapGet("/confirm", async (AccountService accounts, string userId, string token) =>
         {
@@ -121,7 +121,7 @@ internal static class AccountSelfService
                 $"<p>Welcome! Confirm your email to activate your account:</p><p><a href=\"{link}\">{link}</a></p>");
             await audit.RecordAsync(SecurityEvents.UserCreated, userName, true, "self-registered", ctx.Connection.RemoteIpAddress?.ToString());
             return Results.Redirect("/account/login?notice=2");
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RequireRateLimiting("auth");
 
         // Two-factor login step (holds the partial 2FA cookie set by the password step).
         account.MapGet("/2fa", (HttpContext ctx, IAntiforgery af, string? returnUrl, int? error) =>
@@ -161,7 +161,7 @@ internal static class AccountSelfService
 
             await audit.RecordAsync(SecurityEvents.LoginFailed, user.UserName, false, "two-factor", ctx.Connection.RemoteIpAddress?.ToString());
             return Results.Redirect($"/account/2fa?error=1&returnUrl={WebUtility.UrlEncode(returnUrl ?? "/")}");
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RequireRateLimiting("auth");
     }
 
     // ------------------------- authenticated flows -------------------------

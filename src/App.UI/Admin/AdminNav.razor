@@ -2,6 +2,7 @@
 
 @* Sub-navigation for the admin area. Rendered above each admin page. *@
 <nav class="ms-tabs" style="margin-bottom:14px">
+    <NavLink href="admin" ActiveClass="active" Match="NavLinkMatch.All">@(Lang.IsFrench ? "Tableau de bord" : "Dashboard")</NavLink>
     <NavLink href="admin/users" ActiveClass="active" Match="NavLinkMatch.Prefix">@(Lang.IsFrench ? "Utilisateurs" : "Users")</NavLink>
     <NavLink href="admin/roles" ActiveClass="active" Match="NavLinkMatch.Prefix">@(Lang.IsFrench ? "Rôles" : "Roles")</NavLink>
     <NavLink href="admin/providers" ActiveClass="active" Match="NavLinkMatch.Prefix">@(Lang.IsFrench ? "Fournisseurs" : "Providers")</NavLink>

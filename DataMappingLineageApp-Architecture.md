@@ -664,6 +664,12 @@ admin (local dev / E2E). With it on, the **security module** (`App.Infrastructur
   (a circuit can't set the auth cookie) backed by Identity's token providers and an `IAppEmailSender`
   (SMTP, or a log fallback when unconfigured). Token generation is a testable service; the endpoints send
   the mail.
+- **Hardening + admin depth.** A strict **Content-Security-Policy** (no inline scripts — the theme
+  bootstrap is externalized — framing denied) + baseline headers on every response; **rate limiting** on
+  the auth POST endpoints (per-IP fixed window) on top of per-account lockout; **session revocation**
+  (an admin rotates a user's security stamp, invalidating their cookies within the stamp-validation
+  interval — live circuits pick it up on reconnect); and an admin **dashboard** (user/role/lockout counts
+  + recent security events).
 
 Passkeys (WebAuthn), SAML, Windows Negotiate as a provider, per-table ACLs, admin invite-by-email,
 per-role MFA enforcement, and a runtime provider-config editor are designed as later phases on this

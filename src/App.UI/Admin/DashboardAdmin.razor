@@ -1,0 +1,69 @@
+@inject IUserDirectory Directory
+@inject ISecurityAudit Audit
+@inject LanguageState Lang
+
+<style>
+    .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:8px}
+    .stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+    .stat .n{font-size:26px;font-weight:600;font-family:var(--font-mono)}
+    .stat .l{color:var(--text-3);font-size:12px;margin-top:2px}
+    .stat.warn .n{color:var(--warn)} .stat.bad .n{color:var(--err)}
+</style>
+
+<h1 class="page-title">@(Lang.IsFrench ? "Tableau de bord — sécurité" : "Security dashboard")</h1>
+
+<div class="stats">
+    <div class="stat"><div class="n">@_users.Count</div><div class="l">@(Lang.IsFrench ? "Utilisateurs" : "Users")</div></div>
+    <div class="stat @(_disabled > 0 ? "warn" : null)"><div class="n">@_disabled</div><div class="l">@(Lang.IsFrench ? "Désactivés" : "Disabled")</div></div>
+    <div class="stat @(_locked > 0 ? "bad" : null)"><div class="n">@_locked</div><div class="l">@(Lang.IsFrench ? "Verrouillés" : "Locked")</div></div>
+    <div class="stat"><div class="n">@_roleCount</div><div class="l">@(Lang.IsFrench ? "Rôles" : "Roles")</div></div>
+    <div class="stat @(_failed > 0 ? "warn" : null)"><div class="n">@_failed</div><div class="l">@(Lang.IsFrench ? "Échecs récents" : "Recent failed sign-ins")</div></div>
+</div>
+
+<h2 class="page-title" style="font-size:14px;margin-top:24px">@(Lang.IsFrench ? "Événements récents" : "Recent security events")</h2>
+<div class="gridbox">
+    <table class="grid">
+        <thead>
+            <tr>
+                <th>@(Lang.IsFrench ? "Horodatage" : "Timestamp")</th>
+                <th>@(Lang.IsFrench ? "Événement" : "Event")</th>
+                <th>@(Lang.IsFrench ? "Utilisateur" : "User")</th>
+                <th>@(Lang.IsFrench ? "Résultat" : "Result")</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (_events.Count == 0)
+            {
+                <tr><td colspan="4"><div class="cell muted">@Lang.T("noRows")</div></td></tr>
+            }
+            @foreach (SecurityAuditEntry e in _events.Take(12))
+            {
+                <tr>
+                    <td><div class="cell mono" style="font-size:12px">@e.AtUtc.ToString("u")</div></td>
+                    <td><div class="cell mono" style="font-size:12px">@e.Event</div></td>
+                    <td><div class="cell">@(e.UserName ?? "—")</div></td>
+                    <td><div class="cell"><span class="kind-badge @(e.Success ? "join" : "field")">@(e.Success ? "OK" : (Lang.IsFrench ? "Échec" : "Fail"))</span></div></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private IReadOnlyList<UserSummary> _users = [];
+    private int _disabled;
+    private int _locked;
+    private int _roleCount;
+    private int _failed;
+    private IReadOnlyList<SecurityAuditEntry> _events = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _users = await Directory.ListUsersAsync();
+        _disabled = _users.Count(u => !u.IsEnabled);
+        _locked = _users.Count(u => u.IsLockedOut);
+        _roleCount = (await Directory.ListRolesAsync()).Count;
+        _events = await Audit.QueryAsync(limit: 100);
+        _failed = _events.Count(e => e.Event is SecurityEvents.LoginFailed or SecurityEvents.LoginLockedOut);
+    }
+}

@@ -20,8 +20,13 @@ public sealed class AuthE2ETests(AuthWebHostFixture host) : IClassFixture<AuthWe
         IPage page = await browser.NewPageAsync();
 
         // Anonymous visitors are bounced to the sign-in page by the fallback authorization policy.
-        await page.GotoAsync(host.BaseUrl);
+        IResponse? response = await page.GotoAsync(host.BaseUrl);
         await Assertions.Expect(page).ToHaveURLAsync(new Regex("/account/login"));
+
+        // Every response carries the baseline security headers + a CSP.
+        Assert.NotNull(response);
+        Assert.Contains("script-src 'self'", response!.Headers["content-security-policy"]);
+        Assert.Equal("nosniff", response.Headers["x-content-type-options"]);
 
         // Sign in with the seeded bootstrap admin (a real browser carries the antiforgery cookie + token).
         await page.FillAsync("#username", AuthWebHostFixture.AdminUser);
@@ -34,7 +39,9 @@ public sealed class AuthE2ETests(AuthWebHostFixture host) : IClassFixture<AuthWe
         ILocator signOut = page.Locator("form[action$='account/logout'] button");
         await Assertions.Expect(signOut).ToBeVisibleAsync();
 
-        // The Administrator can reach the user-management admin page.
+        // The Administrator can reach the admin area — dashboard + user management.
+        await page.GotoAsync($"{host.BaseUrl}/admin");
+        await Assertions.Expect(page.GetByText("Security dashboard")).ToBeVisibleAsync();
         await page.GotoAsync($"{host.BaseUrl}/admin/users");
         await Assertions.Expect(page.GetByText("Users").First).ToBeVisibleAsync();
 

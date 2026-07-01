@@ -1,7 +1,25 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Nav
+@inject IConfiguration Config
+@inject ICurrentUser User
+@inject LanguageState Lang
 
-<MsTopBar Tabs="_tabs" OnPublish="GoToPublish" />
+<MsTopBar Tabs="_tabs" OnPublish="GoToPublish">
+    <AccountArea>
+        @if (_authOn)
+        {
+            @if (User.HasPermission(Permissions.UsersManage) || User.HasPermission(Permissions.RolesManage) || User.HasPermission(Permissions.SecurityConfigure))
+            {
+                <a class="ms-tabs" style="text-decoration:none" href="admin/users">Admin</a>
+            }
+            <span class="muted" style="font-size:12px" title="@User.Name">@User.DisplayName</span>
+            <form method="post" action="account/logout" style="margin:0">
+                <AntiforgeryToken />
+                <button class="add" type="submit">@(Lang.IsFrench ? "Déconnexion" : "Sign out")</button>
+            </form>
+        }
+    </AccountArea>
+</MsTopBar>
 
 <div class="ms-wrap">
     @Body
@@ -14,6 +32,8 @@
 </div>
 
 @code {
+    private bool _authOn;
+
     // Entity tabs are data-driven from the catalog navigation, then the Mapping Studio + Lineage tabs.
     private static readonly IReadOnlyList<(string Href, string Key)> _tabs =
     [
@@ -23,6 +43,8 @@
         ("import", "navImport"),
         ("history", "navHistory"),
     ];
+
+    protected override void OnInitialized() => _authOn = Config.GetValue("Auth:Require", false);
 
     private void GoToPublish() => Nav.NavigateTo("publish");
 }

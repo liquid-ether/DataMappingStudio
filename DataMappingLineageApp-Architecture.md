@@ -629,6 +629,33 @@ circuit. (Desktop has no such context, so the desktop never hit this.)
 For a purely server-side deployment, `IRemoteStore` could instead collapse into server-DB transactions;
 the per-user/per-host model above keeps the offline-capable, synced-folder design as the shipping default.
 
+### 15a. Security & user management
+
+Authentication is **opt-in** (`Auth:Require`); with it off the host runs as a fully-privileged guest
+admin (local dev / E2E). With it on, the **security module** (`App.Infrastructure.Identity`) adds:
+
+- **Identity store (isolated, pluggable).** ASP.NET Core Identity over EF Core in a *separate* database —
+  SQLite by default, SQL Server for multi-host — kept apart from the metadata-driven domain store and
+  never synced to the shared folder. **This is the only EF Core in the solution.** Data Protection keys
+  live in the same store, so hosts share a key ring (multi-host cookie/OIDC decryption).
+- **Local login** via cookie auth. Sign-in is a static HTTP endpoint (a Blazor circuit can't set the auth
+  cookie); the rest of the app stays interactive. Password policy + account lockout; a first-run
+  bootstrap admin seeded from config.
+- **RBAC.** Permissions (`Data.View/Edit/Publish/Import`, `Mappings.Manage`, `Lineage.View`,
+  `History.View`, `Users.Manage`, `Roles.Manage`, `Security.Configure`, `App.Configure`) group into roles
+  — seeded **Administrator / Publisher / Editor / Reader**, plus custom. A claims factory expands the
+  user's roles into permission claims at sign-in; the server enforces one authorization **policy per
+  permission**, and the shared components gate controls via `ICurrentUser.HasPermission` (defence in depth,
+  not UI-only).
+- **Admin UI** (`/admin/*`, permission-gated): user management (create, assign roles, enable/disable,
+  unlock, reset password), a role/permission matrix, and a security audit viewer (logins, lockouts, admin
+  actions).
+- **Identity ↔ workspace.** `ICurrentUser` carries a stable `UserId` (the identity GUID) that keys the
+  per-user workspace (§15) and attributes changes (§8), so a rename never forks a workspace.
+
+Modern SSO (OIDC — Entra/Google/Okta), MFA (TOTP), self-service (invite / reset / email verify), passkeys,
+SAML, and per-table ACLs are designed as later phases on this foundation.
+
 ---
 
 ## 16. Delivery phasing

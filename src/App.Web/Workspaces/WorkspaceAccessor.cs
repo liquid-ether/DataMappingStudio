@@ -16,5 +16,5 @@ public sealed class WorkspaceAccessor(IWorkspaceRegistry registry, ICurrentUser 
 {
     private Workspace? _current;
 
-    public Workspace Current => _current ??= registry.Get(user.Name);
+    public Workspace Current => _current ??= registry.Get(user.UserId);
 }

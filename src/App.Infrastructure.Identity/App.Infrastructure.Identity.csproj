@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Title>Mapping Studio Security</Title>
+    <Description>
+      The security / user-management store for Mapping Studio: ASP.NET Core Identity over EF Core in an
+      isolated, provider-pluggable database (SQLite by default, SQL Server for multi-host), plus the
+      user/role admin surface, security audit, permission-claims expansion, and shared Data Protection
+      keys. This is the only project that uses EF Core; the metadata-driven domain store stays EF-free.
+    </Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.9" />
+    <!-- Override EF Sqlite's transitive SQLitePCLRaw (2.1.11 has a known vulnerability) with the patched
+         3.0.3, matching App.Infrastructure.Local so the supply-chain gate stays green. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\App.Application\App.Application.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,4 @@
+@page "/admin/users"
+@attribute [Authorize(Policy = Permissions.UsersManage)]
+
+<UsersAdmin />

@@ -1,5 +1,6 @@
 @inject ISyncCoordinator Sync
 @inject LanguageState Lang
+@inject ICurrentUser User
 @implements IDisposable
 
 @* Publish flow (Architecture §7a): preview the 3-way merge; publish clean changes directly, or
@@ -12,7 +13,10 @@
 }
 
 <div class="addbar">
-    <button class="ms-publish" type="button" @onclick="StartPublish">@Lang.T("publish") (@Sync.PendingCount())</button>
+    @if (User.HasPermission(Permissions.DataPublish))
+    {
+        <button class="ms-publish" type="button" @onclick="StartPublish">@Lang.T("publish") (@Sync.PendingCount())</button>
+    }
     <button class="add" type="button" @onclick="DoRefresh">@(Lang.IsFrench ? "Rafraîchir" : "Refresh")</button>
 </div>
 
@@ -38,6 +42,11 @@
 
     private void StartPublish()
     {
+        if (!User.HasPermission(Permissions.DataPublish))
+        {
+            return; // defence in depth: the button is hidden, but never publish without the grant
+        }
+
         _message = null;
         _conflicts = null;
 

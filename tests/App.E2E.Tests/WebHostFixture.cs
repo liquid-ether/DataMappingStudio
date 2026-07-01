@@ -9,7 +9,7 @@ namespace App.E2E.Tests;
 /// TestServer, so Playwright can drive a real browser against it). Enabled only when <c>DMS_E2E=1</c>
 /// so the suite stays green where browsers aren't installed; CI sets the var after <c>playwright install</c>.
 /// </summary>
-public sealed class WebHostFixture : IAsyncLifetime
+public class WebHostFixture : IAsyncLifetime
 {
     private Process? _process;
     private string? _dataDir;
@@ -17,6 +17,9 @@ public sealed class WebHostFixture : IAsyncLifetime
     public static bool Enabled => Environment.GetEnvironmentVariable("DMS_E2E") == "1";
 
     public string BaseUrl { get; private set; } = string.Empty;
+
+    /// <summary>Extra command-line args a subclass appends (e.g. to require authentication).</summary>
+    protected virtual string ExtraArgs => string.Empty;
 
     public async Task InitializeAsync()
     {
@@ -33,7 +36,7 @@ public sealed class WebHostFixture : IAsyncLifetime
         // per-user SQLite working copies or the shared folder.
         _dataDir = Path.Combine(Path.GetTempPath(), "dms-e2e-" + Guid.NewGuid().ToString("N"));
 
-        _process = Process.Start(new ProcessStartInfo("dotnet", $"exec \"{dll}\" --urls {BaseUrl} --environment Development --DataDir \"{_dataDir}\"")
+        _process = Process.Start(new ProcessStartInfo("dotnet", $"exec \"{dll}\" --urls {BaseUrl} --environment Development --DataDir \"{_dataDir}\" {ExtraArgs}")
         {
             UseShellExecute = false,
             WorkingDirectory = Path.GetDirectoryName(dll)!,
@@ -44,10 +47,9 @@ public sealed class WebHostFixture : IAsyncLifetime
         {
             try
             {
-                if ((await client.GetAsync(BaseUrl)).IsSuccessStatusCode)
-                {
-                    return;
-                }
+                // /health is anonymous whether or not auth is required, so any response means it's up.
+                using HttpResponseMessage _ = await client.GetAsync($"{BaseUrl}/health");
+                return;
             }
             catch (HttpRequestException)
             {

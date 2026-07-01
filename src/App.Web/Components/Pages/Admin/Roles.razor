@@ -1,0 +1,4 @@
+@page "/admin/roles"
+@attribute [Authorize(Policy = Permissions.RolesManage)]
+
+<RolesAdmin />

@@ -114,15 +114,27 @@ $env:RemoteFolder = "C:\Users\<name>\OneDrive - Contoso\MappingStudio"
 
 > **Production note — authentication.** The web host is **unauthenticated by default** (so local
 > development and the E2E suite work without credentials), in which case all browsers share a single
-> OS-account workspace. Before exposing it beyond localhost, require an authenticated Windows user for
-> every endpoint by setting `Auth__Require=true` (or `Auth:Require` in `appsettings.json`). With auth on,
-> **each user gets their own isolated working copy** keyed by their Windows identity (also recorded as the
-> change author). Without this, anyone who can reach the URL can read, edit, and publish.
+> fully-privileged guest workspace. Before exposing it beyond localhost, turn on the **security module**
+> by setting `Auth__Require=true` (or `Auth:Require` in `appsettings.json`). Users then **sign in** (local
+> username/password), each gets their **own isolated working copy** keyed by their identity, and their
+> **roles/permissions** gate every operation (view / edit / publish / import / admin). Without this, anyone
+> who can reach the URL can read, edit, and publish.
 
 ```powershell
-$env:Auth__Require = "true"   # require Windows (Negotiate) auth in production
+# First run: require sign-in and seed the initial administrator. Set the password out-of-band
+# (user-secrets / env), NOT in appsettings.json. The security store (SQLite by default) is created
+# automatically under the data dir; system roles (Administrator/Publisher/Editor/Reader) are seeded.
+$env:Auth__Require = "true"
+$env:Auth__BootstrapAdmin__Password = "<a strong password>"   # user "admin" unless changed
 .\publish\web\App.Web.exe --urls "https://+:5001"
 ```
+
+> **Security store & scale.** Identity/roles live in an **isolated** database, separate from the domain
+> data and never synced to the shared folder — SQLite by default (`Auth:Store:Provider=Sqlite`), or a
+> shared **SQL Server** (`Provider=SqlServer` + `Auth:Store:ConnectionString`) for multi-host. Multiple
+> hosts must share **both** the security store and the Data Protection key ring (persisted in that store,
+> keyed by `Auth:DataProtection:ApplicationName`) so a cookie issued by one host is accepted by another.
+> Manage users, roles and the audit trail from **/admin** once signed in as an administrator.
 
 > **Multi-user / multi-host.** One host serves many users (a working copy per user), and you can run
 > **several hosts against the same shared folder** for scale or availability — writer ids are
@@ -135,10 +147,12 @@ $env:Auth__Require = "true"   # require Windows (Negotiate) auth in production
 Work through this before exposing the web host to the team. The application code is release-ready; these
 are the deployment knobs the rollout owner sets.
 
-1. **Require authentication.** Set `Auth__Require=true` (env) or `Auth:Require=true` (`appsettings.json`).
-   Confirm the host can reach your domain controller and that Negotiate works from a client browser — each
-   signed-in Windows user then gets their **own isolated workspace**, and their login is recorded as the
-   change author. Without this, anyone who can reach the URL shares one workspace and can read/edit/publish.
+1. **Require authentication + seed the admin.** Set `Auth__Require=true` and, on first run, a strong
+   `Auth__BootstrapAdmin__Password` (out-of-band, not appsettings). Each signed-in user then gets their
+   **own isolated workspace** and their **roles/permissions** gate every operation; sign in as the admin and
+   create users/roles under **/admin**. Choose the security store (SQLite for one host; SQL Server for
+   multi-host) and, for multi-host, a shared Data Protection `ApplicationName`. Without auth, anyone who can
+   reach the URL shares one fully-privileged workspace.
 2. **Terminate TLS.** Serve over HTTPS — either bind Kestrel to an `https://` URL with a certificate, or
    (recommended) put the host behind a reverse proxy (IIS / Nginx) that terminates TLS and forwards. Behind
    a proxy, enable forwarded headers so redirects and auth see the original scheme/host. The startup log

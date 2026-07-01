@@ -390,7 +390,7 @@
           }
           else
           {
-            <button class="dbi-bigbtn" disabled="@(State.TotalRows == 0)" @onclick="State.RunImportAsync">▶ @T("confirmLoad")</button>
+            <button class="dbi-bigbtn" disabled="@(State.TotalRows == 0 || !State.CanImport)" @onclick="State.RunImportAsync">▶ @T("confirmLoad")</button>
           }
         </div>
       }

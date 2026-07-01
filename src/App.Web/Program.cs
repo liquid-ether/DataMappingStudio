@@ -1,12 +1,12 @@
 using App.Application;
 using App.Application.Abstractions;
+using App.Infrastructure.Identity;
 using App.Infrastructure.Local;
 using App.Infrastructure.Remote;
 using App.UI;
 using App.Web;
 using App.Web.Components;
 using App.Web.Workspaces;
-using Microsoft.AspNetCore.Authentication.Negotiate;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,15 +41,15 @@ builder.Services.AddPerUserWorkspaces(Path.Combine(dataDir, "users"));
 builder.Services.AddHealthChecks().AddCheck<WorkingCopyHealthCheck>("workspaces");
 
 // Authentication is OFF by default (so local dev and the E2E suite work without credentials, collapsing
-// to a single shared "dev" workspace). In production set Auth:Require=true (or env Auth__Require=true):
-// the host then requires an authenticated Windows user (Negotiate) for every endpoint, and that identity
-// keys each user's workspace and is recorded as the change author.
+// to a single fully-privileged guest admin over one OS-account workspace). In production set
+// Auth:Require=true (or env Auth__Require=true): the host then wires the security module (§Security) —
+// ASP.NET Core Identity in the isolated, provider-pluggable security store, cookie login, roles &
+// permissions, and a policy per permission — and every endpoint requires an authenticated user whose id
+// keys their workspace and whose grants gate each operation.
 bool requireAuth = builder.Configuration.GetValue("Auth:Require", false);
 if (requireAuth)
 {
-    builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
-    builder.Services.AddAuthorizationBuilder().SetFallbackPolicy(
-        new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+    builder.Services.AddSecurity(builder.Configuration, Path.Combine(dataDir, "security.db"));
     builder.Services.AddCascadingAuthenticationState(); // surfaces the user to the circuit (and to CircuitCurrentUser)
 }
 
@@ -77,6 +77,12 @@ catch (Exception ex)
 // Per-user working copies are provisioned on first use by the workspace registry (catalog seed +
 // schema + initial refold from the shared folder) — there is no single shared store to provision here.
 
+// Ensure the security store exists and seed system roles + the bootstrap admin (idempotent).
+if (requireAuth)
+{
+    await app.Services.InitializeSecurityAsync();
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -92,8 +98,13 @@ if (requireAuth)
 }
 
 app.UseAntiforgery();
-app.MapStaticAssets();
+app.MapStaticAssets().AllowAnonymous(); // the login page + design system must load before sign-in
 app.MapHealthChecks("/health").AllowAnonymous(); // reachable even when Auth:Require is on (for probes)
+if (requireAuth)
+{
+    app.MapAccountEndpoints(); // anonymous cookie login/logout (a circuit cannot set the auth cookie)
+}
+
 app.MapRazorComponents<AppRoot>().AddInteractiveServerRenderMode();
 
 app.Run();

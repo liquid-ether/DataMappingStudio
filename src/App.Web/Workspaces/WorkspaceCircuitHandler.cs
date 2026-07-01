@@ -14,7 +14,7 @@ internal sealed class WorkspaceCircuitHandler(ICurrentUser user, WorkspaceLivene
 
     public override Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
-        _key = WorkspaceRegistry.Sanitize(user.Name);
+        _key = WorkspaceRegistry.Sanitize(user.UserId);
         liveness.Enter(_key);
         return Task.CompletedTask;
     }

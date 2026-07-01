@@ -1,0 +1,182 @@
+@inject IUserDirectory Directory
+@inject LanguageState Lang
+
+<h1 class="page-title">@(Lang.IsFrench ? "Utilisateurs" : "Users")</h1>
+
+@if (_message is not null)
+{
+    <p class="@(_ok ? null : "err")" role="alert">@_message</p>
+}
+
+<div class="addbar" style="margin-bottom:14px">
+    <div class="search" style="max-width:280px">
+        <span class="mag">&#9906;</span>
+        <input placeholder="@(Lang.IsFrench ? "Rechercher" : "Search")" @bind="_search" @bind:event="oninput" @onkeyup="ReloadAsync" />
+    </div>
+    <button class="add" type="button" @onclick="() => _creating = !_creating"><span class="plus">+</span> @(Lang.IsFrench ? "Nouvel utilisateur" : "New user")</button>
+</div>
+
+@if (_creating)
+{
+    <div class="gridbox" style="padding:14px 16px;margin-bottom:14px;flex:none">
+        <div class="draftbar">
+            <input class="th-filter" style="max-width:150px" placeholder="@(Lang.IsFrench ? "Identifiant" : "Username")" @bind="_new.UserName" />
+            <input class="th-filter" style="max-width:170px" placeholder="@(Lang.IsFrench ? "Nom affiché" : "Display name")" @bind="_new.DisplayName" />
+            <input class="th-filter" style="max-width:190px" placeholder="Email" @bind="_new.Email" />
+            <input class="th-filter" style="max-width:170px" type="password" placeholder="@(Lang.IsFrench ? "Mot de passe" : "Password")" @bind="_new.Password" />
+            <select class="th-filter" style="max-width:150px" @bind="_new.Role">
+                @foreach (string role in _roleNames)
+                {
+                    <option value="@role">@role</option>
+                }
+            </select>
+            <button class="ms-publish" type="button" @onclick="CreateAsync">@Lang.T("save")</button>
+            <button class="add" type="button" @onclick="() => _creating = false">@(Lang.IsFrench ? "Annuler" : "Cancel")</button>
+        </div>
+    </div>
+}
+
+<div class="gridbox">
+    <table class="grid">
+        <thead>
+            <tr>
+                <th>@(Lang.IsFrench ? "Identifiant" : "Username")</th>
+                <th>@(Lang.IsFrench ? "Nom" : "Name")</th>
+                <th>@(Lang.IsFrench ? "Rôles" : "Roles")</th>
+                <th>@(Lang.IsFrench ? "Statut" : "Status")</th>
+                <th>@(Lang.IsFrench ? "Dernière connexion" : "Last login")</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (_users.Count == 0)
+            {
+                <tr><td colspan="6"><div class="cell muted">@Lang.T("noRows")</div></td></tr>
+            }
+            @foreach (UserSummary u in _users)
+            {
+                <tr>
+                    <td><div class="cell mono">@u.UserName</div></td>
+                    <td><div class="cell">@(u.DisplayName ?? "—")<span class="muted" style="margin-left:6px">@u.Origin</span></div></td>
+                    <td>
+                        <div class="cell" style="flex-wrap:wrap;gap:6px">
+                            @foreach (string role in _roleNames)
+                            {
+                                <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2)">
+                                    <input type="checkbox" checked="@u.Roles.Contains(role)" @onchange="e => ToggleRoleAsync(u, role, (bool)e.Value!)" />@role
+                                </label>
+                            }
+                        </div>
+                    </td>
+                    <td>
+                        <div class="cell">
+                            @if (!u.IsEnabled)
+                            {
+                                <span class="kind-badge filter">@(Lang.IsFrench ? "Désactivé" : "Disabled")</span>
+                            }
+                            else if (u.IsLockedOut)
+                            {
+                                <span class="kind-badge field">@(Lang.IsFrench ? "Verrouillé" : "Locked")</span>
+                            }
+                            else
+                            {
+                                <span class="kind-badge join">@(Lang.IsFrench ? "Actif" : "Active")</span>
+                            }
+                        </div>
+                    </td>
+                    <td><div class="cell muted mono" style="font-size:12px">@(u.LastLoginUtc?.ToString("u") ?? "—")</div></td>
+                    <td>
+                        <div class="cell" style="gap:8px">
+                            <button class="add" type="button" @onclick="() => SetEnabledAsync(u, !u.IsEnabled)">@(u.IsEnabled ? (Lang.IsFrench ? "Désactiver" : "Disable") : (Lang.IsFrench ? "Activer" : "Enable"))</button>
+                            @if (u.IsLockedOut)
+                            {
+                                <button class="add" type="button" @onclick="() => UnlockAsync(u)">@(Lang.IsFrench ? "Déverrouiller" : "Unlock")</button>
+                            }
+                            <button class="add" type="button" @onclick="() => _resetFor = u.Id">@(Lang.IsFrench ? "Réinit. mot de passe" : "Reset password")</button>
+                        </div>
+                        @if (_resetFor == u.Id)
+                        {
+                            <div class="cell" style="gap:6px">
+                                <input class="th-filter" style="max-width:160px" type="password" placeholder="@(Lang.IsFrench ? "Nouveau mot de passe" : "New password")" @bind="_resetPassword" />
+                                <button class="ms-publish" type="button" @onclick="() => ResetPasswordAsync(u)">@Lang.T("save")</button>
+                            </div>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private readonly List<UserSummary> _users = [];
+    private IReadOnlyList<string> _roleNames = [];
+    private string? _search;
+    private bool _creating;
+    private NewUser _new = new();
+    private string? _resetFor;
+    private string _resetPassword = "";
+    private string? _message;
+    private bool _ok;
+
+    private sealed class NewUser
+    {
+        public string UserName { get; set; } = "";
+        public string? DisplayName { get; set; }
+        public string? Email { get; set; }
+        public string Password { get; set; } = "";
+        public string Role { get; set; } = SecurityRoles.Reader;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _roleNames = (await Directory.ListRolesAsync()).Select(r => r.Name).ToList();
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _users.Clear();
+        _users.AddRange(await Directory.ListUsersAsync(_search));
+    }
+
+    private async Task CreateAsync()
+    {
+        Show(await Directory.CreateUserAsync(new CreateUserRequest(_new.UserName.Trim(), _new.Email, _new.DisplayName, _new.Password, [_new.Role])),
+            Lang.IsFrench ? "Utilisateur créé." : "User created.");
+        if (_ok) { _creating = false; _new = new(); await ReloadAsync(); }
+    }
+
+    private async Task SetEnabledAsync(UserSummary u, bool enabled)
+    {
+        Show(await Directory.SetEnabledAsync(u.Id, enabled), null);
+        await ReloadAsync();
+    }
+
+    private async Task UnlockAsync(UserSummary u)
+    {
+        Show(await Directory.UnlockAsync(u.Id), Lang.IsFrench ? "Déverrouillé." : "Unlocked.");
+        await ReloadAsync();
+    }
+
+    private async Task ToggleRoleAsync(UserSummary u, string role, bool on)
+    {
+        List<string> roles = u.Roles.ToList();
+        if (on) { roles.Add(role); } else { roles.Remove(role); }
+        Show(await Directory.SetRolesAsync(u.Id, roles), null);
+        await ReloadAsync();
+    }
+
+    private async Task ResetPasswordAsync(UserSummary u)
+    {
+        Show(await Directory.ResetPasswordAsync(u.Id, _resetPassword), Lang.IsFrench ? "Mot de passe réinitialisé." : "Password reset.");
+        _resetFor = null;
+        _resetPassword = "";
+    }
+
+    private void Show(OperationResult result, string? okMessage)
+    {
+        _ok = result.Succeeded;
+        _message = result.Succeeded ? okMessage : string.Join(" ", result.Errors);
+    }
+}

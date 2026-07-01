@@ -1,0 +1,103 @@
+@inject IUserDirectory Directory
+@inject LanguageState Lang
+
+<h1 class="page-title">@(Lang.IsFrench ? "Rôles et permissions" : "Roles & permissions")</h1>
+
+@if (_message is not null)
+{
+    <p class="@(_ok ? null : "err")" role="alert">@_message</p>
+}
+
+<div class="addbar" style="margin-bottom:14px">
+    <input class="th-filter" style="max-width:170px" placeholder="@(Lang.IsFrench ? "Nouveau rôle" : "New role")" @bind="_newRole" />
+    <button class="add" type="button" @onclick="CreateRoleAsync"><span class="plus">+</span> @(Lang.IsFrench ? "Créer le rôle" : "Create role")</button>
+</div>
+
+<div class="gridbox">
+    <table class="grid">
+        <thead>
+            <tr>
+                <th>@(Lang.IsFrench ? "Rôle" : "Role")</th>
+                @foreach (string permission in Permissions.All)
+                {
+                    <th style="writing-mode:vertical-rl;text-orientation:mixed;height:120px" title="@permission">@permission</th>
+                }
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (RoleSummary role in _roles)
+            {
+                <tr>
+                    <td>
+                        <div class="cell">
+                            <span class="mono" style="font-weight:600">@role.Name</span>
+                            @if (role.IsSystem)
+                            {
+                                <span class="muted" style="font-size:11px;margin-left:6px">@(Lang.IsFrench ? "système" : "system")</span>
+                            }
+                            <span class="muted" style="font-size:11px;margin-left:6px">@role.MemberCount</span>
+                        </div>
+                    </td>
+                    @foreach (string permission in Permissions.All)
+                    {
+                        <td style="text-align:center">
+                            <input type="checkbox" checked="@role.Permissions.Contains(permission)"
+                                   @onchange="e => TogglePermissionAsync(role, permission, (bool)e.Value!)" />
+                        </td>
+                    }
+                    <td>
+                        <div class="cell">
+                            @if (!role.IsSystem)
+                            {
+                                <button class="rowx" type="button" title="@(Lang.IsFrench ? "Supprimer" : "Delete")" @onclick="() => DeleteRoleAsync(role)">✕</button>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private readonly List<RoleSummary> _roles = [];
+    private string _newRole = "";
+    private string? _message;
+    private bool _ok;
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _roles.Clear();
+        _roles.AddRange(await Directory.ListRolesAsync());
+    }
+
+    private async Task CreateRoleAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newRole)) { return; }
+        Show(await Directory.CreateRoleAsync(_newRole.Trim(), null, []), Lang.IsFrench ? "Rôle créé." : "Role created.");
+        if (_ok) { _newRole = ""; await ReloadAsync(); }
+    }
+
+    private async Task TogglePermissionAsync(RoleSummary role, string permission, bool on)
+    {
+        List<string> permissions = role.Permissions.ToList();
+        if (on) { permissions.Add(permission); } else { permissions.Remove(permission); }
+        Show(await Directory.UpdateRolePermissionsAsync(role.Name, permissions), null);
+        await ReloadAsync();
+    }
+
+    private async Task DeleteRoleAsync(RoleSummary role)
+    {
+        Show(await Directory.DeleteRoleAsync(role.Name), Lang.IsFrench ? "Rôle supprimé." : "Role deleted.");
+        await ReloadAsync();
+    }
+
+    private void Show(OperationResult result, string? okMessage)
+    {
+        _ok = result.Succeeded;
+        _message = result.Succeeded ? okMessage : string.Join(" ", result.Errors);
+    }
+}

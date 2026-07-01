@@ -149,7 +149,11 @@ public sealed class PerUserWorkspaceTests : IDisposable
 
     private sealed class FakeUser(string name) : ICurrentUser
     {
+        public string UserId => name;
         public string Name => name;
+        public string DisplayName => name;
+        public IReadOnlyCollection<string> Roles => ["Administrator"];
+        public bool HasPermission(string permission) => true;
     }
 
     public void Dispose()

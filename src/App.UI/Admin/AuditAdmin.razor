@@ -1,0 +1,56 @@
+@inject ISecurityAudit Audit
+@inject LanguageState Lang
+
+<h1 class="page-title">@(Lang.IsFrench ? "Journal de sécurité" : "Security audit")</h1>
+
+<div class="addbar" style="margin-bottom:14px">
+    <div class="search" style="max-width:280px">
+        <span class="mag">&#9906;</span>
+        <input placeholder="@(Lang.IsFrench ? "Filtrer par utilisateur" : "Filter by user")" @bind="_user" @bind:event="oninput" @onkeyup="ReloadAsync" />
+    </div>
+</div>
+
+<div class="gridbox">
+    <table class="grid">
+        <thead>
+            <tr>
+                <th>@(Lang.IsFrench ? "Horodatage" : "Timestamp")</th>
+                <th>@(Lang.IsFrench ? "Événement" : "Event")</th>
+                <th>@(Lang.IsFrench ? "Utilisateur" : "User")</th>
+                <th>@(Lang.IsFrench ? "Résultat" : "Result")</th>
+                <th>@(Lang.IsFrench ? "Détail" : "Detail")</th>
+                <th>IP</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (_entries.Count == 0)
+            {
+                <tr><td colspan="6"><div class="cell muted">@Lang.T("noRows")</div></td></tr>
+            }
+            @foreach (SecurityAuditEntry e in _entries)
+            {
+                <tr>
+                    <td><div class="cell mono" style="font-size:12px">@e.AtUtc.ToString("u")</div></td>
+                    <td><div class="cell mono" style="font-size:12px">@e.Event</div></td>
+                    <td><div class="cell">@(e.UserName ?? "—")</div></td>
+                    <td><div class="cell"><span class="kind-badge @(e.Success ? "join" : "field")">@(e.Success ? "OK" : (Lang.IsFrench ? "Échec" : "Fail"))</span></div></td>
+                    <td><div class="cell muted">@(e.Detail ?? "—")</div></td>
+                    <td><div class="cell muted mono" style="font-size:12px">@(e.IpAddress ?? "—")</div></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private readonly List<SecurityAuditEntry> _entries = [];
+    private string? _user;
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _entries.Clear();
+        _entries.AddRange(await Audit.QueryAsync(string.IsNullOrWhiteSpace(_user) ? null : _user.Trim()));
+    }
+}

@@ -1,6 +1,7 @@
 using App.Application.Abstractions;
 using App.Application.Importing;
 using App.Application.Provisioning;
+using App.Application.Security;
 using App.Domain.Catalog;
 using App.Domain.Data;
 using App.UI.Localization;
@@ -185,9 +186,19 @@ public sealed class DataImportState
     /// progress and honouring <see cref="Cancel"/>. Rows already written stay on cancel (idempotent
     /// upsert), so the partial result is surfaced and a re-run completes it.
     /// </summary>
+    /// <summary>Whether the current user may run an import (gates the Load step; guest admin is always true).</summary>
+    public bool CanImport => _user.HasPermission(Permissions.DataImport);
+
     public async Task RunImportAsync()
     {
         if (Parsed is null || Loading) { return; }
+
+        if (!CanImport)
+        {
+            LoadError = _lang.IsFrench ? "Vous n'avez pas la permission d'importer." : "You don't have permission to import.";
+            Notify();
+            return;
+        }
 
         Loading = true;
         LoadError = null;

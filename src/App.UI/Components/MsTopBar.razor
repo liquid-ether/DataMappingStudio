@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject LanguageState Lang
 @inject ThemeState Theme
+@inject ICurrentUser User
 
 @* Dark top bar from the mockup: brand glyph, primary tabs, EN/FR toggle, Publish. *@
 <div class="ms-top">
@@ -26,7 +27,11 @@
     </div>
     <button class="ms-theme" type="button" title="@(Theme.IsDark ? "Light theme" : "Dark theme")"
             aria-pressed="@Theme.IsDark" @onclick="Theme.ToggleAsync">@(Theme.IsDark ? "☀" : "☾")</button>
-    <button class="ms-publish" type="button" @onclick="OnPublish">@Lang.T("publish")</button>
+    @if (User.HasPermission(Permissions.DataPublish))
+    {
+        <button class="ms-publish" type="button" @onclick="OnPublish">@Lang.T("publish")</button>
+    }
+    @AccountArea
 </div>
 
 @code {
@@ -44,6 +49,9 @@
     ];
 
     [Parameter] public EventCallback OnPublish { get; set; }
+
+    /// <summary>Optional host-supplied account controls (web: current user + Admin + sign out; desktop: none).</summary>
+    [Parameter] public RenderFragment? AccountArea { get; set; }
 
     /// <summary>When set (desktop shell), tabs become buttons that raise this with the tab's Href key
     /// instead of navigating a URL. When unset (web), tabs render as routed <see cref="NavLink"/>s.</summary>

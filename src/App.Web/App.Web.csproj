@@ -5,6 +5,7 @@
     <ProjectReference Include="..\App.Application\App.Application.csproj" />
     <ProjectReference Include="..\App.Infrastructure.Local\App.Infrastructure.Local.csproj" />
     <ProjectReference Include="..\App.Infrastructure.Remote\App.Infrastructure.Remote.csproj" />
+    <ProjectReference Include="..\App.Infrastructure.Identity\App.Infrastructure.Identity.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -117,34 +117,37 @@ else if (_view.Count == 0 && _rows.Count > 0)
     <div class="err" role="alert">@_error</div>
 }
 
-<div class="addbar">
-    @if (_draft is null)
-    {
-        <button class="add" type="button" @onclick="StartDraft"><span class="plus">+</span> @Lang.T("addRow")</button>
-    }
-    else
-    {
-        <button class="ms-publish" type="button" @onclick="SaveDraft">@Lang.T("save")</button>
-        <button class="add" type="button" @onclick="CancelDraft">@Lang.T("cancel")</button>
-    }
+@if (CanEdit)
+{
+    <div class="addbar">
+        @if (_draft is null)
+        {
+            <button class="add" type="button" @onclick="StartDraft"><span class="plus">+</span> @Lang.T("addRow")</button>
+        }
+        else
+        {
+            <button class="ms-publish" type="button" @onclick="SaveDraft">@Lang.T("save")</button>
+            <button class="add" type="button" @onclick="CancelDraft">@Lang.T("cancel")</button>
+        }
 
-    @if (_addingColumn)
-    {
-        <input class="ed-input" style="width:160px" placeholder="@Lang.T("columnName")" @bind="_newColumnName" />
-        <select class="ed-select" style="width:120px" @bind="_newColumnType">
-            @foreach (CatalogValueType t in Enum.GetValues<CatalogValueType>())
-            {
-                <option value="@t">@t</option>
-            }
-        </select>
-        <button class="ms-publish" type="button" @onclick="ConfirmAddColumn">@Lang.T("save")</button>
-        <button class="add" type="button" @onclick="() => _addingColumn = false">@Lang.T("cancel")</button>
-    }
-    else
-    {
-        <button class="add" type="button" @onclick="() => _addingColumn = true"><span class="plus">+</span> @Lang.T("addColumn")</button>
-    }
-</div>
+        @if (_addingColumn)
+        {
+            <input class="ed-input" style="width:160px" placeholder="@Lang.T("columnName")" @bind="_newColumnName" />
+            <select class="ed-select" style="width:120px" @bind="_newColumnType">
+                @foreach (CatalogValueType t in Enum.GetValues<CatalogValueType>())
+                {
+                    <option value="@t">@t</option>
+                }
+            </select>
+            <button class="ms-publish" type="button" @onclick="ConfirmAddColumn">@Lang.T("save")</button>
+            <button class="add" type="button" @onclick="() => _addingColumn = false">@Lang.T("cancel")</button>
+        }
+        else
+        {
+            <button class="add" type="button" @onclick="() => _addingColumn = true"><span class="plus">+</span> @Lang.T("addColumn")</button>
+        }
+    </div>
+}
 
 @code {
     [Parameter, EditorRequired] public string Table { get; set; } = string.Empty;
@@ -153,6 +156,9 @@ else if (_view.Count == 0 && _rows.Count > 0)
     [Parameter] public string? ChangedBy { get; set; }
 
     private string Author => string.IsNullOrEmpty(ChangedBy) ? CurrentUser.Name : ChangedBy;
+
+    /// <summary>Whether the user may edit rows/columns (gates the add bar; guest admin is always true).</summary>
+    private bool CanEdit => CurrentUser.HasPermission(Permissions.DataEdit);
 
     [Parameter] public string? Title { get; set; }
 

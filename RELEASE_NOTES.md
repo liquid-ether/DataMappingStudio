@@ -7,6 +7,39 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-07-01
+
+### Added — security & user management (phase 1: local login + RBAC)
+- **Opt-in authentication.** With `Auth:Require=true` the web host now requires **sign-in**; with it off it
+  runs as a fully-privileged guest admin (local dev / E2E) exactly as before. Replaces the earlier
+  Windows-Negotiate stub.
+- **Isolated, pluggable security store.** A new `App.Infrastructure.Identity` project — **ASP.NET Core
+  Identity over EF Core** in a database kept **separate** from the metadata-driven domain store and never
+  synced to the shared folder. SQLite by default (`Auth:Store:Provider`), SQL Server for multi-host. This
+  is the only EF Core in the solution. Data Protection keys persist in that store so multiple hosts share a
+  key ring (multi-host cookie decryption).
+- **Local login** (cookie auth via a static endpoint, since a Blazor circuit can't set the auth cookie),
+  configurable **password policy** + **account lockout**, and a first-run **bootstrap admin** seeded from
+  config.
+- **Role-based access control.** Fine-grained permissions (`Data.View/Edit/Publish/Import`,
+  `Mappings.Manage`, `Lineage.View`, `History.View`, `Users.Manage`, `Roles.Manage`, `Security.Configure`,
+  `App.Configure`) grouped into roles — seeded **Administrator / Publisher / Editor / Reader**, plus custom
+  roles. A claims factory expands roles into permission claims at sign-in; the server enforces **one policy
+  per permission** and the shared components gate controls via `ICurrentUser.HasPermission` (Publish,
+  Import, grid editing, the Admin area) — defence in depth, not UI-only.
+- **Admin module** at `/admin` (permission-gated): **user management** (create, assign roles,
+  enable/disable, unlock, reset password), a **role/permission matrix**, and a **security audit** viewer
+  (logins, lockouts, admin actions).
+- **Stable identity keys the workspace.** `ICurrentUser` now carries a stable `UserId` (the identity GUID),
+  display name, roles and `HasPermission(...)`; the per-user workspace and change author key on `UserId`, so
+  a rename never forks a workspace. Desktop stays single-user (fully privileged).
+
+### Notes
+- Modern SSO (OIDC — Entra/Google/Okta), MFA (TOTP), self-service (invite / reset / email verify), passkeys,
+  SAML and per-table ACLs are designed and scheduled as later phases on this foundation.
+- Tests: a new `App.Infrastructure.Identity.Tests` (seeding, permission expansion, user/role directory,
+  audit), UI permission-gating (bUnit), and an auth-on browser E2E (redirect → sign in → app → sign out).
+
 ## [1.11.0] - 2026-06-30
 
 ### Added — per-user web workspaces (multi-user, multi-host)

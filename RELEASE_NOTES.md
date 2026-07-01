@@ -7,6 +7,28 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-07-01
+
+### Added — security phase 3: two-factor + self-service
+- **Two-factor authentication (TOTP).** Users enrol an authenticator app from their account menu (QR + a
+  manual key) and confirm a code; enabling 2FA issues **one-time recovery codes**. The login flow detects
+  `RequiresTwoFactor` after the password step and completes on a **`/account/2fa`** page that accepts an
+  authenticator code or a recovery code.
+- **Self-service flows** (static HTTP endpoints — a Blazor circuit can't set the auth cookie):
+  **password reset** (email link, account-enumeration-safe), **change password**, opt-in
+  **self-registration** + **email verification**. Reachable from the sign-in page ("Forgot password?" /
+  "Create account") and the account menu.
+- **Email sender.** `IAppEmailSender` with an **SMTP** implementation (`Auth:Email`) and a **log fallback**
+  when SMTP isn't configured (so admin-driven flows still work; self-service email needs SMTP in
+  production). Token generation is separated from delivery, so the flows are unit-testable without SMTP.
+
+### Notes
+- Tests: `AccountService` (register + confirm, password reset, change password, **MFA enrol/enable/disable**
+  verified with a real computed TOTP, email-sender selection). The auth E2E now also opens the
+  change-password + 2FA-enrolment pages as the signed-in user. Full suite green.
+- Deferred to later phases: passkeys (WebAuthn), SAML, Windows Negotiate as a provider, per-table ACLs,
+  admin invite-by-email, per-role MFA enforcement, and a runtime provider-config editor.
+
 ## [1.13.0] - 2026-07-01
 
 ### Added — security phase 2: modern SSO (OpenID Connect)

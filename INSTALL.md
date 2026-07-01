@@ -136,6 +136,13 @@ $env:Auth__BootstrapAdmin__Password = "<a strong password>"   # user "admin" unl
 > keyed by `Auth:DataProtection:ApplicationName`) so a cookie issued by one host is accepted by another.
 > Manage users, roles, providers and the audit trail from **/admin** once signed in as an administrator.
 
+> **Self-service + two-factor.** Users can **reset** and **change** their password and enrol in **two-factor**
+> authentication (TOTP authenticator + recovery codes) from the sign-in page / their account menu. Password
+> reset, email verification and (opt-in) self-registration send email — configure SMTP under `Auth:Email`
+> (`Host`, `Port`, `From`; password out-of-band via `Auth__Email__Password`). With no SMTP configured those
+> links are logged (dev only) and admins can still create + reset users directly. Enable self-registration
+> with `Auth:Providers:Local:AllowSelfRegistration=true`.
+
 > **Single sign-on (OpenID Connect).** To let users sign in with **Entra ID / Google / Okta / any OIDC**
 > provider, add an entry under `Auth:Providers:Oidc` (an example is in `appsettings.json`). Set `Name`,
 > `Authority`, `ClientId`, and `Enabled=true`; supply the secret out-of-band

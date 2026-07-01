@@ -658,9 +658,16 @@ admin (local dev / E2E). With it on, the **security module** (`App.Infrastructur
   else **just-in-time provision** with the provider's default role — and IdP **group/role claims map to
   app roles** (additively). The admin **Providers** view lists what's configured; secrets are supplied
   out-of-band.
+- **Strong auth + self-service.** **Two-factor** (TOTP authenticator with a QR + one-time recovery codes;
+  the login flow completes the second factor after the password step). **Self-service** flows —
+  password reset, change password, opt-in registration, and email verification — as static HTTP endpoints
+  (a circuit can't set the auth cookie) backed by Identity's token providers and an `IAppEmailSender`
+  (SMTP, or a log fallback when unconfigured). Token generation is a testable service; the endpoints send
+  the mail.
 
-MFA (TOTP), self-service (invite / reset / email verify), passkeys, SAML, Windows Negotiate as a
-provider, and per-table ACLs are designed as later phases on this foundation.
+Passkeys (WebAuthn), SAML, Windows Negotiate as a provider, per-table ACLs, admin invite-by-email,
+per-role MFA enforcement, and a runtime provider-config editor are designed as later phases on this
+foundation.
 
 ---
 

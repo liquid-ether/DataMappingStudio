@@ -128,7 +128,18 @@ public static class SecurityServiceCollectionExtensions
         services.AddScoped<IUserDirectory, IdentityUserDirectory>();
         services.AddScoped<ISecurityAudit, EfSecurityAudit>();
         services.AddScoped<ExternalSignInService>();
+        services.AddScoped<AccountService>();
         services.AddSingleton<IAuthProviderCatalog, AuthProviderCatalog>();
+
+        if (string.IsNullOrWhiteSpace(options.Email.Host))
+        {
+            services.AddScoped<IAppEmailSender, LogEmailSender>();
+        }
+        else
+        {
+            services.AddScoped<IAppEmailSender, SmtpEmailSender>();
+        }
+
         return services;
     }
 

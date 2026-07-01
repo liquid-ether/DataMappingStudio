@@ -14,6 +14,25 @@ public sealed class SecurityOptions
     public BootstrapAdminOptions? BootstrapAdmin { get; set; }
 
     public ProvidersOptions Providers { get; set; } = new();
+
+    public EmailOptions Email { get; set; } = new();
+}
+
+/// <summary>SMTP settings for transactional email. When <see cref="Host"/> is empty, emails are logged.</summary>
+public sealed class EmailOptions
+{
+    public string? Host { get; set; }
+
+    public int Port { get; set; } = 587;
+
+    public bool UseSsl { get; set; } = true;
+
+    public string? UserName { get; set; }
+
+    /// <summary>Set out-of-band (user-secrets / env), not appsettings.</summary>
+    public string? Password { get; set; }
+
+    public string From { get; set; } = "no-reply@mappingstudio.local";
 }
 
 public sealed class StoreOptions

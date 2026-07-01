@@ -17,6 +17,7 @@
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.9" />
+    <PackageReference Include="QRCoder" Version="1.6.0" />
     <!-- Override EF Sqlite's transitive SQLitePCLRaw (2.1.11 has a known vulnerability) with the patched
          3.0.3, matching App.Infrastructure.Local so the supply-chain gate stays green. -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />

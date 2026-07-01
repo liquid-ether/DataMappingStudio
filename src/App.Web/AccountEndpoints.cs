@@ -19,11 +19,16 @@ internal static class AccountEndpoints
     {
         RouteGroupBuilder account = app.MapGroup("/account").AllowAnonymous();
 
-        account.MapGet("/login", (HttpContext ctx, IAntiforgery antiforgery, IAuthProviderCatalog providers, string? returnUrl, int? error) =>
+        account.MapGet("/login", (HttpContext ctx, IAntiforgery antiforgery, IAuthProviderCatalog providers,
+            Microsoft.Extensions.Options.IOptions<SecurityOptions> options, string? returnUrl, int? error, int? notice) =>
         {
             AntiforgeryTokenSet tokens = antiforgery.GetAndStoreTokens(ctx);
-            return Results.Content(LoginPage(tokens, providers.ExternalSignInOptions(), returnUrl, error), "text/html");
+            bool allowRegister = options.Value.Providers.Local.AllowSelfRegistration;
+            return Results.Content(LoginPage(tokens, providers.ExternalSignInOptions(), returnUrl, error, notice, allowRegister), "text/html");
         });
+
+        account.MapSelfServiceAnonymousEndpoints();  // forgot/reset/confirm/register/2fa
+        app.MapSelfServiceAuthenticatedEndpoints();  // change password + MFA (require the signed-in user)
 
         // Start an external (OIDC) sign-in: challenge the provider, return to the callback.
         account.MapGet("/external/{provider}", (string provider, string? returnUrl) =>
@@ -91,6 +96,12 @@ internal static class AccountEndpoints
                 return Results.Redirect(SafeReturnUrl(returnUrl));
             }
 
+            if (result.RequiresTwoFactor)
+            {
+                // Password OK; complete the second factor. SignInManager has set the partial 2FA cookie.
+                return Results.Redirect($"/account/2fa?returnUrl={WebUtility.UrlEncode(returnUrl ?? "/")}");
+            }
+
             await audit.RecordAsync(result.IsLockedOut ? SecurityEvents.LoginLockedOut : SecurityEvents.LoginFailed, userName, false, null, ip);
             return Results.Redirect(LoginUrl(result.IsLockedOut ? 2 : 1, returnUrl));
         }).DisableAntiforgery(); // validated explicitly above
@@ -106,7 +117,7 @@ internal static class AccountEndpoints
         account.MapGet("/denied", () => Results.Content(DeniedPage(), "text/html", null, statusCode: 403));
     }
 
-    private static string SafeReturnUrl(string? returnUrl)
+    internal static string SafeReturnUrl(string? returnUrl)
         => !string.IsNullOrEmpty(returnUrl) && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//", StringComparison.Ordinal) && !returnUrl.Contains(':', StringComparison.Ordinal)
             ? returnUrl
             : "/";
@@ -114,20 +125,29 @@ internal static class AccountEndpoints
     private static string LoginUrl(int error, string? returnUrl)
         => $"/account/login?error={error}" + (string.IsNullOrEmpty(returnUrl) ? "" : $"&returnUrl={WebUtility.UrlEncode(returnUrl)}");
 
-    private static string LoginPage(AntiforgeryTokenSet tokens, IReadOnlyList<AuthProviderInfo> external, string? returnUrl, int? error)
+    private static string LoginPage(AntiforgeryTokenSet tokens, IReadOnlyList<AuthProviderInfo> external, string? returnUrl, int? error, int? notice, bool allowRegister)
     {
         string message = error switch
         {
             3 => "<p class=\"err\">External sign-in failed or was cancelled.</p>",
             2 => "<p class=\"err\">Account locked. Try again later.</p>",
             1 => "<p class=\"err\">Invalid username or password.</p>",
-            _ => "",
+            _ => notice switch
+            {
+                1 => "<p class=\"ok\">Password updated — sign in with your new password.</p>",
+                2 => "<p class=\"ok\">Account created. Check your email to confirm it, then sign in.</p>",
+                _ => "",
+            },
         };
 
         string returnQuery = string.IsNullOrEmpty(returnUrl) ? "" : $"?returnUrl={WebUtility.UrlEncode(returnUrl)}";
         string externalButtons = external.Count == 0 ? "" :
             "<div class=\"ext\"><div class=\"or\">or</div>" + string.Join("", external.Select(p =>
                 $"<a class=\"add extbtn\" href=\"/account/external/{WebUtility.UrlEncode(p.Name)}{returnQuery}\">Sign in with {WebUtility.HtmlEncode(p.DisplayName)}</a>")) + "</div>";
+
+        string links = "<div class=\"links\"><a href=\"/account/forgot\">Forgot password?</a>"
+            + (allowRegister ? "<a href=\"/account/register\">Create account</a>" : "")
+            + "</div>";
 
         return $$"""
         <!doctype html>
@@ -152,6 +172,9 @@ internal static class AccountEndpoints
             .ext{margin-top:18px;display:flex;flex-direction:column;gap:8px}
             .ext .or{text-align:center;color:var(--text-3);font-size:12px;margin:2px 0}
             .extbtn{justify-content:center;text-decoration:none;text-align:center}
+            .login .ok{color:var(--ok);font-size:13px;margin:14px 0 0}
+            .login .links{margin-top:16px;display:flex;justify-content:space-between;gap:10px;font-size:12px}
+            .login .links a{color:var(--accent)}
           </style>
         </head>
         <body>
@@ -167,6 +190,7 @@ internal static class AccountEndpoints
             <button class="ms-publish" type="submit">Sign in</button>
             {{message}}
             {{externalButtons}}
+            {{links}}
           </form>
         </body>
         </html>

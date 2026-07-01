@@ -12,7 +12,7 @@
             {
                 <a class="ms-tabs" style="text-decoration:none" href="admin/users">Admin</a>
             }
-            <span class="muted" style="font-size:12px" title="@User.Name">@User.DisplayName</span>
+            <a class="ms-tabs" style="text-decoration:none;font-size:12px" href="account/password" title="@(Lang.IsFrench ? "Paramètres du compte" : "Account settings") — @User.Name">@User.DisplayName</a>
             <form method="post" action="account/logout" style="margin:0">
                 <AntiforgeryToken />
                 <button class="add" type="submit">@(Lang.IsFrench ? "Déconnexion" : "Sign out")</button>

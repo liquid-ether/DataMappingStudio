@@ -38,6 +38,13 @@ public sealed class AuthE2ETests(AuthWebHostFixture host) : IClassFixture<AuthWe
         await page.GotoAsync($"{host.BaseUrl}/admin/users");
         await Assertions.Expect(page.GetByText("Users").First).ToBeVisibleAsync();
 
+        // Self-service pages render for the signed-in user (cookie carries through the static endpoints).
+        await page.GotoAsync($"{host.BaseUrl}/account/password");
+        await Assertions.Expect(page.GetByText("Change your password")).ToBeVisibleAsync();
+        await page.GotoAsync($"{host.BaseUrl}/account/mfa");
+        await Assertions.Expect(page.GetByText("Set up two-factor authentication")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("img.qr")).ToBeVisibleAsync();
+
         // Sign out returns to the login page.
         await page.GotoAsync(host.BaseUrl);
         await WebHostFixture.WaitInteractiveAsync(page);

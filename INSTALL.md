@@ -134,7 +134,16 @@ $env:Auth__BootstrapAdmin__Password = "<a strong password>"   # user "admin" unl
 > shared **SQL Server** (`Provider=SqlServer` + `Auth:Store:ConnectionString`) for multi-host. Multiple
 > hosts must share **both** the security store and the Data Protection key ring (persisted in that store,
 > keyed by `Auth:DataProtection:ApplicationName`) so a cookie issued by one host is accepted by another.
-> Manage users, roles and the audit trail from **/admin** once signed in as an administrator.
+> Manage users, roles, providers and the audit trail from **/admin** once signed in as an administrator.
+
+> **Single sign-on (OpenID Connect).** To let users sign in with **Entra ID / Google / Okta / any OIDC**
+> provider, add an entry under `Auth:Providers:Oidc` (an example is in `appsettings.json`). Set `Name`,
+> `Authority`, `ClientId`, and `Enabled=true`; supply the secret out-of-band
+> (`Auth__Providers__Oidc__0__ClientSecret`), and register the redirect URI `https://<host>/signin-oidc/<Name>`
+> with the provider. First sign-in **auto-provisions** a local account (with `DefaultRole`) unless you turn
+> that off; set `RoleClaimType` (e.g. `groups`) + `GroupRoleMap` to map IdP groups to app roles. Enabled
+> providers appear as buttons on the sign-in page and in **/admin/providers**. Local login stays available
+> alongside SSO.
 
 > **Multi-user / multi-host.** One host serves many users (a working copy per user), and you can run
 > **several hosts against the same shared folder** for scale or availability — writer ids are

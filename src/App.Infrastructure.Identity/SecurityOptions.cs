@@ -43,6 +43,42 @@ public sealed class BootstrapAdminOptions
 public sealed class ProvidersOptions
 {
     public LocalProviderOptions Local { get; set; } = new();
+
+    /// <summary>Zero or more OpenID Connect providers (Entra ID / Google / Okta / Auth0 / generic).</summary>
+    public List<OidcProviderOptions> Oidc { get; set; } = [];
+}
+
+/// <summary>One OpenID Connect provider. Enabled ones surface on the login page and can auto-provision users.</summary>
+public sealed class OidcProviderOptions
+{
+    /// <summary>Stable scheme id (also the external-login provider key). Keep short + URL-safe, e.g. "entra".</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Button label on the login page (defaults to <see cref="Name"/>).</summary>
+    public string? DisplayName { get; set; }
+
+    public bool Enabled { get; set; } = true;
+
+    public string Authority { get; set; } = string.Empty;
+
+    public string ClientId { get; set; } = string.Empty;
+
+    /// <summary>Set via user-secrets / env / Key Vault, not appsettings. Empty for public (PKCE-only) clients.</summary>
+    public string? ClientSecret { get; set; }
+
+    public List<string> Scopes { get; set; } = ["openid", "profile", "email"];
+
+    /// <summary>The claim carrying IdP groups/roles to map (e.g. "groups" or "roles"). Empty = no mapping.</summary>
+    public string? RoleClaimType { get; set; }
+
+    /// <summary>Maps an IdP group/role claim value to an app role (granted additively at each sign-in).</summary>
+    public Dictionary<string, string> GroupRoleMap { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>Create a local account on first external sign-in (JIT). Off = only pre-provisioned/linked users.</summary>
+    public bool AutoProvision { get; set; } = true;
+
+    /// <summary>Role granted to a JIT-provisioned user.</summary>
+    public string DefaultRole { get; set; } = "Reader";
 }
 
 public sealed class LocalProviderOptions

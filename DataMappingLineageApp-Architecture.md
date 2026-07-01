@@ -652,9 +652,15 @@ admin (local dev / E2E). With it on, the **security module** (`App.Infrastructur
   actions).
 - **Identity ↔ workspace.** `ICurrentUser` carries a stable `UserId` (the identity GUID) that keys the
   per-user workspace (§15) and attributes changes (§8), so a rename never forks a workspace.
+- **Modern SSO (OIDC).** Zero or more OpenID Connect providers (Entra ID / Google / Okta / generic),
+  config-driven (`Auth:Providers:Oidc`), surface as "Sign in with …" buttons. On the callback an
+  external login is resolved to a local account — reuse an existing link, else link by verified email,
+  else **just-in-time provision** with the provider's default role — and IdP **group/role claims map to
+  app roles** (additively). The admin **Providers** view lists what's configured; secrets are supplied
+  out-of-band.
 
-Modern SSO (OIDC — Entra/Google/Okta), MFA (TOTP), self-service (invite / reset / email verify), passkeys,
-SAML, and per-table ACLs are designed as later phases on this foundation.
+MFA (TOTP), self-service (invite / reset / email verify), passkeys, SAML, Windows Negotiate as a
+provider, and per-table ACLs are designed as later phases on this foundation.
 
 ---
 

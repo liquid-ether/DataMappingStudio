@@ -1,5 +1,7 @@
 using App.Application.Security;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -68,7 +70,38 @@ public static class SecurityServiceCollectionExtensions
 
         services.AddScoped<IUserClaimsPrincipalFactory<AppUser>, PermissionClaimsPrincipalFactory>();
 
-        services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
+        AuthenticationBuilder authentication = services.AddAuthentication(IdentityConstants.ApplicationScheme);
+        authentication.AddIdentityCookies();
+
+        // External OpenID Connect providers (Entra / Google / Okta / generic). Each signs into the Identity
+        // external cookie; ExternalSignInService then links/provisions a local user on the callback.
+        foreach (OidcProviderOptions oidc in options.Providers.Oidc.Where(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Authority)))
+        {
+            authentication.AddOpenIdConnect(oidc.Name, oidc.DisplayName ?? oidc.Name, o =>
+            {
+                o.SignInScheme = IdentityConstants.ExternalScheme;
+                o.Authority = oidc.Authority;
+                o.ClientId = oidc.ClientId;
+                o.ClientSecret = oidc.ClientSecret;
+                o.ResponseType = "code";
+                o.UsePkce = true;
+                o.CallbackPath = $"/signin-oidc/{oidc.Name}";
+                o.SaveTokens = false;
+                o.GetClaimsFromUserInfoEndpoint = true;
+                o.MapInboundClaims = false; // keep raw claim types (email, name, groups)
+                o.Scope.Clear();
+                foreach (string scope in oidc.Scopes)
+                {
+                    o.Scope.Add(scope);
+                }
+
+                o.TokenValidationParameters.NameClaimType = "name";
+                if (oidc.RoleClaimType is { Length: > 0 } roleClaim)
+                {
+                    o.TokenValidationParameters.RoleClaimType = roleClaim;
+                }
+            });
+        }
         services.ConfigureApplicationCookie(cookie =>
         {
             cookie.LoginPath = "/account/login";
@@ -94,6 +127,8 @@ public static class SecurityServiceCollectionExtensions
 
         services.AddScoped<IUserDirectory, IdentityUserDirectory>();
         services.AddScoped<ISecurityAudit, EfSecurityAudit>();
+        services.AddScoped<ExternalSignInService>();
+        services.AddSingleton<IAuthProviderCatalog, AuthProviderCatalog>();
         return services;
     }
 

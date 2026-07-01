@@ -3,6 +3,7 @@ using System.Text;
 using App.Application.Security;
 using App.Infrastructure.Identity;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 
 namespace App.Web;
@@ -18,10 +19,42 @@ internal static class AccountEndpoints
     {
         RouteGroupBuilder account = app.MapGroup("/account").AllowAnonymous();
 
-        account.MapGet("/login", (HttpContext ctx, IAntiforgery antiforgery, string? returnUrl, int? error) =>
+        account.MapGet("/login", (HttpContext ctx, IAntiforgery antiforgery, IAuthProviderCatalog providers, string? returnUrl, int? error) =>
         {
             AntiforgeryTokenSet tokens = antiforgery.GetAndStoreTokens(ctx);
-            return Results.Content(LoginPage(tokens, returnUrl, error), "text/html");
+            return Results.Content(LoginPage(tokens, providers.ExternalSignInOptions(), returnUrl, error), "text/html");
+        });
+
+        // Start an external (OIDC) sign-in: challenge the provider, return to the callback.
+        account.MapGet("/external/{provider}", (string provider, string? returnUrl) =>
+            Results.Challenge(
+                new AuthenticationProperties { RedirectUri = $"/account/external/callback?returnUrl={WebUtility.UrlEncode(returnUrl ?? "/")}" },
+                [provider]));
+
+        account.MapGet("/external/callback", async (HttpContext ctx, SignInManager<AppUser> signIn,
+            ExternalSignInService external, ISecurityAudit audit, string? returnUrl) =>
+        {
+            string? ip = ctx.Connection.RemoteIpAddress?.ToString();
+            ExternalLoginInfo? info = await signIn.GetExternalLoginInfoAsync();
+            if (info is null)
+            {
+                await audit.RecordAsync(SecurityEvents.LoginFailed, null, false, "external sign-in info missing", ip);
+                return Results.Redirect("/account/login?error=3");
+            }
+
+            ExternalSignInResult result = await external.ResolveAsync(
+                new UserLoginInfo(info.LoginProvider, info.ProviderKey, info.ProviderDisplayName), info.Principal);
+            if (result.User is null)
+            {
+                await audit.RecordAsync(SecurityEvents.LoginFailed, info.Principal.Identity?.Name, false, $"{info.LoginProvider}: {result.Error}", ip);
+                return Results.Redirect("/account/login?error=3");
+            }
+
+            await signIn.SignInAsync(result.User, isPersistent: false); // app cookie, with permission claims
+            await ctx.SignOutAsync(IdentityConstants.ExternalScheme);   // clear the transient external cookie
+            await audit.RecordAsync(SecurityEvents.LoginSucceeded, result.User.UserName, true,
+                result.Provisioned ? $"provisioned via {info.LoginProvider}" : $"via {info.LoginProvider}", ip);
+            return Results.Redirect(SafeReturnUrl(returnUrl));
         });
 
         account.MapPost("/login", async (HttpContext ctx, IAntiforgery antiforgery,
@@ -81,14 +114,20 @@ internal static class AccountEndpoints
     private static string LoginUrl(int error, string? returnUrl)
         => $"/account/login?error={error}" + (string.IsNullOrEmpty(returnUrl) ? "" : $"&returnUrl={WebUtility.UrlEncode(returnUrl)}");
 
-    private static string LoginPage(AntiforgeryTokenSet tokens, string? returnUrl, int? error)
+    private static string LoginPage(AntiforgeryTokenSet tokens, IReadOnlyList<AuthProviderInfo> external, string? returnUrl, int? error)
     {
         string message = error switch
         {
+            3 => "<p class=\"err\">External sign-in failed or was cancelled.</p>",
             2 => "<p class=\"err\">Account locked. Try again later.</p>",
             1 => "<p class=\"err\">Invalid username or password.</p>",
             _ => "",
         };
+
+        string returnQuery = string.IsNullOrEmpty(returnUrl) ? "" : $"?returnUrl={WebUtility.UrlEncode(returnUrl)}";
+        string externalButtons = external.Count == 0 ? "" :
+            "<div class=\"ext\"><div class=\"or\">or</div>" + string.Join("", external.Select(p =>
+                $"<a class=\"add extbtn\" href=\"/account/external/{WebUtility.UrlEncode(p.Name)}{returnQuery}\">Sign in with {WebUtility.HtmlEncode(p.DisplayName)}</a>")) + "</div>";
 
         return $$"""
         <!doctype html>
@@ -110,6 +149,9 @@ internal static class AccountEndpoints
             .login input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
             .login button{width:100%;margin-top:20px;padding:10px}
             .login .err{color:var(--err);font-size:13px;margin:14px 0 0}
+            .ext{margin-top:18px;display:flex;flex-direction:column;gap:8px}
+            .ext .or{text-align:center;color:var(--text-3);font-size:12px;margin:2px 0}
+            .extbtn{justify-content:center;text-decoration:none;text-align:center}
           </style>
         </head>
         <body>
@@ -124,6 +166,7 @@ internal static class AccountEndpoints
             <input id="password" name="password" type="password" autocomplete="current-password" required>
             <button class="ms-publish" type="submit">Sign in</button>
             {{message}}
+            {{externalButtons}}
           </form>
         </body>
         </html>

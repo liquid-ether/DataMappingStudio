@@ -1,0 +1,40 @@
+@inject IAuthProviderCatalog Catalog
+@inject LanguageState Lang
+
+<h1 class="page-title">@(Lang.IsFrench ? "Fournisseurs d'authentification" : "Authentication providers")</h1>
+
+<div class="gridbox">
+    <table class="grid">
+        <thead>
+            <tr>
+                <th>@(Lang.IsFrench ? "Nom" : "Name")</th>
+                <th>@(Lang.IsFrench ? "Type" : "Type")</th>
+                <th>@(Lang.IsFrench ? "Statut" : "Status")</th>
+                <th>Authority</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (AuthProviderInfo p in Catalog.Providers())
+            {
+                <tr>
+                    <td><div class="cell">@p.DisplayName</div></td>
+                    <td><div class="cell mono">@p.Kind</div></td>
+                    <td>
+                        <div class="cell">
+                            <span class="kind-badge @(p.Enabled ? "join" : "filter")">
+                                @(p.Enabled ? (Lang.IsFrench ? "Activé" : "Enabled") : (Lang.IsFrench ? "Désactivé" : "Disabled"))
+                            </span>
+                        </div>
+                    </td>
+                    <td><div class="cell muted mono" style="font-size:12px">@(p.Authority ?? "—")</div></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<p class="muted" style="margin-top:12px">
+    @(Lang.IsFrench
+        ? "Configurés via appsettings / variables d'environnement (Auth:Providers). Les secrets sont fournis hors configuration."
+        : "Configured via appsettings / environment variables (Auth:Providers). Client secrets are supplied out-of-band.")
+</p>

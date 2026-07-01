@@ -7,6 +7,29 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-07-01
+
+### Added — security phase 2: modern SSO (OpenID Connect)
+- **OIDC providers (config-driven).** Zero or more OpenID Connect providers — **Entra ID / Google / Okta /
+  generic** — configured under `Auth:Providers:Oidc` (name, authority, client id, scopes; secret supplied
+  out-of-band). Enabled providers register as authentication schemes (authorization-code + PKCE, per-provider
+  callback `/signin-oidc/<name>`) and surface as **"Sign in with …"** buttons on the login page. Local login
+  remains available alongside SSO.
+- **Account resolution on callback.** An external sign-in is resolved to a local account: reuse an existing
+  link, else **link by verified email**, else **just-in-time provision** a new user (when the provider allows
+  it) with its `DefaultRole`. Origin records the provider.
+- **Group → role mapping.** `RoleClaimType` + `GroupRoleMap` map the IdP's group/role claims to app roles,
+  granted **additively** at each sign-in (local role assignments are never stripped).
+- **Admin Providers view** (`/admin/providers`, gated) lists configured providers + status, and a shared
+  admin sub-nav (Users / Roles / Providers / Audit).
+
+### Notes
+- Tests: `ExternalSignInService` (JIT provisioning, email linking, group→role mapping, provisioning-off) and
+  the provider catalog, over the real Identity store. Full suite + auth E2E green.
+- Still designed for later phases: MFA (TOTP), self-service (invite / reset / email verify), passkeys, SAML,
+  Windows Negotiate as a provider, per-table ACLs, and a runtime provider-config editor (providers are
+  config-driven for now).
+
 ## [1.12.0] - 2026-07-01
 
 ### Added — security & user management (phase 1: local login + RBAC)

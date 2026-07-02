@@ -16,7 +16,7 @@
             {
                 <tr><td colspan="7"><div class="cell muted">@Lang.T("noRows")</div></td></tr>
             }
-            @foreach (ChangeLogEntry e in _entries)
+            @foreach (ChangeLogEntry e in _entries.Take(_visible))
             {
                 <tr @key="e.ChangeId">
                     <td><div class="cell mono" style="font-size:12px">@e.ChangedAtUtc.ToString("u", CultureInfo.InvariantCulture)</div></td>
@@ -32,7 +32,21 @@
     </table>
 </div>
 
+@if (_entries.Count > _visible)
+{
+    <div class="addbar">
+        <button class="add" type="button" @onclick="() => _visible += PageSize">
+            @(Lang.IsFrench ? "Afficher plus" : "Show more") (@Math.Min(PageSize, _entries.Count - _visible) / @(_entries.Count - _visible))
+        </button>
+    </div>
+}
+
 @code {
+    // Render the newest page and grow on demand: the full audit trail can be tens of thousands of rows,
+    // and rendering them all is what degrades first (the DOM, not the in-memory list).
+    private const int PageSize = 200;
+    private int _visible = PageSize;
+
     private IReadOnlyList<ChangeLogEntry> _entries = [];
 
     protected override void OnInitialized()

@@ -35,4 +35,7 @@ public interface ISecurityAudit
     Task RecordAsync(string @event, string? userName, bool success, string? detail = null, string? ipAddress = null, CancellationToken ct = default);
 
     Task<IReadOnlyList<SecurityAuditEntry>> QueryAsync(string? userName = null, int limit = 200, CancellationToken ct = default);
+
+    /// <summary>Deletes events older than <paramref name="olderThan"/> (retention). Returns the count removed.</summary>
+    Task<int> PruneAsync(TimeSpan olderThan, CancellationToken ct = default);
 }

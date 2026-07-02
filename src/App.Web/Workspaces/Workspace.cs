@@ -14,7 +14,8 @@ public sealed record WorkspaceDependencies(
     AutoRefreshPlanner Planner,
     FieldMergeEngine Merge,
     IRemoteStore Remote,
-    ISnapshotBuilder Snapshots);
+    ISnapshotBuilder Snapshots,
+    RemoteFoldCache? FoldCache = null);
 
 /// <summary>
 /// One user's isolated working copy on the web host — its own SQLite <c>local.db</c>, catalog, audit log,
@@ -51,7 +52,7 @@ public sealed class Workspace : IDisposable
         Store.EnsureSchema();
 
         IPublishService publish = new PublishService(deps.Remote, deps.Snapshots, Catalog, deps.Merge, deps.Clock);
-        Coordinator = new SyncCoordinator(Catalog, Store, Audit, deps.Remote, publish, deps.Planner) { WriterId = writerId };
+        Coordinator = new SyncCoordinator(Catalog, Store, Audit, deps.Remote, publish, deps.Planner, deps.FoldCache) { WriterId = writerId };
         ImportEngine = new ImportEngine(Catalog, Store, deps.RuleBuilder);
 
         Coordinator.Refresh(); // build the local cache from the remote fold (no-op-safe if the remote is down)

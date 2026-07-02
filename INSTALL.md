@@ -180,8 +180,10 @@ are the deployment knobs the rollout owner sets.
    reach the URL shares one fully-privileged workspace.
 2. **Terminate TLS.** Serve over HTTPS — either bind Kestrel to an `https://` URL with a certificate, or
    (recommended) put the host behind a reverse proxy (IIS / Nginx) that terminates TLS and forwards. Behind
-   a proxy, enable forwarded headers so redirects and auth see the original scheme/host. The startup log
-   line `Failed to determine the https port for redirect` is expected when no HTTPS URL is bound directly.
+   a proxy, set `Proxy:Enabled=true` and list the proxy's IP(s) under `Proxy:TrustedProxies` — this makes
+   rate limiting and the security audit see the **real client IP** (X-Forwarded-For) instead of the proxy,
+   and redirects/auth see the original scheme. The startup log line `Failed to determine the https port for
+   redirect` is expected when no HTTPS URL is bound directly.
 3. **Point every host at the shared folder.** Set the same `RemoteFolder` (a OneDrive/SharePoint-synced
    path) on each host. Give **each host its own `DataDir`** (don't share working copies between hosts). The
    host probes the folder is writable at startup and warns clearly if not.

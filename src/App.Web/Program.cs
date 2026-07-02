@@ -40,6 +40,26 @@ builder.Services.AddPerUserWorkspaces(Path.Combine(dataDir, "users"));
 // Ops health probe (anonymous) at /health: shared-folder reachable + active-workspace count.
 builder.Services.AddHealthChecks().AddCheck<WorkingCopyHealthCheck>("workspaces");
 
+// Behind a TLS-terminating reverse proxy, honour X-Forwarded-For/-Proto from the listed proxies —
+// otherwise rate limiting buckets on the proxy's IP (one bucket for everyone) and the security audit
+// records the proxy instead of the client. Opt-in: Proxy:Enabled + Proxy:TrustedProxies.
+bool proxyEnabled = builder.Configuration.GetValue("Proxy:Enabled", false);
+if (proxyEnabled)
+{
+    builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+            | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+        foreach (string proxy in builder.Configuration.GetSection("Proxy:TrustedProxies").Get<string[]>() ?? [])
+        {
+            if (System.Net.IPAddress.TryParse(proxy, out System.Net.IPAddress? address))
+            {
+                options.KnownProxies.Add(address);
+            }
+        }
+    });
+}
+
 // Authentication is OFF by default (so local dev and the E2E suite work without credentials, collapsing
 // to a single fully-privileged guest admin over one OS-account workspace). In production set
 // Auth:Require=true (or env Auth__Require=true): the host then wires the security module (§Security) —
@@ -102,6 +122,11 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
+}
+
+if (proxyEnabled)
+{
+    app.UseForwardedHeaders(); // must run first so scheme/client-IP are correct for everything below
 }
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);

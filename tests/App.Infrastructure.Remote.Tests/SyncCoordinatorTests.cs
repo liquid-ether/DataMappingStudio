@@ -117,6 +117,29 @@ public sealed class SyncCoordinatorTests : IDisposable
         Assert.Equal("offline", sync.RemoteStatus.Message);
     }
 
+    [Fact]
+    public void Publish_checkpoint_survives_a_restart_so_published_edits_never_look_pending_again()
+    {
+        Guid id = Guid.NewGuid();
+        _store.Upsert(Table, new Row(Table, id) { ["name"] = "Alice" }, "cs1", "alice");
+        Assert.True(_sync.Publish([]).Published);
+        Assert.Equal(0, _sync.PendingCount());
+
+        // Simulate a restart / workspace re-creation: a brand-new coordinator over the same working copy.
+        CsvRemoteFormat format = new();
+        PublishService publish = new(_remote, new SnapshotBuilder(Path.Combine(_dir, "remote"), format), _catalog, new FieldMergeEngine(), new FixedClock(RemoteTestData.T0));
+        SyncCoordinator restarted = new(_catalog, _store, _audit, _remote, publish, new AutoRefreshPlanner()) { WriterId = "alice" };
+
+        // Without the persisted checkpoint this was the whole history (inflated badge + spurious conflicts).
+        Assert.Equal(0, restarted.PendingCount());
+
+        // New edits after the restart are pending as normal; publishing advances the checkpoint again.
+        _store.Upsert(Table, new Row(Table, id) { ["name"] = "Alice 2" }, "cs2", "alice");
+        Assert.Equal(1, restarted.PendingCount());
+        Assert.True(restarted.Publish([]).Published);
+        Assert.Equal(0, restarted.PendingCount());
+    }
+
     private sealed class ThrowingRemote : App.Application.Abstractions.IRemoteStore
     {
         public IReadOnlyList<ChangeLogEntry> ReadAllChanges() => throw new IOException("offline");

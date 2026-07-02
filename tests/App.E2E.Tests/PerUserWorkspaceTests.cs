@@ -28,7 +28,7 @@ public sealed class PerUserWorkspaceTests : IDisposable
     }
 
     // A registry for one host, all hosts pointing at the same shared folder.
-    private WorkspaceRegistry Host(string host)
+    private WorkspaceRegistry Host(string host, IRemoteStore? remote = null, RemoteFoldCache? foldCache = null)
     {
         FunctionLibrary functions = new();
         CsvRemoteFormat format = new();
@@ -37,12 +37,30 @@ public sealed class PerUserWorkspaceTests : IDisposable
             new RuleExpressionBuilder(functions, new ExpressionClassifier(functions)),
             new AutoRefreshPlanner(),
             new FieldMergeEngine(),
-            new FileRemoteStore(_remoteFolder, format),
-            new SnapshotBuilder(_remoteFolder, format));
+            remote ?? new FileRemoteStore(_remoteFolder, format),
+            new SnapshotBuilder(_remoteFolder, format),
+            foldCache);
 
         WorkspaceRegistry registry = new(Path.Combine(_dir, host, "users"), host, deps);
         _registries.Add(registry);
         return registry;
+    }
+
+    /// <summary>Counts fold-triggering reads so tests can observe cache hits.</summary>
+    private sealed class CountingRemoteStore(IRemoteStore inner) : IRemoteStore
+    {
+        public int FullReads;
+
+        public IReadOnlyList<ChangeLogEntry> ReadAllChanges()
+        {
+            Interlocked.Increment(ref FullReads);
+            return inner.ReadAllChanges();
+        }
+
+        public IReadOnlyList<ChangeLogEntry> ReadWriterChanges(string writerId) => inner.ReadWriterChanges(writerId);
+        public void AppendChanges(string writerId, IReadOnlyList<ChangeLogEntry> entries) => inner.AppendChanges(writerId, entries);
+        public IReadOnlyList<string> Writers() => inner.Writers();
+        public string RemoteVersion() => inner.RemoteVersion();
     }
 
     private static Row App(string code) => new(TableNames.Application, Guid.NewGuid()) { ["app_code"] = code };
@@ -128,6 +146,50 @@ public sealed class PerUserWorkspaceTests : IDisposable
         Assert.Single(hostA.Active);
         Assert.Same(alice, hostA.Get("alice"));
         Assert.DoesNotContain(bob, hostA.Active);
+    }
+
+    [Fact]
+    public void A_shared_fold_cache_folds_once_per_remote_change_not_once_per_workspace()
+    {
+        CsvRemoteFormat format = new();
+        CountingRemoteStore counting = new(new FileRemoteStore(_remoteFolder, format));
+        WorkspaceRegistry hostA = Host("hostA", counting, new RemoteFoldCache());
+
+        // Seed one published change so there is something to fold.
+        Workspace alice = hostA.Get("alice");
+        alice.Store.Upsert(TableNames.Application, App("SEED"), "cs", "alice");
+        Assert.True(alice.Coordinator.Publish([]).Published);
+
+        int before = counting.FullReads;
+        Workspace bob = hostA.Get("bob");      // creation refresh → folds once (version changed)
+        Workspace carol = hostA.Get("carol");  // same version → served from the shared cache
+        int folds = counting.FullReads - before;
+
+        Assert.Equal(1, folds);
+        Assert.Contains(bob.Store.GetAll(TableNames.Application), r => r["app_code"] == "SEED");
+        Assert.Contains(carol.Store.GetAll(TableNames.Application), r => r["app_code"] == "SEED");
+    }
+
+    [Fact]
+    public void Stale_working_copies_are_deleted_after_the_retention_period_but_known_ones_are_kept()
+    {
+        WorkspaceRegistry hostA = Host("hostA");
+        Workspace alice = hostA.Get("alice"); // known this run — must never be touched
+
+        // A leftover working copy from a user not seen in a long time.
+        string staleDir = Path.Combine(_dir, "hostA", "users", "ghost");
+        Directory.CreateDirectory(staleDir);
+        string staleDb = Path.Combine(staleDir, "local.db");
+        File.WriteAllText(staleDb, "x");
+        File.SetLastWriteTimeUtc(staleDb, DateTime.UtcNow - TimeSpan.FromDays(120));
+        Directory.SetLastWriteTimeUtc(staleDir, DateTime.UtcNow - TimeSpan.FromDays(120));
+
+        int deleted = hostA.CleanupStaleWorkingCopies(TimeSpan.FromDays(90));
+
+        Assert.Equal(1, deleted);
+        Assert.False(Directory.Exists(staleDir));
+        Assert.True(Directory.Exists(Path.Combine(_dir, "hostA", "users", WorkspaceRegistry.Sanitize("alice"))));
+        Assert.Same(alice, hostA.Get("alice"));
     }
 
     [Fact]

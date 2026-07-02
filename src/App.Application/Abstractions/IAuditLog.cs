@@ -18,4 +18,15 @@ public interface IAuditLog
 
     /// <summary>Entries not yet published (after the given ClientSeq), oldest first.</summary>
     IReadOnlyList<ChangeLogEntry> Pending(long afterClientSeq);
+
+    /// <summary>
+    /// The highest ClientSeq already published to the remote (0 when never published). Persisted with the
+    /// working copy so "pending" survives restarts — otherwise every historical edit would look pending
+    /// again after a relaunch/workspace re-creation, inflating the badge and resurrecting long-published
+    /// edits as spurious conflicts.
+    /// </summary>
+    long GetPublishCheckpoint();
+
+    /// <summary>Records the highest ClientSeq included in a successful publish.</summary>
+    void SetPublishCheckpoint(long clientSeq);
 }

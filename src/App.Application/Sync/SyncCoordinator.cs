@@ -48,11 +48,15 @@ public sealed class SyncCoordinator(
     IAuditLog audit,
     IRemoteStore remoteStore,
     IPublishService publishService,
-    AutoRefreshPlanner planner) : ISyncCoordinator
+    AutoRefreshPlanner planner,
+    RemoteFoldCache? foldCache = null) : ISyncCoordinator
 {
     private readonly object _gate = new();
-    private long _lastPublishedSeq;
+    private long? _lastPublishedSeq;
     private string? _lastRemoteVersion;
+
+    // Loaded lazily from the working copy (and persisted on publish) so "pending" survives restarts.
+    private long LastPublishedSeq => _lastPublishedSeq ??= audit.GetPublishCheckpoint();
     private RemoteHealth _remoteStatus = RemoteHealth.Unknown;
 
     public string WriterId { get; init; } = "analyst";
@@ -73,7 +77,9 @@ public sealed class SyncCoordinator(
                 PublishResult result = publishService.Publish(WriterId, pending, resolutions);
                 if (result.Published && pending.Count > 0)
                 {
-                    _lastPublishedSeq = pending.Max(e => e.ClientSeq);
+                    long checkpoint = pending.Max(e => e.ClientSeq);
+                    _lastPublishedSeq = checkpoint;
+                    audit.SetPublishCheckpoint(checkpoint); // survive restarts / workspace re-creation
                 }
 
                 _lastRemoteVersion = null; // our own write changed the remote; force a refold next refresh
@@ -101,7 +107,9 @@ public sealed class SyncCoordinator(
                 return new RefreshResult(0, 0);
             }
 
-            remote = ChangeFold.Fold(remoteStore.ReadAllChanges());
+            // On a multi-user host the (optional) shared cache means one fold per remote change, not one
+            // per workspace. Slight staleness is fine: a version bump next cycle triggers a refold.
+            remote = foldCache?.GetOrFold(remoteStore, version) ?? ChangeFold.Fold(remoteStore.ReadAllChanges());
             _lastRemoteVersion = version;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -141,7 +149,7 @@ public sealed class SyncCoordinator(
 
     public IReadOnlyList<ChangeLogEntry> History(string? table = null, Guid? rowId = null) => audit.Query(table, rowId);
 
-    private IReadOnlyList<ChangeLogEntry> Pending() => audit.Pending(_lastPublishedSeq);
+    private IReadOnlyList<ChangeLogEntry> Pending() => audit.Pending(LastPublishedSeq);
 
     private FoldedState BuildLocalState()
     {

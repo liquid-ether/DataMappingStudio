@@ -37,4 +37,25 @@ public sealed class EfSecurityAudit(SecurityDbContext db) : ISecurityAudit
 
         return rows.Select(e => new SecurityAuditEntry(e.Event, e.UserName, e.Success, e.Detail, e.IpAddress, e.AtUtc)).ToList();
     }
+
+    public async Task<int> PruneAsync(TimeSpan olderThan, CancellationToken ct = default)
+    {
+        // SQLite can't translate DateTimeOffset comparisons, so filter on a slim client-side projection
+        // and delete by key in chunks. Daily runs keep the candidate set small.
+        DateTimeOffset cutoff = DateTimeOffset.UtcNow - olderThan;
+        List<long> stale = (await db.SecurityAuditEvents.AsNoTracking()
+                .Select(e => new { e.Id, e.AtUtc })
+                .ToListAsync(ct))
+            .Where(e => e.AtUtc < cutoff)
+            .Select(e => e.Id)
+            .ToList();
+
+        int removed = 0;
+        foreach (long[] chunk in stale.Chunk(500))
+        {
+            removed += await db.SecurityAuditEvents.Where(e => chunk.Contains(e.Id)).ExecuteDeleteAsync(ct);
+        }
+
+        return removed;
+    }
 }

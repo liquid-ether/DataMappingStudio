@@ -96,20 +96,37 @@ public sealed class SqliteAuditLog : IAuditLog
         ChangedAtUtc = DateTimeOffset.Parse(r.GetString(10), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
     };
 
-    private void EnsureTable() => _db.Locked(() => _db.Connection.Execute(
-        $"""
-        CREATE TABLE IF NOT EXISTS {Table} (
-          client_seq    INTEGER PRIMARY KEY AUTOINCREMENT,
-          change_id     TEXT NOT NULL,
-          change_set_id TEXT NOT NULL,
-          table_name    TEXT NOT NULL,
-          row_id        TEXT NOT NULL,
-          column_name   TEXT NOT NULL,
-          old_value     TEXT,
-          new_value     TEXT,
-          operation     INTEGER NOT NULL,
-          changed_by    TEXT NOT NULL,
-          changed_at    TEXT NOT NULL
-        )
-        """));
+    public long GetPublishCheckpoint() => _db.Locked(() =>
+    {
+        object? value = _db.Connection.Scalar($"SELECT value FROM {StateTable} WHERE key = 'publish_checkpoint'");
+        return value is null ? 0L : long.Parse((string)value, CultureInfo.InvariantCulture);
+    });
+
+    public void SetPublishCheckpoint(long clientSeq) => _db.Locked(() => _db.Connection.Execute(
+        $"INSERT INTO {StateTable} (key, value) VALUES ('publish_checkpoint', $v) ON CONFLICT(key) DO UPDATE SET value = $v",
+        ("$v", clientSeq.ToString(CultureInfo.InvariantCulture))));
+
+    private const string StateTable = "sync_state";
+
+    private void EnsureTable() => _db.Locked(() =>
+    {
+        _db.Connection.Execute(
+            $"""
+            CREATE TABLE IF NOT EXISTS {Table} (
+              client_seq    INTEGER PRIMARY KEY AUTOINCREMENT,
+              change_id     TEXT NOT NULL,
+              change_set_id TEXT NOT NULL,
+              table_name    TEXT NOT NULL,
+              row_id        TEXT NOT NULL,
+              column_name   TEXT NOT NULL,
+              old_value     TEXT,
+              new_value     TEXT,
+              operation     INTEGER NOT NULL,
+              changed_by    TEXT NOT NULL,
+              changed_at    TEXT NOT NULL
+            )
+            """);
+        _db.Connection.Execute($"CREATE TABLE IF NOT EXISTS {StateTable} (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+        return true;
+    });
 }

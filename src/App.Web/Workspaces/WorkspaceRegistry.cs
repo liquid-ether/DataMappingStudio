@@ -16,6 +16,13 @@ public interface IWorkspaceRegistry
     /// <paramref name="isActive"/> reports as having a live circuit (so an open session is never evicted).
     /// </summary>
     void SweepIdle(TimeSpan maxIdle, Func<string, bool>? isActive = null);
+
+    /// <summary>
+    /// Deletes working-copy folders of users not seen for longer than <paramref name="maxAge"/> (never a
+    /// live workspace). Evicted copies are otherwise kept as a cache, so disk use grows with every user
+    /// who ever signed in; published work is safe in the shared folder — only long-idle local state goes.
+    /// </summary>
+    int CleanupStaleWorkingCopies(TimeSpan maxAge);
 }
 
 /// <summary>
@@ -55,6 +62,45 @@ public sealed class WorkspaceRegistry(string usersRoot, string host, WorkspaceDe
                 removed.Value.Dispose(); // close the connection (WAL checkpoint); the db file stays as a cache
             }
         }
+    }
+
+    public int CleanupStaleWorkingCopies(TimeSpan maxAge)
+    {
+        DateTime cutoffUtc = DateTime.UtcNow - maxAge;
+        int deleted = 0;
+        foreach (string dir in Directory.EnumerateDirectories(usersRoot))
+        {
+            string key = Path.GetFileName(dir);
+            if (_workspaces.ContainsKey(key))
+            {
+                continue; // known this run (possibly live) — never touch it
+            }
+
+            // Age = the newest write anywhere in the folder (db, WAL, …), so any recent activity preserves it.
+            DateTime lastWriteUtc;
+            try
+            {
+                lastWriteUtc = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+                    .Select(File.GetLastWriteTimeUtc)
+                    .DefaultIfEmpty(Directory.GetLastWriteTimeUtc(dir))
+                    .Max();
+            }
+            catch (IOException) { continue; }
+            catch (UnauthorizedAccessException) { continue; }
+
+            if (lastWriteUtc < cutoffUtc)
+            {
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                    deleted++;
+                }
+                catch (IOException) { /* in use or locked — try again next sweep */ }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+
+        return deleted;
     }
 
     private Workspace Create(string key)

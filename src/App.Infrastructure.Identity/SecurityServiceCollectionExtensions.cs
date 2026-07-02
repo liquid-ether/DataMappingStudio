@@ -137,6 +137,7 @@ public static class SecurityServiceCollectionExtensions
         services.AddScoped<ISecurityAudit, EfSecurityAudit>();
         services.AddScoped<ExternalSignInService>();
         services.AddScoped<AccountService>();
+        services.AddHostedService<SecurityMaintenanceService>(); // daily audit-retention pruning
         services.AddSingleton<IAuthProviderCatalog, AuthProviderCatalog>();
 
         if (string.IsNullOrWhiteSpace(options.Email.Host))

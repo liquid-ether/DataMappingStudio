@@ -130,6 +130,30 @@ public sealed class SecurityStoreTests
     }
 
     [Fact]
+    public async Task Audit_pruning_removes_only_events_past_the_retention_period()
+    {
+        await using SecurityTestHost host = new();
+        await host.SeedAsync();
+
+        await host.InScopeAsync(async sp =>
+        {
+            SecurityDbContext db = sp.GetRequiredService<SecurityDbContext>();
+            db.SecurityAuditEvents.Add(new SecurityAuditEvent { Event = "old", Success = true, AtUtc = DateTimeOffset.UtcNow.AddDays(-400) });
+            db.SecurityAuditEvents.Add(new SecurityAuditEvent { Event = "recent", Success = true, AtUtc = DateTimeOffset.UtcNow.AddDays(-10) });
+            await db.SaveChangesAsync();
+
+            ISecurityAudit audit = sp.GetRequiredService<ISecurityAudit>();
+            int removed = await audit.PruneAsync(TimeSpan.FromDays(365));
+
+            Assert.Equal(1, removed);
+            IReadOnlyList<SecurityAuditEntry> remaining = await audit.QueryAsync();
+            Assert.Single(remaining);
+            Assert.Equal("recent", remaining[0].Event);
+            return true;
+        });
+    }
+
+    [Fact]
     public async Task Security_audit_records_and_queries_events()
     {
         await using SecurityTestHost host = new();

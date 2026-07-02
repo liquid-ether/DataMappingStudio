@@ -7,6 +7,31 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-07-01
+
+### Fixed (critical) — publish state survives restarts
+- **Persisted publish checkpoint.** The last-published `ClientSeq` was held only in memory, so every
+  desktop relaunch / web workspace re-creation made **all historical edits look pending again** —
+  inflating the Publish badge and resurrecting long-published edits as **spurious conflicts** when a
+  colleague had since changed the same cell. The checkpoint now persists in the working copy
+  (`sync_state` table via `IAuditLog.Get/SetPublishCheckpoint`) and is loaded on coordinator creation.
+  Covered by a restart-simulation regression test.
+
+### Added / Changed (high-priority hardening & scale)
+- **Reverse-proxy awareness.** New `Proxy` config (`Enabled` + `TrustedProxies`): with it on, the host
+  honours `X-Forwarded-For`/`-Proto` from the listed proxies, so **rate limiting buckets on the real
+  client IP** (not one shared bucket for everyone behind the proxy) and the security audit records the
+  actual client.
+- **Bounded growth.** (a) Working copies of users not seen for `Workspaces:RetentionDays` (default 90)
+  are now deleted by the background sweep — published work is safe in the shared folder, only long-idle
+  local caches go; (b) security-audit events older than `Auth:Audit:RetentionDays` (default 365) are
+  pruned daily by a new maintenance service; (c) **History** renders the newest 200 entries with a
+  "Show more" pager instead of the entire audit trail (the DOM, not the data, was the bottleneck).
+- **One fold per remote change, not per workspace.** A host-wide `RemoteFoldCache` (keyed by the remote
+  version signature) is shared by all per-user workspaces, so after a publish the shared folder's logs
+  are folded **once per host** instead of once per active workspace per refresh cycle. Verified by a
+  counting-store test (two workspace creations → one fold).
+
 ## [1.16.0] - 2026-07-01
 
 ### Added — security phase 5 (final): migrations, MFA enforcement, invites, threat model

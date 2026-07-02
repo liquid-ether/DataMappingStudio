@@ -26,7 +26,8 @@ public static class WorkspaceServiceCollectionExtensions
             sp.GetRequiredService<AutoRefreshPlanner>(),
             sp.GetRequiredService<FieldMergeEngine>(),
             sp.GetRequiredService<IRemoteStore>(),
-            sp.GetRequiredService<ISnapshotBuilder>())));
+            sp.GetRequiredService<ISnapshotBuilder>(),
+            new RemoteFoldCache()))); // one fold per remote change for the whole host, not one per workspace
 
         services.AddScoped<IWorkspaceAccessor, WorkspaceAccessor>();
 

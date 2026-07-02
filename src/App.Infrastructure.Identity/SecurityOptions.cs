@@ -16,6 +16,14 @@ public sealed class SecurityOptions
     public ProvidersOptions Providers { get; set; } = new();
 
     public EmailOptions Email { get; set; } = new();
+
+    public AuditOptions Audit { get; set; } = new();
+}
+
+/// <summary>Security-audit retention; events older than this are pruned daily.</summary>
+public sealed class AuditOptions
+{
+    public int RetentionDays { get; set; } = 365;
 }
 
 /// <summary>SMTP settings for transactional email. When <see cref="Host"/> is empty, emails are logged.</summary>

@@ -2,6 +2,7 @@
 @inject LanguageState Lang
 @inject ThemeState Theme
 @inject ICurrentUser User
+@inject IServiceProvider Services
 
 @* Dark top bar from the mockup: brand glyph, primary tabs, EN/FR toggle, Publish. *@
 <div class="ms-top">
@@ -27,9 +28,14 @@
     </div>
     <button class="ms-theme" type="button" title="@(Theme.IsDark ? "Light theme" : "Dark theme")"
             aria-pressed="@Theme.IsDark" @onclick="Theme.ToggleAsync">@(Theme.IsDark ? "☀" : "☾")</button>
+    @if (_remoteDown)
+    {
+        <span title="@(Lang.IsFrench ? "Dossier partagé indisponible — publication/synchronisation en pause" : "Shared folder unavailable — publish/sync paused")"
+              style="color:var(--warn);font-size:15px" role="status">⚠</span>
+    }
     @if (User.HasPermission(Permissions.DataPublish))
     {
-        <button class="ms-publish" type="button" @onclick="OnPublish">@Lang.T("publish")</button>
+        <button class="ms-publish" type="button" @onclick="OnPublish">@Lang.T("publish")@(_pending > 0 ? $" ({_pending})" : null)</button>
     }
     @AccountArea
 </div>
@@ -60,10 +66,33 @@
     /// <summary>The currently active tab's Href, used to mark the active button in desktop mode.</summary>
     [Parameter] public string? ActiveHref { get; set; }
 
+    private int _pending;
+    private bool _remoteDown;
+
     protected override void OnInitialized()
     {
         Lang.OnChange += StateHasChanged;
         Theme.OnChange += StateHasChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Refresh the badge + remote-health hint on every render (navigation re-renders the layout).
+        // Resolved lazily: test hosts may not register a coordinator, and a store error must never
+        // break the chrome.
+        try
+        {
+            if (Services.GetService(typeof(ISyncCoordinator)) is ISyncCoordinator sync)
+            {
+                _pending = sync.PendingCount();
+                _remoteDown = !sync.RemoteStatus.Available;
+            }
+        }
+        catch
+        {
+            _pending = 0;
+            _remoteDown = false;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

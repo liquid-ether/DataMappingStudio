@@ -199,6 +199,18 @@ are the deployment knobs the rollout owner sets.
    been load-tested — run a brief multi-user smoke before going wide.
 7. **Keep dependencies clean.** `build/check-dependencies.ps1` fails on any known-vulnerable NuGet package;
    run it (it's already a CI step) as part of each release build.
+8. **Back up two things.** (a) The **shared folder** — it is the system of record (per-writer logs +
+   snapshots); include it in the OneDrive/SharePoint retention or your backup schedule. (b) The
+   **security store** (`security.db` under the data dir, or the SQL Server database) — it holds password
+   hashes, roles and the Data Protection key ring; losing the key ring signs everyone out, losing the
+   store loses accounts. Per-user working copies do **not** need backup (rebuildable from the shared
+   folder; unpublished local edits are the only exposure).
+9. **Observe it.** Publish/refresh durations, adopted cells and conflict counts are exposed as .NET
+   metrics under the `MappingStudio` meter — watch live with `dotnet-counters monitor --counters
+   MappingStudio -p <pid>`, or wire an OpenTelemetry exporter to that meter. `/health` covers liveness.
+10. **Desktop distribution.** The published desktop `.exe` is unsigned by default — sign it
+    (`signtool` with your org's code-signing cert) before wide distribution so SmartScreen doesn't warn,
+    and plan updates via your software-deployment tooling (there is no built-in auto-update).
 
 ---
 

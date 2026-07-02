@@ -73,11 +73,13 @@ if (requireAuth)
     builder.Services.AddCascadingAuthenticationState(); // surfaces the user to the circuit (and to CircuitCurrentUser)
 
     // Brute-force throttle for the auth POST endpoints (the "auth" policy): a fixed window per client IP.
+    int rlPermits = Math.Max(1, builder.Configuration.GetValue("Auth:Session:RateLimitPermits", 12));
+    int rlWindow = Math.Max(1, builder.Configuration.GetValue("Auth:Session:RateLimitWindowMinutes", 5));
     builder.Services.AddRateLimiter(limiter =>
     {
         limiter.AddPolicy("auth", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = 12, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = rlPermits, Window = TimeSpan.FromMinutes(rlWindow), QueueLimit = 0 }));
 
         limiter.OnRejected = async (context, cancellationToken) =>
         {

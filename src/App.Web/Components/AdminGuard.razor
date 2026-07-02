@@ -1,0 +1,32 @@
+@inject IConfiguration Config
+@inject ICurrentUser User
+
+@* Guards the admin area in depth. (1) In guest mode (Auth:Require=false) the security services aren't
+   registered, so render a friendly notice instead of a DI error. (2) The plain RouteView doesn't enforce
+   page-level [Authorize] policies on interactive (circuit) navigations — only hard HTTP requests hit the
+   endpoint metadata — so the permission is re-checked here, server-side, before any admin UI renders. *@
+@if (!Config.GetValue("Auth:Require", false))
+{
+    <h1 class="page-title">Administration</h1>
+    <p class="muted">
+        Authentication is disabled (<span class="mono">Auth:Require=false</span>), so there are no users,
+        roles or security settings to manage — the host runs as a single fully-privileged local workspace.
+        Enable authentication to use this area (see INSTALL.md).
+    </p>
+}
+else if (Permission is not null && !User.HasPermission(Permission))
+{
+    <h1 class="page-title">Access denied</h1>
+    <p class="muted">You don't have permission to view this page.</p>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    /// <summary>The permission required to render this admin page (re-checked on the circuit).</summary>
+    [Parameter] public string? Permission { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

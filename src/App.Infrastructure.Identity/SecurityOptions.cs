@@ -18,6 +18,24 @@ public sealed class SecurityOptions
     public EmailOptions Email { get; set; } = new();
 
     public AuditOptions Audit { get; set; } = new();
+
+    public SessionOptions Session { get; set; } = new();
+}
+
+/// <summary>Session/cookie lifetime and revocation-latency tuning.</summary>
+public sealed class SessionOptions
+{
+    /// <summary>Auth-cookie lifetime in hours (sliding).</summary>
+    public int CookieHours { get; set; } = 8;
+
+    /// <summary>How often a cookie's security stamp is re-validated (revocation latency), in minutes.</summary>
+    public int StampValidationMinutes { get; set; } = 2;
+
+    /// <summary>Failed-attempt budget per client IP on the auth endpoints, per window.</summary>
+    public int RateLimitPermits { get; set; } = 12;
+
+    /// <summary>The rate-limit window, in minutes.</summary>
+    public int RateLimitWindowMinutes { get; set; } = 5;
 }
 
 /// <summary>Security-audit retention; events older than this are pruned daily.</summary>

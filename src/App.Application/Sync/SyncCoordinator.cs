@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using App.Application.Abstractions;
+using App.Application.Diagnostics;
 using App.Domain.Data;
 
 namespace App.Application.Sync;
@@ -71,10 +73,14 @@ public sealed class SyncCoordinator(
     {
         lock (_gate)
         {
+            long started = Stopwatch.GetTimestamp();
             IReadOnlyList<ChangeLogEntry> pending = Pending();
             try
             {
                 PublishResult result = publishService.Publish(WriterId, pending, resolutions);
+                AppMetrics.PublishDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                AppMetrics.PublishedChanges.Add(result.AppendedCount);
+                AppMetrics.PublishConflicts.Add(result.Conflicts.Count);
                 if (result.Published && pending.Count > 0)
                 {
                     long checkpoint = pending.Max(e => e.ClientSeq);
@@ -96,6 +102,7 @@ public sealed class SyncCoordinator(
 
     public RefreshResult Refresh()
     {
+        long started = Stopwatch.GetTimestamp();
         FoldedState remote;
         try
         {
@@ -140,6 +147,8 @@ public sealed class SyncCoordinator(
         }
 
         MarkRemoteOk();
+        AppMetrics.RefreshDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        AppMetrics.RefreshApplied.Add(applied);
         return new RefreshResult(applied, plan.Flagged.Count);
     }
 

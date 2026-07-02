@@ -115,7 +115,7 @@ public static class SecurityServiceCollectionExtensions
             cookie.Cookie.HttpOnly = true;
             cookie.Cookie.SameSite = SameSiteMode.Lax;
             cookie.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-            cookie.ExpireTimeSpan = TimeSpan.FromHours(8);
+            cookie.ExpireTimeSpan = TimeSpan.FromHours(Math.Max(1, options.Session.CookieHours));
             cookie.SlidingExpiration = true;
         });
 
@@ -131,7 +131,8 @@ public static class SecurityServiceCollectionExtensions
 
         // Revocation: a signed-out-everywhere / disabled user's cookie is rejected within this interval
         // (their security stamp is re-validated on each request; live circuits pick it up on reconnect).
-        services.Configure<SecurityStampValidatorOptions>(o => o.ValidationInterval = TimeSpan.FromMinutes(2));
+        services.Configure<SecurityStampValidatorOptions>(o =>
+            o.ValidationInterval = TimeSpan.FromMinutes(Math.Max(1, options.Session.StampValidationMinutes)));
 
         services.AddScoped<IUserDirectory, IdentityUserDirectory>();
         services.AddScoped<ISecurityAudit, EfSecurityAudit>();

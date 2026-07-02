@@ -1,5 +1,7 @@
 @page "/admin"
 @attribute [Authorize(Policy = Permissions.UsersManage)]
 
-<AdminNav />
-<DashboardAdmin />
+<AdminGuard Permission="@Permissions.UsersManage">
+    <AdminNav />
+    <DashboardAdmin />
+</AdminGuard>

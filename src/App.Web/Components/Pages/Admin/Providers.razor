@@ -1,5 +1,7 @@
 @page "/admin/providers"
 @attribute [Authorize(Policy = Permissions.SecurityConfigure)]
 
-<AdminNav />
-<ProvidersAdmin />
+<AdminGuard Permission="@Permissions.SecurityConfigure">
+    <AdminNav />
+    <ProvidersAdmin />
+</AdminGuard>

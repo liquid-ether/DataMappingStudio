@@ -1,5 +1,7 @@
 @page "/admin/roles"
 @attribute [Authorize(Policy = Permissions.RolesManage)]
 
-<AdminNav />
-<RolesAdmin />
+<AdminGuard Permission="@Permissions.RolesManage">
+    <AdminNav />
+    <RolesAdmin />
+</AdminGuard>

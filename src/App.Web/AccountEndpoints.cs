@@ -13,6 +13,16 @@ namespace App.Web;
 /// cannot do, so login/logout are plain HTTP endpoints rendered server-side and anonymous. Everything else
 /// (admin, the app) stays in the interactive Blazor components behind the authorization policies.
 /// </summary>
+/// <summary>
+/// Language for the static account pages. They render before any sign-in (no circuit, no per-user
+/// preference), so the browser's Accept-Language decides — matching the bilingual app.
+/// </summary>
+internal static class AccountLang
+{
+    public static bool IsFrench(HttpContext ctx)
+        => ctx.Request.Headers.AcceptLanguage.ToString().TrimStart().StartsWith("fr", StringComparison.OrdinalIgnoreCase);
+}
+
 internal static class AccountEndpoints
 {
     public static void MapAccountEndpoints(this WebApplication app)
@@ -24,7 +34,7 @@ internal static class AccountEndpoints
         {
             AntiforgeryTokenSet tokens = antiforgery.GetAndStoreTokens(ctx);
             bool allowRegister = options.Value.Providers.Local.AllowSelfRegistration;
-            return Results.Content(LoginPage(tokens, providers.ExternalSignInOptions(), returnUrl, error, notice, allowRegister), "text/html");
+            return Results.Content(LoginPage(tokens, providers.ExternalSignInOptions(), returnUrl, error, notice, allowRegister, AccountLang.IsFrench(ctx)), "text/html");
         });
 
         account.MapSelfServiceAnonymousEndpoints();  // forgot/reset/confirm/register/2fa
@@ -114,7 +124,7 @@ internal static class AccountEndpoints
             return Results.Redirect("/account/login");
         });
 
-        account.MapGet("/denied", () => Results.Content(DeniedPage(), "text/html", null, statusCode: 403));
+        account.MapGet("/denied", (HttpContext ctx) => Results.Content(DeniedPage(AccountLang.IsFrench(ctx)), "text/html", null, statusCode: 403));
     }
 
     internal static string SafeReturnUrl(string? returnUrl)
@@ -125,29 +135,36 @@ internal static class AccountEndpoints
     private static string LoginUrl(int error, string? returnUrl)
         => $"/account/login?error={error}" + (string.IsNullOrEmpty(returnUrl) ? "" : $"&returnUrl={WebUtility.UrlEncode(returnUrl)}");
 
-    private static string LoginPage(AntiforgeryTokenSet tokens, IReadOnlyList<AuthProviderInfo> external, string? returnUrl, int? error, int? notice, bool allowRegister)
+    private static string LoginPage(AntiforgeryTokenSet tokens, IReadOnlyList<AuthProviderInfo> external, string? returnUrl, int? error, int? notice, bool allowRegister, bool fr)
     {
+        string T(string en, string frText) => fr ? frText : en;
+
         string message = error switch
         {
-            3 => "<p class=\"err\">External sign-in failed or was cancelled.</p>",
-            2 => "<p class=\"err\">Account locked. Try again later.</p>",
-            1 => "<p class=\"err\">Invalid username or password.</p>",
+            3 => $"<p class=\"err\">{T("External sign-in failed or was cancelled.", "La connexion externe a échoué ou a été annulée.")}</p>",
+            2 => $"<p class=\"err\">{T("Account locked. Try again later.", "Compte verrouillé. Réessayez plus tard.")}</p>",
+            1 => $"<p class=\"err\">{T("Invalid username or password.", "Identifiant ou mot de passe invalide.")}</p>",
             _ => notice switch
             {
-                1 => "<p class=\"ok\">Password updated — sign in with your new password.</p>",
-                2 => "<p class=\"ok\">Account created. Check your email to confirm it, then sign in.</p>",
+                1 => $"<p class=\"ok\">{T("Password updated — sign in with your new password.", "Mot de passe mis à jour — connectez-vous avec votre nouveau mot de passe.")}</p>",
+                2 => $"<p class=\"ok\">{T("Account created. Check your email to confirm it, then sign in.", "Compte créé. Vérifiez votre courriel pour le confirmer, puis connectez-vous.")}</p>",
                 _ => "",
             },
         };
 
         string returnQuery = string.IsNullOrEmpty(returnUrl) ? "" : $"?returnUrl={WebUtility.UrlEncode(returnUrl)}";
         string externalButtons = external.Count == 0 ? "" :
-            "<div class=\"ext\"><div class=\"or\">or</div>" + string.Join("", external.Select(p =>
-                $"<a class=\"add extbtn\" href=\"/account/external/{WebUtility.UrlEncode(p.Name)}{returnQuery}\">Sign in with {WebUtility.HtmlEncode(p.DisplayName)}</a>")) + "</div>";
+            $"<div class=\"ext\"><div class=\"or\">{T("or", "ou")}</div>" + string.Join("", external.Select(p =>
+                $"<a class=\"add extbtn\" href=\"/account/external/{WebUtility.UrlEncode(p.Name)}{returnQuery}\">{T("Sign in with", "Se connecter avec")} {WebUtility.HtmlEncode(p.DisplayName)}</a>")) + "</div>";
 
-        string links = "<div class=\"links\"><a href=\"/account/forgot\">Forgot password?</a>"
-            + (allowRegister ? "<a href=\"/account/register\">Create account</a>" : "")
+        string links = $"<div class=\"links\"><a href=\"/account/forgot\">{T("Forgot password?", "Mot de passe oublié ?")}</a>"
+            + (allowRegister ? $"<a href=\"/account/register\">{T("Create account", "Créer un compte")}</a>" : "")
             + "</div>";
+
+        string subtitle = T("Sign in to continue", "Connectez-vous pour continuer");
+        string userLabel = T("Username", "Identifiant");
+        string passLabel = T("Password", "Mot de passe");
+        string signIn = T("Sign in", "Se connecter");
 
         return $$"""
         <!doctype html>
@@ -180,14 +197,14 @@ internal static class AccountEndpoints
         <body>
           <form class="login" method="post" action="/account/login">
             <div class="ms-brand"><span class="glyph">&#x21F2;</span><span>Mapping Studio</span></div>
-            <p class="sub">Sign in to continue</p>
+            <p class="sub">{{subtitle}}</p>
             <input type="hidden" name="{{tokens.FormFieldName}}" value="{{tokens.RequestToken}}">
             <input type="hidden" name="returnUrl" value="{{WebUtility.HtmlEncode(returnUrl ?? "/")}}">
-            <label for="username">Username</label>
+            <label for="username">{{userLabel}}</label>
             <input id="username" name="username" autocomplete="username" autofocus required>
-            <label for="password">Password</label>
+            <label for="password">{{passLabel}}</label>
             <input id="password" name="password" type="password" autocomplete="current-password" required>
-            <button class="ms-publish" type="submit">Sign in</button>
+            <button class="ms-publish" type="submit">{{signIn}}</button>
             {{message}}
             {{externalButtons}}
             {{links}}
@@ -197,20 +214,20 @@ internal static class AccountEndpoints
         """;
     }
 
-    private static string DeniedPage() => """
+    private static string DeniedPage(bool fr) => $$"""
         <!doctype html>
-        <html lang="en">
+        <html lang="{{(fr ? "fr" : "en")}}">
         <head>
           <meta charset="utf-8">
-          <title>Access denied — Mapping Studio</title>
+          <title>{{(fr ? "Accès refusé" : "Access denied")}} — Mapping Studio</title>
           <link rel="stylesheet" href="/_content/App.UI/css/app.css">
           <style>body{align-items:center;justify-content:center;text-align:center}</style>
         </head>
         <body>
           <div>
-            <h1 class="page-title">Access denied</h1>
-            <p class="muted">You don't have permission to view this page.</p>
-            <p><a href="/">Return to the app</a></p>
+            <h1 class="page-title">{{(fr ? "Accès refusé" : "Access denied")}}</h1>
+            <p class="muted">{{(fr ? "Vous n'avez pas la permission de voir cette page." : "You don't have permission to view this page.")}}</p>
+            <p><a href="/">{{(fr ? "Retour à l'application" : "Return to the app")}}</a></p>
           </div>
         </body>
         </html>

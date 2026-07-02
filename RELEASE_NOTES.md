@@ -7,6 +7,31 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-07-01
+
+### Added / Changed (remaining review items — medium & low)
+- **Bilingual account pages.** The sign-in, password-reset, registration, email-confirmation, 2FA and
+  account-settings pages now render in **French** when the browser prefers it (Accept-Language) — they were
+  the only unlocalized screens in the bilingual app.
+- **Admin area hardening.** A shared `AdminGuard` renders a friendly notice in guest mode
+  (`Auth:Require=false`) instead of a service-resolution error, and **re-checks the page's permission on
+  the circuit** — closing the gap where interactive (SPA) navigation bypassed page-level `[Authorize]`
+  policies (hard navigations were already enforced at the endpoint).
+- **Session & throttle knobs.** Cookie lifetime, security-stamp validation interval and the auth rate-limit
+  budget/window are now configuration (`Auth:Session`), not constants.
+- **Top-bar signals.** The Publish button shows a **pending-changes count**, and a ⚠ indicator appears
+  when the shared folder is unavailable — previously both were only visible on the Publish page.
+- **Built-in metrics.** Publish/refresh durations, published changes, adopted cells and conflict counts
+  under the `MappingStudio` meter (`System.Diagnostics.Metrics`, no new dependencies) — observable via
+  `dotnet-counters` or an OpenTelemetry exporter.
+- **RBAC proven end-to-end.** A new browser E2E signs in as an admin, creates a **Reader** through the
+  admin UI, signs in as that Reader, and verifies publish/edit/admin are absent or denied (server-side).
+- **Store-provider parity test.** The seeding + user/role/audit flows now also run against **SQL Server**
+  (LocalDB, auto-skipped where unavailable), validating the SqlServer migrations assembly used by
+  multi-host deployments.
+- **Ops guidance.** INSTALL checklist gains backup (shared folder + security store), observability, and
+  desktop code-signing/update items.
+
 ## [1.17.0] - 2026-07-01
 
 ### Fixed (critical) — publish state survives restarts

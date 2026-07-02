@@ -22,14 +22,16 @@ internal static class AccountSelfService
         // Forgot password: always report success (no account enumeration).
         account.MapGet("/forgot", (HttpContext ctx, IAntiforgery af, bool? sent) =>
         {
+            bool fr = AccountLang.IsFrench(ctx);
+            string T(string en, string f) => fr ? f : en;
             AntiforgeryTokenSet t = af.GetAndStoreTokens(ctx);
-            string msg = sent == true ? "<p class=\"ok\">If that account exists, a reset link has been sent.</p>" : "";
-            return Html(AccountHtml.Shell("Reset password", AccountHtml.Brand("Reset your password") + $$"""
+            string msg = sent == true ? $"<p class=\"ok\">{T("If that account exists, a reset link has been sent.", "Si ce compte existe, un lien de réinitialisation a été envoyé.")}</p>" : "";
+            return Html(AccountHtml.Shell(T("Reset password", "Réinitialiser le mot de passe"), AccountHtml.Brand(T("Reset your password", "Réinitialisez votre mot de passe")) + $$"""
                 <form method="post" action="/account/forgot">{{AccountHtml.Hidden(t)}}
-                  <label>Email</label>
+                  <label>{{T("Email", "Courriel")}}</label>
                   <input name="email" type="email" autocomplete="email" autofocus required>
-                  <button class="ms-publish" type="submit">Send reset link</button>{{msg}}
-                  <div class="links"><a href="/account/login">Back to sign in</a></div>
+                  <button class="ms-publish" type="submit">{{T("Send reset link", "Envoyer le lien")}}</button>{{msg}}
+                  <div class="links"><a href="/account/login">{{T("Back to sign in", "Retour à la connexion")}}</a></div>
                 </form>
                 """));
         });
@@ -54,15 +56,17 @@ internal static class AccountSelfService
 
         account.MapGet("/reset", (HttpContext ctx, IAntiforgery af, string userId, string token, int? error) =>
         {
+            bool fr = AccountLang.IsFrench(ctx);
+            string T(string en, string f) => fr ? f : en;
             AntiforgeryTokenSet t = af.GetAndStoreTokens(ctx);
-            string msg = error == 1 ? "<p class=\"err\">Could not reset — the link may have expired.</p>" : "";
-            return Html(AccountHtml.Shell("Set a new password", AccountHtml.Brand("Choose a new password") + $$"""
+            string msg = error == 1 ? $"<p class=\"err\">{T("Could not reset — the link may have expired.", "Échec de la réinitialisation — le lien a peut-être expiré.")}</p>" : "";
+            return Html(AccountHtml.Shell(T("Set a new password", "Définir un nouveau mot de passe"), AccountHtml.Brand(T("Choose a new password", "Choisissez un nouveau mot de passe")) + $$"""
                 <form method="post" action="/account/reset">{{AccountHtml.Hidden(t)}}
                   <input type="hidden" name="userId" value="{{WebUtility.HtmlEncode(userId)}}">
                   <input type="hidden" name="token" value="{{WebUtility.HtmlEncode(token)}}">
-                  <label>New password</label>
+                  <label>{{T("New password", "Nouveau mot de passe")}}</label>
                   <input name="password" type="password" autocomplete="new-password" autofocus required>
-                  <button class="ms-publish" type="submit">Set password</button>{{msg}}
+                  <button class="ms-publish" type="submit">{{T("Set password", "Définir le mot de passe")}}</button>{{msg}}
                 </form>
                 """));
         });
@@ -78,29 +82,33 @@ internal static class AccountSelfService
                 : Results.Redirect($"/account/reset?userId={WebUtility.UrlEncode(userId)}&token={WebUtility.UrlEncode(form["token"].ToString())}&error=1");
         }).DisableAntiforgery().RequireRateLimiting("auth");
 
-        account.MapGet("/confirm", async (AccountService accounts, string userId, string token) =>
+        account.MapGet("/confirm", async (HttpContext ctx, AccountService accounts, string userId, string token) =>
         {
+            bool fr = AccountLang.IsFrench(ctx);
+            string T(string en, string f) => fr ? f : en;
             OperationResult result = await accounts.ConfirmEmailAsync(userId, token);
-            string body = AccountHtml.Brand(result.Succeeded ? "Email confirmed" : "Confirmation failed")
+            string body = AccountHtml.Brand(result.Succeeded ? T("Email confirmed", "Courriel confirmé") : T("Confirmation failed", "Échec de la confirmation"))
                 + (result.Succeeded
-                    ? "<p class=\"ok\">Your email is confirmed — you can sign in.</p>"
-                    : "<p class=\"err\">This confirmation link is invalid or has expired.</p>")
-                + "<div class=\"links\"><a href=\"/account/login\">Go to sign in</a></div>";
-            return Html(AccountHtml.Shell("Confirm email", body));
+                    ? $"<p class=\"ok\">{T("Your email is confirmed — you can sign in.", "Votre courriel est confirmé — vous pouvez vous connecter.")}</p>"
+                    : $"<p class=\"err\">{T("This confirmation link is invalid or has expired.", "Ce lien de confirmation est invalide ou expiré.")}</p>")
+                + $"<div class=\"links\"><a href=\"/account/login\">{T("Go to sign in", "Aller à la connexion")}</a></div>";
+            return Html(AccountHtml.Shell(T("Confirm email", "Confirmer le courriel"), body));
         });
 
         account.MapGet("/register", (HttpContext ctx, IAntiforgery af, IOptions<SecurityOptions> options, int? error) =>
         {
             if (!options.Value.Providers.Local.AllowSelfRegistration) { return Results.NotFound(); }
+            bool fr = AccountLang.IsFrench(ctx);
+            string T(string en, string f) => fr ? f : en;
             AntiforgeryTokenSet t = af.GetAndStoreTokens(ctx);
-            string msg = error == 1 ? "<p class=\"err\">Could not create the account. The username or email may be taken, or the password too weak.</p>" : "";
-            return Html(AccountHtml.Shell("Create account", AccountHtml.Brand("Create your account") + $$"""
+            string msg = error == 1 ? $"<p class=\"err\">{T("Could not create the account. The username or email may be taken, or the password too weak.", "Impossible de créer le compte. L'identifiant ou le courriel est peut-être déjà pris, ou le mot de passe trop faible.")}</p>" : "";
+            return Html(AccountHtml.Shell(T("Create account", "Créer un compte"), AccountHtml.Brand(T("Create your account", "Créez votre compte")) + $$"""
                 <form method="post" action="/account/register">{{AccountHtml.Hidden(t)}}
-                  <label>Username</label><input name="username" autocomplete="username" autofocus required>
-                  <label>Email</label><input name="email" type="email" autocomplete="email" required>
-                  <label>Password</label><input name="password" type="password" autocomplete="new-password" required>
-                  <button class="ms-publish" type="submit">Create account</button>{{msg}}
-                  <div class="links"><a href="/account/login">Back to sign in</a></div>
+                  <label>{{T("Username", "Identifiant")}}</label><input name="username" autocomplete="username" autofocus required>
+                  <label>{{T("Email", "Courriel")}}</label><input name="email" type="email" autocomplete="email" required>
+                  <label>{{T("Password", "Mot de passe")}}</label><input name="password" type="password" autocomplete="new-password" required>
+                  <button class="ms-publish" type="submit">{{T("Create account", "Créer le compte")}}</button>{{msg}}
+                  <div class="links"><a href="/account/login">{{T("Back to sign in", "Retour à la connexion")}}</a></div>
                 </form>
                 """));
         });
@@ -126,14 +134,16 @@ internal static class AccountSelfService
         // Two-factor login step (holds the partial 2FA cookie set by the password step).
         account.MapGet("/2fa", (HttpContext ctx, IAntiforgery af, string? returnUrl, int? error) =>
         {
+            bool fr = AccountLang.IsFrench(ctx);
+            string T(string en, string f) => fr ? f : en;
             AntiforgeryTokenSet t = af.GetAndStoreTokens(ctx);
-            string msg = error == 1 ? "<p class=\"err\">Invalid code. Try again, or use a recovery code.</p>" : "";
-            return Html(AccountHtml.Shell("Two-factor", AccountHtml.Brand("Two-factor authentication") + $$"""
+            string msg = error == 1 ? $"<p class=\"err\">{T("Invalid code. Try again, or use a recovery code.", "Code invalide. Réessayez ou utilisez un code de récupération.")}</p>" : "";
+            return Html(AccountHtml.Shell(T("Two-factor", "Deux facteurs"), AccountHtml.Brand(T("Two-factor authentication", "Authentification à deux facteurs")) + $$"""
                 <form method="post" action="/account/2fa">{{AccountHtml.Hidden(t)}}
                   <input type="hidden" name="returnUrl" value="{{WebUtility.HtmlEncode(returnUrl ?? "/")}}">
-                  <label>Authenticator or recovery code</label>
+                  <label>{{T("Authenticator or recovery code", "Code d'authentification ou de récupération")}}</label>
                   <input name="code" inputmode="numeric" autocomplete="one-time-code" autofocus required>
-                  <button class="ms-publish" type="submit">Verify</button>{{msg}}
+                  <button class="ms-publish" type="submit">{{T("Verify", "Vérifier")}}</button>{{msg}}
                 </form>
                 """));
         });
@@ -171,15 +181,17 @@ internal static class AccountSelfService
     {
         app.MapGet("/account/password", (HttpContext ctx, IAntiforgery af, int? error, bool? changed) =>
         {
+            bool fr = AccountLang.IsFrench(ctx);
+            string T(string en, string f) => fr ? f : en;
             AntiforgeryTokenSet t = af.GetAndStoreTokens(ctx);
-            string msg = error == 1 ? "<p class=\"err\">Current password is incorrect, or the new one is invalid.</p>"
-                : changed == true ? "<p class=\"ok\">Password changed.</p>" : "";
-            return Html(AccountHtml.Shell("Change password", AccountHtml.Brand("Change your password") + $$"""
+            string msg = error == 1 ? $"<p class=\"err\">{T("Current password is incorrect, or the new one is invalid.", "Le mot de passe actuel est incorrect, ou le nouveau est invalide.")}</p>"
+                : changed == true ? $"<p class=\"ok\">{T("Password changed.", "Mot de passe changé.")}</p>" : "";
+            return Html(AccountHtml.Shell(T("Change password", "Changer le mot de passe"), AccountHtml.Brand(T("Change your password", "Changez votre mot de passe")) + $$"""
                 <form method="post" action="/account/password">{{AccountHtml.Hidden(t)}}
-                  <label>Current password</label><input name="current" type="password" autocomplete="current-password" autofocus required>
-                  <label>New password</label><input name="password" type="password" autocomplete="new-password" required>
-                  <button class="ms-publish" type="submit">Change password</button>{{msg}}
-                  <div class="links"><a href="/">Back to the app</a><a href="/account/mfa">Two-factor</a></div>
+                  <label>{{T("Current password", "Mot de passe actuel")}}</label><input name="current" type="password" autocomplete="current-password" autofocus required>
+                  <label>{{T("New password", "Nouveau mot de passe")}}</label><input name="password" type="password" autocomplete="new-password" required>
+                  <button class="ms-publish" type="submit">{{T("Change password", "Changer le mot de passe")}}</button>{{msg}}
+                  <div class="links"><a href="/">{{T("Back to the app", "Retour à l'application")}}</a><a href="/account/mfa">{{T("Two-factor", "Deux facteurs")}}</a></div>
                 </form>
                 """));
         }).RequireAuthorization();
@@ -196,41 +208,42 @@ internal static class AccountSelfService
 
         app.MapGet("/account/mfa", async (HttpContext ctx, IAntiforgery af, AccountService accounts, int? error, int? required) =>
         {
+            bool fr = AccountLang.IsFrench(ctx);
+            string T(string en, string f) => fr ? f : en;
             string userId = ctx.User.FindFirstValue(SecurityClaims.UserId)!;
             AntiforgeryTokenSet t = af.GetAndStoreTokens(ctx);
             string requiredBanner = required == 1
-                ? "<p class=\"err\">Your role requires two-factor authentication — set it up to continue.</p>"
+                ? $"<p class=\"err\">{T("Your role requires two-factor authentication — set it up to continue.", "Votre rôle exige l'authentification à deux facteurs — configurez-la pour continuer.")}</p>"
                 : "";
+            string backLink = $"<div class=\"links\"><a href=\"/\">{T("Back to the app", "Retour à l'application")}</a></div>";
             string inner;
             if (await accounts.IsMfaEnabledAsync(userId))
             {
-                inner = AccountHtml.Brand("Two-factor authentication")
-                    + "<p class=\"ok\">Two-factor authentication is enabled on your account.</p>"
+                inner = AccountHtml.Brand(T("Two-factor authentication", "Authentification à deux facteurs"))
+                    + $"<p class=\"ok\">{T("Two-factor authentication is enabled on your account.", "L'authentification à deux facteurs est activée sur votre compte.")}</p>"
                     + $$"""
                     <form method="post" action="/account/mfa/disable">{{AccountHtml.Hidden(t)}}
-                      <button class="add" type="submit">Disable two-factor</button>
+                      <button class="add" type="submit">{{T("Disable two-factor", "Désactiver les deux facteurs")}}</button>
                     </form>
-                    <div class="links"><a href="/">Back to the app</a></div>
-                    """;
+                    """ + backLink;
             }
             else
             {
                 MfaEnrollment enrol = await accounts.BeginMfaEnrollmentAsync(userId);
-                string msg = error == 1 ? "<p class=\"err\">That code was invalid. Try again.</p>" : "";
-                inner = AccountHtml.Brand("Set up two-factor authentication") + requiredBanner + $$"""
-                    <p class="sub">Scan the QR with an authenticator app (or type the key), then enter a code to confirm.</p>
+                string msg = error == 1 ? $"<p class=\"err\">{T("That code was invalid. Try again.", "Ce code était invalide. Réessayez.")}</p>" : "";
+                inner = AccountHtml.Brand(T("Set up two-factor authentication", "Configurer l'authentification à deux facteurs")) + requiredBanner + $$"""
+                    <p class="sub">{{T("Scan the QR with an authenticator app (or type the key), then enter a code to confirm.", "Scannez le QR avec une application d'authentification (ou saisissez la clé), puis entrez un code pour confirmer.")}}</p>
                     <img class="qr" src="{{enrol.QrPngDataUri}}" alt="Authenticator QR code">
                     <div class="key">{{enrol.SharedKey}}</div>
                     <form method="post" action="/account/mfa">{{AccountHtml.Hidden(t)}}
-                      <label>Verification code</label>
+                      <label>{{T("Verification code", "Code de vérification")}}</label>
                       <input name="code" inputmode="numeric" autocomplete="one-time-code" autofocus required>
-                      <button class="ms-publish" type="submit">Verify &amp; enable</button>{{msg}}
+                      <button class="ms-publish" type="submit">{{T("Verify &amp; enable", "Vérifier et activer")}}</button>{{msg}}
                     </form>
-                    <div class="links"><a href="/">Back to the app</a></div>
-                    """;
+                    """ + backLink;
             }
 
-            return Html(AccountHtml.Shell("Two-factor", inner));
+            return Html(AccountHtml.Shell(T("Two-factor", "Deux facteurs"), inner));
         }).RequireAuthorization();
 
         app.MapPost("/account/mfa", async (HttpContext ctx, IAntiforgery af, AccountService accounts,
@@ -251,11 +264,13 @@ internal static class AccountSelfService
             }
 
             await audit.RecordAsync("mfa.enabled", ctx.User.Identity?.Name, true);
+            bool fr = AccountLang.IsFrench(ctx);
+            string T(string en, string f) => fr ? f : en;
             string codes = "<div class=\"codes\">" + string.Join("<br>", done.RecoveryCodes.Select(WebUtility.HtmlEncode)) + "</div>";
-            string inner = AccountHtml.Brand("Two-factor enabled")
-                + "<p class=\"ok\">Save these recovery codes somewhere safe — each works once if you lose your authenticator.</p>"
-                + codes + "<div class=\"links\"><a href=\"/\">Back to the app</a></div>";
-            return Html(AccountHtml.Shell("Recovery codes", inner));
+            string inner = AccountHtml.Brand(T("Two-factor enabled", "Deux facteurs activés"))
+                + $"<p class=\"ok\">{T("Save these recovery codes somewhere safe — each works once if you lose your authenticator.", "Conservez ces codes de récupération en lieu sûr — chacun fonctionne une seule fois si vous perdez votre authentificateur.")}</p>"
+                + codes + $"<div class=\"links\"><a href=\"/\">{T("Back to the app", "Retour à l'application")}</a></div>";
+            return Html(AccountHtml.Shell(T("Recovery codes", "Codes de récupération"), inner));
         }).RequireAuthorization().DisableAntiforgery();
 
         app.MapPost("/account/mfa/disable", async (HttpContext ctx, IAntiforgery af, AccountService accounts, ISecurityAudit audit) =>

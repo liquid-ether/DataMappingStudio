@@ -1,5 +1,7 @@
 @page "/admin/audit"
 @attribute [Authorize(Policy = Permissions.SecurityConfigure)]
 
-<AdminNav />
-<AuditAdmin />
+<AdminGuard Permission="@Permissions.SecurityConfigure">
+    <AdminNav />
+    <AuditAdmin />
+</AdminGuard>

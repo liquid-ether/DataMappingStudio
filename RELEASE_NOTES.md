@@ -7,6 +7,27 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-07-04
+
+### Fixed — published host runs correctly from any directory
+- **Unstyled UI from the published exe.** `.\publish\web\App.Web.exe` launched from another directory
+  (e.g. the repo root) served the app with **no CSS and default configuration**: ASP.NET Core's default
+  content root is the *caller's working directory*, so `appsettings.json`, the static-web-assets manifest
+  and `wwwroot` all failed to resolve. The host now anchors its content root to the executable's folder
+  (`AppContext.BaseDirectory`) — the INSTALL command works verbatim from anywhere.
+- **Guest-mode `/admin` crash.** With `Auth:Require=false`, navigating to `/admin` threw
+  `AuthorizationPolicy 'Users.Manage' was not found` — the admin pages' `[Authorize(Policy=…)]` endpoint
+  metadata referenced policies that only exist when the security module is registered. Guest mode now
+  registers the permission policies as permit-all (the guest is a fully-privileged admin by definition),
+  and `/admin` shows the intended "authentication is disabled" notice. The **Admin menu appears only when
+  `Auth:Require=true`** and you're signed in with an admin-capable role — that part is by design.
+- **INSTALL.md accuracy pass**, verified against the real published output: the web-host quick start
+  (styled UI, `/health`, guest `/admin`, auth-on bootstrap + styled sign-in) now demonstrably works as
+  written; the desktop description reflects the collapsible side menu + theme picker; the sample-data
+  section documents that seeding is **opt-in** (`MAPPINGSTUDIO_SEED_SAMPLE=true`, changed in 1.11.0) —
+  the app starts empty by default; and the data-location note (`App_Data` beside the exe / `DataDir`)
+  was added.
+
 ## [1.19.0] - 2026-07-01
 
 ### Added — selectable themes + collapsible side navigation

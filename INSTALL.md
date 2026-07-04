@@ -35,8 +35,10 @@ The desktop app is `MappingStudio.exe` plus a tiny `wwwroot\index.html` file tha
    beside the exe).
 3. **Double-click `MappingStudio.exe`.** The first launch takes a few seconds (it unpacks itself); after
    that it opens quickly.
-4. The app opens with the navigation tabs across the top (Applications, Sources, Dictionary, Config,
-   Classification, Rules, Mappings, Lineage), an **EN / FR** language switch, and a **Publish** button.
+4. The app opens with a **collapsible menu on the left** (Data model: Applications, Sources, Dictionary,
+   Config, Classification, Rules · Studio: Mappings, Lineage · Tools: Import, History) and a top bar with
+   the **EN / FR** language switch, a **colour-theme picker** (five palettes, each with light/dark), and
+   the **Publish** button.
 
 ### Where your data is kept
 Your work is saved automatically on your PC under:
@@ -48,12 +50,12 @@ Your work is saved automatically on your PC under:
 (That folder contains `local.db` — your working copy — and a `remote` folder.) You can paste that path
 into File Explorer's address bar to find it.
 
-### Sample data
-The **first time you run the app on a fresh machine**, it fills itself with a realistic demo dataset
-(10 applications, 100 data sources, 5000 dictionary entries, and a 30-target Mapping Studio model) so
-you have something to explore. To reload it later into an existing database, close the app and run
-`build/seed-sample-data.ps1` (it backs up your current `local.db`, then reseeds), or delete
-`%LOCALAPPDATA%\MappingStudio\local.db` and reopen the app.
+### Sample data (opt-in)
+The app starts **empty** — a production install imports the real workbook (section 4). To explore with a
+realistic demo dataset instead (10 applications, 100 data sources, 5000 dictionary entries, and a
+30-target Mapping Studio model), either set the environment variable **`MAPPINGSTUDIO_SEED_SAMPLE=true`**
+before the first launch (it seeds only an empty database), or run `build/seed-sample-data.ps1` at any
+time (it backs up your current `local.db`, then reseeds).
 
 > By itself the app works fully on your own machine. To **share and merge edits with colleagues**, point
 > it at a shared folder — see section 2.
@@ -97,13 +99,17 @@ self-contained folder — again, **no .NET install required** on the machine tha
 
 1. Build it (section 5): `./build/publish-web.ps1` → produces `publish\web\`.
 2. Copy the `publish\web` folder to the host machine.
-3. Start it:
+3. Start it (from any directory — the app anchors itself to the folder the exe lives in):
 
    ```powershell
    .\publish\web\App.Web.exe --urls "http://localhost:5000"
    ```
 
 4. Open `http://localhost:5000` in a browser.
+
+   The host's data (per-user working copies, the default `remote` folder, and — with authentication on —
+   `security.db`) lives in an **`App_Data` folder beside the exe**, unless you point `DataDir`
+   (`--DataDir "D:\mapping-data"` or the `DataDir` env var) somewhere else.
 
 To use the shared folder, set the remote path before starting (env var or `appsettings.json`):
 

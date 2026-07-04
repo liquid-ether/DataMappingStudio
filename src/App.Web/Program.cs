@@ -8,7 +8,14 @@ using App.Web;
 using App.Web.Components;
 using App.Web.Workspaces;
 
-var builder = WebApplication.CreateBuilder(args);
+// Anchor the content root to the executable's folder, not the caller's working directory. The default
+// (current directory) breaks `.\publish\web\App.Web.exe` run from anywhere else: appsettings.json, the
+// static-web-assets manifest and wwwroot all silently fail to resolve, serving an unstyled app.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory,
+});
 
 // The Blazor Server host reuses App.UI verbatim — this is also the §15 web-port proof and the
 // Playwright E2E target. Per-user working copies + the per-writer remote folder live under the data dir
@@ -67,7 +74,21 @@ if (proxyEnabled)
 // permissions, and a policy per permission — and every endpoint requires an authenticated user whose id
 // keys their workspace and whose grants gate each operation.
 bool requireAuth = builder.Configuration.GetValue("Auth:Require", false);
-if (requireAuth)
+if (!requireAuth)
+{
+    // Guest mode still needs the permission policies to EXIST: the admin pages carry
+    // [Authorize(Policy = ...)] endpoint metadata, and resolving an unknown policy throws on hard
+    // navigation. Register them as permit-all — the guest is a full admin by definition, and AdminGuard
+    // renders the "authentication is disabled" notice for the admin area anyway.
+    builder.Services.AddAuthorization(auth =>
+    {
+        foreach (string permission in App.Application.Security.Permissions.All)
+        {
+            auth.AddPolicy(permission, policy => policy.RequireAssertion(_ => true));
+        }
+    });
+}
+else
 {
     builder.Services.AddSecurity(builder.Configuration, Path.Combine(dataDir, "security.db"));
     builder.Services.AddCascadingAuthenticationState(); // surfaces the user to the circuit (and to CircuitCurrentUser)

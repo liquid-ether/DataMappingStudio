@@ -75,13 +75,27 @@
             <div class="cell"><span class="rowx" title="remove" @onclick="() => DeleteRow(context)">✕</span></div>
         </TemplateColumn>
     </QuickGrid>
+
+    @* Fresh tables get a centered call-to-action instead of a bare void (every new workspace starts empty). *@
+    @if (_rows.Count == 0 && _draft is null)
+    {
+        <div class="grid-empty">
+            <div class="grid-empty-glyph">＋</div>
+            <div class="grid-empty-title">@(Lang.IsFrench ? "Aucune donnée pour l'instant" : "Nothing here yet")</div>
+            <div class="grid-empty-hint">
+                @(Lang.IsFrench
+                    ? "Ajoutez une première ligne ci-dessous, ou chargez le classeur de l'équipe via l'outil Import."
+                    : "Add a first row below, or load the team's workbook from the Import tool.")
+            </div>
+            @if (CanEdit)
+            {
+                <button class="ms-publish" type="button" @onclick="StartDraft"><span class="plus">+</span> @Lang.T("addRow")</button>
+            }
+        </div>
+    }
 </div>
 
-@if (_rows.Count == 0 && _draft is null)
-{
-    <div class="cell muted" style="padding:12px">@Lang.T("noRows")</div>
-}
-else if (_view.Count == 0 && _rows.Count > 0)
+@if (_view.Count == 0 && _rows.Count > 0)
 {
     <div class="cell muted" style="padding:12px">@Lang.T("noMatches")</div>
 }

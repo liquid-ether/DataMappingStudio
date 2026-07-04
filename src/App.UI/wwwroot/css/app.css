@@ -189,6 +189,14 @@ select{font:inherit;font-size:13px;border:1px solid var(--border-strong);border-
 
 /* Fills the space left between the toolbar and the add bar, and scrolls internally (sticky header). */
 .gridbox{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:auto;flex:1;min-height:120px}
+
+/* Centered call-to-action shown inside an empty grid (fresh workspaces start with no rows). */
+.grid-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+  padding:64px 24px;text-align:center}
+.grid-empty-glyph{width:44px;height:44px;border-radius:12px;background:var(--accent-soft);color:var(--accent-text);
+  display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600}
+.grid-empty-title{font-size:15px;font-weight:600}
+.grid-empty-hint{color:var(--text-3);font-size:13px;max-width:420px;margin-bottom:6px}
 /* QuickGrid renders its own table; align it with the app's grid look and let it virtualize/scroll. */
 .gridbox .quickgrid{width:100%;border-collapse:collapse;font-size:13px;min-width:720px}
 .gridbox .quickgrid thead th{position:sticky;top:0;z-index:2;background:var(--surface-2);text-align:left;
@@ -287,8 +295,12 @@ tr.grp td{background:var(--surface-2);border-bottom:1px solid var(--border-stron
 .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
 .lin-layout{display:grid;grid-template-columns:1fr 300px;gap:14px;flex:1;min-height:0}
 @media(max-width:880px){.lin-layout{grid-template-columns:1fr}}
+/* Flex + margin:auto centers a small graph in the canvas without clipping a large one when it
+   overflows and scrolls (auto margins collapse to 0 on overflow, unlike justify-content centering). */
 .lin-canvas{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:auto;min-height:0;
+  display:flex;padding:18px;
   background-image:radial-gradient(var(--border) .6px,transparent .6px);background-size:18px 18px}
+.lin-canvas svg{display:block;margin:auto}
 .lin-side{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 15px;overflow:auto;min-height:0}
 .lin-side h3{margin:0 0 4px;font-size:13px}
 .lin-side .sel{font-family:var(--font-mono);font-weight:600;color:var(--target);font-size:13px}

@@ -37,8 +37,11 @@
   --content-max:none;    /* set a px value to cap content width; 'none' = fill available width */
 }
 
-/* Dark theme: only the tokens change; every rule below consumes them. */
-:root[data-theme="dark"]{
+/* Dark mode: only the tokens change; every rule below consumes them. The grouped selector applies the
+   shared dark base (status colors, shadow, decorative tints) to EVERY dark theme; the per-palette dark
+   blocks after it override just the surfaces + accent. Teal is the default palette. */
+:root[data-theme="dark"], :root[data-theme="indigo-dark"], :root[data-theme="graphite-dark"],
+:root[data-theme="ocean-dark"], :root[data-theme="paper-dark"]{
   --bg:#10151a; --surface:#171e24; --surface-2:#1e272e; --surface-3:#28333b;
   --border:#28333b; --border-strong:#384650;
   --text:#e7eef2; --text-2:#a3b3bd; --text-3:#83929d;
@@ -55,6 +58,64 @@
   --calc:#a382ec; --calc-bg:rgba(163,130,236,.16); --calc-line:rgba(163,130,236,.34);
 }
 
+/* ---- selectable palettes (light) — decorative/status tokens stay at their :root values ---- */
+:root[data-theme="indigo"]{
+  --bg:#eef0f6; --surface:#ffffff; --surface-2:#f3f4fa; --surface-3:#e9ebf4;
+  --border:#e2e4ef; --border-strong:#cdd1e4;
+  --text:#1a1d2e; --text-2:#585e7a; --text-3:#8b91ab;
+  --accent:#4653d8; --accent-2:#5a67ec; --accent-text:#3843b8; --accent-soft:rgba(70,83,216,.10);
+}
+:root[data-theme="graphite"]{
+  --bg:#f0f0ef; --surface:#ffffff; --surface-2:#f5f5f4; --surface-3:#eaeae8;
+  --border:#e4e4e1; --border-strong:#d0d0cb;
+  --text:#1c1c1a; --text-2:#5c5c56; --text-3:#93938c;
+  --accent:#b45309; --accent-2:#d97706; --accent-text:#92400e; --accent-soft:rgba(180,83,9,.10);
+}
+:root[data-theme="ocean"]{
+  --bg:#edf1f5; --surface:#ffffff; --surface-2:#f2f6f9; --surface-3:#e6edf2;
+  --border:#dfe7ee; --border-strong:#c8d5df;
+  --text:#152430; --text-2:#4e6577; --text-3:#7f95a6;
+  --accent:#0e7490; --accent-2:#0891b2; --accent-text:#155e75; --accent-soft:rgba(14,116,144,.10);
+}
+:root[data-theme="paper"]{
+  --bg:#f4f1ea; --surface:#fffdf8; --surface-2:#f8f5ee; --surface-3:#efeadf;
+  --border:#e8e2d4; --border-strong:#d5ccb8;
+  --text:#26211a; --text-2:#6b6152; --text-3:#998e7c;
+  --accent:#b4541d; --accent-2:#c96a2f; --accent-text:#94451a; --accent-soft:rgba(180,84,29,.10);
+}
+
+/* ---- selectable palettes (dark) — override surfaces + accent on top of the shared dark base ---- */
+:root[data-theme="indigo-dark"]{
+  --bg:#12141f; --surface:#191c2b; --surface-2:#202435; --surface-3:#2a2f45;
+  --border:#2a2f45; --border-strong:#3a4060;
+  --text:#e8eaf6; --text-2:#a6abc8; --text-3:#8288a8;
+  --accent:#7b86ff; --accent-2:#8f98ff; --accent-text:#a5acff; --accent-soft:rgba(123,134,255,.15);
+}
+:root[data-theme="graphite-dark"]{
+  --bg:#131312; --surface:#1b1b19; --surface-2:#232321; --surface-3:#2d2d2a;
+  --border:#2d2d2a; --border-strong:#3f3f3a;
+  --text:#eeeee9; --text-2:#b0b0a7; --text-3:#8b8b82;
+  --accent:#f0a63a; --accent-2:#f7b955; --accent-text:#f7c064; --accent-soft:rgba(240,166,58,.15);
+}
+:root[data-theme="ocean-dark"]{
+  --bg:#0b1220; --surface:#111a2b; --surface-2:#172236; --surface-3:#1f2c45;
+  --border:#1f2c45; --border-strong:#2e405f;
+  --text:#e3ecf6; --text-2:#9fb2c8; --text-3:#7e93ab;
+  --accent:#38bdf8; --accent-2:#5ccbfa; --accent-text:#7cd6fb; --accent-soft:rgba(56,189,248,.15);
+}
+:root[data-theme="paper-dark"]{
+  --bg:#171310; --surface:#1f1a15; --surface-2:#28221c; --surface-3:#332b23;
+  --border:#332b23; --border-strong:#463c31;
+  --text:#f0e9df; --text-2:#bdb0a0; --text-3:#94897a;
+  --accent:#e08a4d; --accent-2:#eb9c63; --accent-text:#f0ab78; --accent-soft:rgba(224,138,77,.16);
+}
+
+/* Light accents on dark surfaces need dark button text for contrast (teal dark keeps white). */
+:root[data-theme="indigo-dark"] .ms-publish{color:#12141f}
+:root[data-theme="graphite-dark"] .ms-publish{color:#131312}
+:root[data-theme="ocean-dark"] .ms-publish{color:#0b1220}
+:root[data-theme="paper-dark"] .ms-publish{color:#171310}
+
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--text);font-family:var(--font-sans);
@@ -65,6 +126,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-sans);
 #app{flex:1;display:flex;flex-direction:column;min-height:0}
 .mono{font-family:var(--font-mono)}
 a{color:var(--accent)}
+/* Native selects follow the theme everywhere (unstyled ones rendered white-on-white in dark mode). */
+select{font:inherit;font-size:13px;border:1px solid var(--border-strong);border-radius:7px;
+  padding:5px 8px;background:var(--surface);color:var(--text)}
 
 /* top bar — light surface bar matching the Data Import tool chrome */
 .ms-top{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:16px;
@@ -84,6 +148,26 @@ a{color:var(--accent)}
 .ms-theme{width:36px;height:34px;display:flex;align-items:center;justify-content:center;
   background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text-2);cursor:pointer;font-size:15px}
 .ms-theme:hover{background:var(--surface-2)}
+.ms-theme-pick{height:34px;border-radius:8px;border:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text-2)}
+
+/* app body below the top bar: side navigation + content column */
+.ms-body{flex:1;display:flex;min-height:0}
+.ms-nav{display:flex;flex-direction:column;width:216px;flex:none;gap:1px;overflow-y:auto;overflow-x:hidden;
+  background:var(--surface);border-right:1px solid var(--border);padding:10px 8px}
+.ms-nav.collapsed{width:58px}
+.ms-nav .sec{font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);
+  font-weight:700;padding:12px 10px 4px;white-space:nowrap}
+.ms-nav .navitem{display:flex;align-items:center;gap:9px;width:100%;background:transparent;border:0;border-radius:7px;
+  padding:6px 8px;color:var(--text-2);font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  text-decoration:none;text-align:left;white-space:nowrap}
+.ms-nav .navitem:hover{background:var(--surface-2);color:var(--text)}
+.ms-nav .navitem.active,.ms-nav .navitem[aria-selected="true"]{background:var(--accent-soft);color:var(--accent-text)}
+.ms-nav .navglyph{width:24px;height:24px;border-radius:6px;background:var(--surface-3);color:var(--text-2);
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none}
+.ms-nav .navitem.active .navglyph,.ms-nav .navitem[aria-selected="true"] .navglyph{background:var(--accent);color:#fff}
+.ms-nav.collapsed .navlbl,.ms-nav.collapsed .sec{display:none}
+.ms-nav .navspacer{flex:1;min-height:10px}
+.ms-nav .navcollapse{margin-top:4px;border-top:1px solid var(--border);padding-top:8px}
 .ms-publish{background:var(--accent);color:#fff;border:0;border-radius:8px;font:inherit;font-weight:600;font-size:13px;padding:7px 15px;cursor:pointer}
 .ms-publish:hover{background:var(--accent-2)}
 

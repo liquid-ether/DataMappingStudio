@@ -4,7 +4,7 @@
 @inject ICurrentUser User
 @inject LanguageState Lang
 
-<MsTopBar Tabs="_tabs" OnPublish="GoToPublish">
+<MsTopBar OnPublish="GoToPublish">
     <AccountArea>
         @if (_authOn)
         {
@@ -21,8 +21,11 @@
     </AccountArea>
 </MsTopBar>
 
-<div class="ms-wrap">
-    @Body
+<div class="ms-body">
+    <MsSideNav Sections="_sections" />
+    <div class="ms-wrap">
+        @Body
+    </div>
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
@@ -34,14 +37,16 @@
 @code {
     private bool _authOn;
 
-    // Entity tabs are data-driven from the catalog navigation, then the Mapping Studio + Lineage tabs.
-    private static readonly IReadOnlyList<(string Href, string Key)> _tabs =
+    // Side-nav sections: the data-driven entity editors, then the studio + tool destinations —
+    // mirroring the desktop shell so both hosts expose the same structure.
+    private static readonly IReadOnlyList<NavSection> _sections =
     [
-        .. DefaultCatalog.Navigation.Select(n => ($"t/{n.Table}", n.NavKey)),
-        ("mappings", "tabMappings"),
-        ("lineage", "tabLineage"),
-        ("import", "navImport"),
-        ("history", "navHistory"),
+        new NavSection("Data model", "Modèle de données",
+            [.. DefaultCatalog.Navigation.Select(n => ($"t/{n.Table}", n.NavKey))]),
+        new NavSection("Studio", "Studio",
+            [("mappings", "tabMappings"), ("lineage", "tabLineage")]),
+        new NavSection("Tools", "Outils",
+            [("import", "navImport"), ("history", "navHistory")]),
     ];
 
     protected override void OnInitialized() => _authOn = Config.GetValue("Auth:Require", false);

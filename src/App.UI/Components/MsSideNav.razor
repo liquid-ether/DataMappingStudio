@@ -1,0 +1,91 @@
+@using Microsoft.JSInterop
+@implements IDisposable
+@inject LanguageState Lang
+@inject IJSRuntime Js
+
+@* Collapsible side navigation. Scales past the old tab strip: sections with any number of items scroll
+   vertically, and the rail collapses to glyphs (first letter of each destination, full label as tooltip).
+   Two modes, like MsTopBar's tabs before it: routed NavLinks on the web, OnSelect buttons on the desktop
+   shell (no URL router there). The collapsed preference persists per browser/profile. *@
+<nav class="ms-nav @(_collapsed ? "collapsed" : null)" aria-label="@(Lang.IsFrench ? "Navigation principale" : "Main navigation")">
+    @foreach (NavSection section in Sections)
+    {
+        <div class="sec">@(Lang.IsFrench ? section.TitleFr : section.TitleEn)</div>
+        @foreach ((string Href, string Key) item in section.Items)
+        {
+            string label = Lang.T(item.Key);
+            @if (OnSelect.HasDelegate)
+            {
+                <button type="button" class="navitem" aria-selected="@(item.Href == ActiveHref ? "true" : "false")" title="@label"
+                        @onclick="() => OnSelect.InvokeAsync(item.Href)">
+                    <span class="navglyph">@Glyph(label)</span><span class="navlbl">@label</span>
+                </button>
+            }
+            else
+            {
+                <NavLink class="navitem" href="@item.Href" ActiveClass="active" Match="NavLinkMatch.All" title="@label">
+                    <span class="navglyph">@Glyph(label)</span><span class="navlbl">@label</span>
+                </NavLink>
+            }
+        }
+    }
+    <div class="navspacer"></div>
+    <div class="navcollapse">
+        <button type="button" class="navitem" title="@(_collapsed ? (Lang.IsFrench ? "Développer le menu" : "Expand menu") : (Lang.IsFrench ? "Réduire le menu" : "Collapse menu"))"
+                aria-expanded="@(_collapsed ? "false" : "true")" @onclick="ToggleCollapsedAsync">
+            <span class="navglyph">@(_collapsed ? "»" : "«")</span><span class="navlbl">@(Lang.IsFrench ? "Réduire" : "Collapse")</span>
+        </button>
+    </div>
+</nav>
+
+@code {
+    private bool _collapsed;
+
+    [Parameter, EditorRequired] public IReadOnlyList<NavSection> Sections { get; set; } = [];
+
+    /// <summary>When set (desktop shell), items become buttons that raise this with the item's Href key.</summary>
+    [Parameter] public EventCallback<string> OnSelect { get; set; }
+
+    /// <summary>The active item's Href, used to mark the selection in desktop mode.</summary>
+    [Parameter] public string? ActiveHref { get; set; }
+
+    private static string Glyph(string label) => label.Length == 0 ? "•" : char.ToUpperInvariant(label[0]).ToString();
+
+    protected override void OnInitialized() => Lang.OnChange += StateHasChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                // JS interop only exists post-render; restore the persisted preference then.
+                string? saved = await Js.InvokeAsync<string?>("localStorage.getItem", "dms_nav");
+                if (saved == "1" != _collapsed)
+                {
+                    _collapsed = saved == "1";
+                    StateHasChanged();
+                }
+            }
+            catch
+            {
+                // Prerender / test host without JS — keep the default (expanded).
+            }
+        }
+    }
+
+    private async Task ToggleCollapsedAsync()
+    {
+        _collapsed = !_collapsed;
+        try
+        {
+            await Js.InvokeVoidAsync("localStorage.setItem", "dms_nav", _collapsed ? "1" : "0");
+        }
+        catch
+        {
+            // Persistence is best-effort.
+        }
+    }
+
+    public void Dispose() => Lang.OnChange -= StateHasChanged;
+}

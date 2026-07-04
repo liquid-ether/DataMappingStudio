@@ -96,7 +96,7 @@ public class DesktopRootTests : AppTestContext
         LanguageState lang = Services.GetRequiredService<LanguageState>();
 
         void ClickTab(string label) =>
-            cut.FindAll(".ms-tabs button").First(b => b.TextContent.Trim() == label).Click();
+            cut.FindAll(".ms-nav button.navitem").First(b => b.GetAttribute("title") == label).Click();
 
         // Default view: the first entity grid (Applications), proven via its localized page title.
         Assert.Contains($"page-title\">{lang.T("navApplications")}</h2>", cut.Markup);
@@ -147,7 +147,7 @@ public class DesktopRootTests : AppTestContext
         LanguageState lang = Services.GetRequiredService<LanguageState>();
 
         // Switch to the Dictionary editor, whose label differs between EN ("Dictionary") and FR ("Dictionnaire").
-        cut.FindAll(".ms-tabs button").First(b => b.TextContent.Trim() == lang.T("navDictionary")).Click();
+        cut.FindAll(".ms-nav button.navitem").First(b => b.GetAttribute("title") == lang.T("navDictionary")).Click();
         Assert.Contains("page-title\">Dictionary</h2>", cut.Markup);
 
         cut.FindAll(".ms-lang button").First(b => b.TextContent.Trim() == "FR").Click();

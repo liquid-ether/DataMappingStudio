@@ -4,35 +4,30 @@
 @inject ICurrentUser User
 @inject IServiceProvider Services
 
-@* Dark top bar from the mockup: brand glyph, primary tabs, EN/FR toggle, Publish. *@
+@* App chrome: brand, EN/FR toggle, theme palette + light/dark, Publish (with pending badge), account
+   area. Navigation lives in MsSideNav — the top bar stays fixed-size however many destinations exist. *@
 <div class="ms-top">
     <div class="ms-brand"><span class="glyph">⇲</span><span>@Lang.T("brand")</span></div>
-    <nav class="ms-tabs">
-        @foreach ((string Href, string Key) tab in Tabs)
-        {
-            @if (OnSelect.HasDelegate)
-            {
-                @* Desktop (non-routed) shell: tabs switch an in-app view instead of navigating a URL. *@
-                <button type="button" aria-selected="@(tab.Href == ActiveHref)" @onclick="() => OnSelect.InvokeAsync(tab.Href)">@Lang.T(tab.Key)</button>
-            }
-            else
-            {
-                <NavLink class="@(tab.Href == "" ? "active" : null)" href="@tab.Href" Match="NavLinkMatch.All" ActiveClass="active">@Lang.T(tab.Key)</NavLink>
-            }
-        }
-    </nav>
     <div class="ms-spacer"></div>
-    <div class="ms-lang" role="group" aria-label="Language">
-        <button type="button" aria-pressed="@(!Lang.IsFrench)" @onclick='() => Lang.Set("en")'>EN</button>
-        <button type="button" aria-pressed="@Lang.IsFrench" @onclick='() => Lang.Set("fr")'>FR</button>
-    </div>
-    <button class="ms-theme" type="button" title="@(Theme.IsDark ? "Light theme" : "Dark theme")"
-            aria-pressed="@Theme.IsDark" @onclick="Theme.ToggleAsync">@(Theme.IsDark ? "☀" : "☾")</button>
     @if (_remoteDown)
     {
         <span title="@(Lang.IsFrench ? "Dossier partagé indisponible — publication/synchronisation en pause" : "Shared folder unavailable — publish/sync paused")"
               style="color:var(--warn);font-size:15px" role="status">⚠</span>
     }
+    <div class="ms-lang" role="group" aria-label="Language">
+        <button type="button" aria-pressed="@(!Lang.IsFrench)" @onclick='() => Lang.Set("en")'>EN</button>
+        <button type="button" aria-pressed="@Lang.IsFrench" @onclick='() => Lang.Set("fr")'>FR</button>
+    </div>
+    <select class="ms-theme-pick" title="@(Lang.IsFrench ? "Palette de couleurs" : "Colour palette")"
+            value="@Theme.Palette" @onchange="e => Theme.SetPaletteAsync((string)e.Value!)">
+        <option value="teal">@(Lang.IsFrench ? "Sarcelle" : "Teal")</option>
+        <option value="indigo">Indigo</option>
+        <option value="graphite">Graphite</option>
+        <option value="ocean">@(Lang.IsFrench ? "Océan" : "Ocean")</option>
+        <option value="paper">@(Lang.IsFrench ? "Papier" : "Paper")</option>
+    </select>
+    <button class="ms-theme" type="button" title="@(Theme.IsDark ? "Light theme" : "Dark theme")"
+            aria-pressed="@Theme.IsDark" @onclick="Theme.ToggleAsync">@(Theme.IsDark ? "☀" : "☾")</button>
     @if (User.HasPermission(Permissions.DataPublish))
     {
         <button class="ms-publish" type="button" @onclick="OnPublish">@Lang.T("publish")@(_pending > 0 ? $" ({_pending})" : null)</button>
@@ -41,30 +36,10 @@
 </div>
 
 @code {
-    /// <summary>Top-level navigation tabs (href, i18n key).</summary>
-    [Parameter] public IReadOnlyList<(string Href, string Key)> Tabs { get; set; } =
-    [
-        ("applications", "navApplications"),
-        ("sources", "navSources"),
-        ("dictionary", "navDictionary"),
-        ("config", "navConfig"),
-        ("classification", "navClassification"),
-        ("rules", "navRules"),
-        ("mappings", "tabMappings"),
-        ("lineage", "tabLineage"),
-    ];
-
     [Parameter] public EventCallback OnPublish { get; set; }
 
     /// <summary>Optional host-supplied account controls (web: current user + Admin + sign out; desktop: none).</summary>
     [Parameter] public RenderFragment? AccountArea { get; set; }
-
-    /// <summary>When set (desktop shell), tabs become buttons that raise this with the tab's Href key
-    /// instead of navigating a URL. When unset (web), tabs render as routed <see cref="NavLink"/>s.</summary>
-    [Parameter] public EventCallback<string> OnSelect { get; set; }
-
-    /// <summary>The currently active tab's Href, used to mark the active button in desktop mode.</summary>
-    [Parameter] public string? ActiveHref { get; set; }
 
     private int _pending;
     private bool _remoteDown;
@@ -100,7 +75,7 @@
         if (firstRender)
         {
             // JS interop is only available post-render; sync our state to the theme the host page
-            // already applied to <html> so the toggle shows the right icon.
+            // already applied to <html> so the picker + toggle show the right values.
             await Theme.EnsureInitializedAsync();
         }
     }

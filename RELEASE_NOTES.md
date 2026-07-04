@@ -7,6 +7,29 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-07-01
+
+### Added — selectable themes + collapsible side navigation
+- **Five selectable colour palettes** — **Teal** (default), **Indigo Analyst**, **Graphite & Amber**,
+  **Ocean Slate** and **Warm Paper** — each with a light and dark mode, picked from a new palette
+  selector in the top bar (the ☾/☀ toggle still flips light/dark within the palette). Themes are pure
+  design-token blocks in `app.css` keyed off `data-theme` (`<palette>[-dark]`; legacy `light`/`dark`
+  values still map to Teal), persisted per browser/profile, and shared by the web and desktop shells.
+  The decorative mapping/lineage colours are semantic and stay constant across palettes.
+- **Collapsible side navigation** replaces the top-bar tab strip: destinations are grouped
+  (**Data model** — the catalog-driven entity editors — **Studio**, **Tools**), scroll vertically so any
+  number of catalog entities fits, and the rail collapses to a glyph-only strip (full labels as
+  tooltips; preference persisted). Same component serves both shells — routed links on the web,
+  view-switching buttons on the desktop. The top bar now stays fixed-size regardless of how many
+  destinations exist.
+- **Dark-mode select fix.** Native `<select>` controls now follow the theme tokens — previously they
+  rendered as white system dropdowns on every dark theme.
+
+### Notes
+- Tests: theme parse/compose round-trips (legacy values included), side-nav rendering/selection/collapse
+  and routed-vs-desktop modes (UI tests → 67); desktop-shell navigation tests updated to the new nav.
+  Full suite + 19/19 browser E2E green; verified visually across palettes.
+
 ## [1.18.0] - 2026-07-01
 
 ### Added / Changed (remaining review items — medium & low)

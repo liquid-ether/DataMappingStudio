@@ -5,6 +5,7 @@
 @inject ICurrentUser CurrentUser
 @inject IServiceProvider Services
 @using App.Application.References
+@using MetaModelService = App.Application.Catalog.MetaModelService
 @using Microsoft.Extensions.DependencyInjection
 
 @* Metadata-driven editor: columns and rows render from the column catalog, so a new column appears
@@ -486,7 +487,7 @@
             return;
         }
 
-        bool added = TrySave(() => Catalog.AddColumn(new ColumnCatalogEntry
+        ColumnCatalogEntry entry = new()
         {
             TableName = Table,
             ColumnName = name,
@@ -495,7 +496,22 @@
             LabelFr = name,
             IsUserAdded = true,
             DisplayOrder = _columns.Count + 1,
-        }));
+        };
+
+        // Route through the meta-model service when the host wires it (syncs the column to the team);
+        // otherwise fall back to the local catalog (tests / hosts without a shared folder).
+        var metaModel = Services.GetService(typeof(MetaModelService)) as MetaModelService;
+        bool added = TrySave(() =>
+        {
+            if (metaModel is not null)
+            {
+                metaModel.AddColumn(entry);
+            }
+            else
+            {
+                Catalog.AddColumn(entry);
+            }
+        });
 
         if (!added)
         {

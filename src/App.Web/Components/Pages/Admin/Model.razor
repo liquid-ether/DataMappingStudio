@@ -1,0 +1,7 @@
+@page "/admin/model"
+@attribute [Authorize(Policy = Permissions.ModelManage)]
+
+<AdminGuard Permission="@Permissions.ModelManage" AllowGuest="true">
+    <AdminNav />
+    <ModelAdmin />
+</AdminGuard>

@@ -20,6 +20,27 @@ public sealed class FakeCatalog(IEnumerable<ColumnCatalogEntry> seed) : ICatalog
     public void AddColumn(ColumnCatalogEntry entry) => _entries.Add(entry);
 }
 
+/// <summary>In-memory table catalog for component tests.</summary>
+public sealed class FakeTableCatalog(IEnumerable<TableCatalogEntry>? seed = null) : ITableCatalog
+{
+    private readonly Dictionary<string, TableCatalogEntry> _entries =
+        (seed ?? []).ToDictionary(e => e.TableName, StringComparer.Ordinal);
+
+    public IReadOnlyList<TableCatalogEntry> GetTableMeta() => [.. _entries.Values.OrderBy(e => e.NavOrder)];
+
+    public TableCatalogEntry? GetTableMeta(string table) => _entries.GetValueOrDefault(table);
+
+    public void UpsertTableMeta(TableCatalogEntry entry) => _entries[entry.TableName] = entry;
+
+    public void SeedTableMeta(IEnumerable<TableCatalogEntry> entries)
+    {
+        foreach (TableCatalogEntry entry in entries)
+        {
+            _entries.TryAdd(entry.TableName, entry);
+        }
+    }
+}
+
 /// <summary>In-memory local store for component tests.</summary>
 public sealed class FakeLocalStore : ILocalStore
 {

@@ -21,12 +21,13 @@ public static class Permissions
     public const string RolesManage = "Roles.Manage";
     public const string SecurityConfigure = "Security.Configure";
     public const string AppConfigure = "App.Configure";
+    public const string ModelManage = "Model.Manage";
 
     /// <summary>Every permission — the Administrator grant and the source of the authorization policies.</summary>
     public static readonly IReadOnlyList<string> All =
     [
         DataView, DataEdit, DataPublish, DataImport,
         MappingsManage, LineageView, HistoryView,
-        UsersManage, RolesManage, SecurityConfigure, AppConfigure,
+        UsersManage, RolesManage, SecurityConfigure, AppConfigure, ModelManage,
     ];
 }

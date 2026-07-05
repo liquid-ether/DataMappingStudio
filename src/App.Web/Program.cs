@@ -44,6 +44,13 @@ builder.Services
 builder.Services.AddScoped<ICurrentUser, CircuitCurrentUser>();
 builder.Services.AddPerUserWorkspaces(Path.Combine(dataDir, "users"));
 
+// Runtime settings (admin-editable): Shared scope converges via the synced folder's _meta/settings.json;
+// Local scope lives beside the host's data.
+builder.Services.AddSingleton<App.Application.Abstractions.IRuntimeConfig>(sp =>
+    new App.Application.Configuration.RuntimeConfigService(
+        sp.GetService<App.Application.Abstractions.ISharedSettingsStore>(),
+        Path.Combine(dataDir, "app_config.local.json")));
+
 // Ops health probe (anonymous) at /health: shared-folder reachable + active-workspace count.
 builder.Services.AddHealthChecks().AddCheck<WorkingCopyHealthCheck>("workspaces");
 

@@ -1,0 +1,276 @@
+@using MetaModelService = App.Application.Catalog.MetaModelService
+@inject ICatalog Catalog
+@inject ITableCatalog Tables
+@inject MetaModelService MetaModel
+@inject LanguageState Lang
+
+@* Meta-model manager: create tables and add columns (scalar / reference / computed-lookup) at runtime.
+   Changes go through MetaModelService, which publishes them to the shared folder before applying locally
+   — every workspace and the desktop pick them up on refresh. Structure is additive by design: columns
+   and tables cannot be deleted (existing data in the shared change logs must stay foldable). *@
+<h1 class="page-title">@(Lang.IsFrench ? "Modèle de données" : "Data model")</h1>
+
+@if (_message is not null)
+{
+    <p class="@(_ok ? null : "err")" role="alert">@_message</p>
+}
+
+<div class="addbar" style="margin-bottom:14px">
+    <button class="add" type="button" @onclick="ToggleCreate"><span class="plus">+</span> @(Lang.IsFrench ? "Nouvelle table" : "New table")</button>
+</div>
+
+@if (_creating)
+{
+    <div class="gridbox" style="padding:16px;margin-bottom:14px;flex:none">
+        <div class="draftbar">
+            <input class="th-filter" style="max-width:170px" placeholder="@(Lang.IsFrench ? "nom_de_table" : "table_name")" @bind="_newTable.Name" />
+            <input class="th-filter" style="max-width:170px" placeholder="@(Lang.IsFrench ? "Libellé (EN)" : "Label (EN)")" @bind="_newTable.LabelEn" />
+            <input class="th-filter" style="max-width:170px" placeholder="@(Lang.IsFrench ? "Libellé (FR)" : "Label (FR)")" @bind="_newTable.LabelFr" />
+            <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-2)">
+                <input type="checkbox" @bind="_newTable.NavVisible" />@(Lang.IsFrench ? "Dans le menu" : "In the menu")
+            </label>
+        </div>
+
+        <h2 class="page-title" style="font-size:13px;margin:14px 0 6px">@(Lang.IsFrench ? "Colonnes" : "Columns")</h2>
+        @foreach (ColumnDraft draft in _newTable.Columns)
+        {
+            <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px">
+                @ColumnEditor(draft, _newTable.CatalogDrafts())
+            </div>
+        }
+        <div class="addbar" style="margin-top:10px">
+            <button class="add" type="button" @onclick="() => _newTable.Columns.Add(new ColumnDraft())"><span class="plus">+</span> @Lang.T("addColumn")</button>
+            <span class="lab">@(Lang.IsFrench ? "Colonne d'affichage (pour les références) :" : "Display column (for references):")</span>
+            <select class="th-filter" style="max-width:170px" @bind="_newTable.DisplayColumn">
+                <option value="">—</option>
+                @foreach (ColumnDraft d in _newTable.Columns.Where(d => !string.IsNullOrWhiteSpace(d.Name)))
+                {
+                    <option value="@d.Name">@d.Name</option>
+                }
+            </select>
+        </div>
+
+        <div class="addbar" style="margin-top:12px">
+            <button class="ms-publish" type="button" @onclick="CreateTable">@(Lang.IsFrench ? "Créer la table" : "Create table")</button>
+            <button class="add" type="button" @onclick="() => _creating = false">@(Lang.IsFrench ? "Annuler" : "Cancel")</button>
+        </div>
+    </div>
+}
+
+<div class="gridbox">
+    <table class="grid">
+        <thead>
+            <tr>
+                <th>Table</th>
+                <th>@(Lang.IsFrench ? "Libellé (EN / FR)" : "Label (EN / FR)")</th>
+                <th>@(Lang.IsFrench ? "Menu" : "Menu")</th>
+                <th>@(Lang.IsFrench ? "Colonne d'affichage" : "Display column")</th>
+                <th>@(Lang.IsFrench ? "Colonnes" : "Columns")</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (string table in Catalog.GetTables())
+            {
+                var meta = Tables.GetTableMeta(table);
+                <tr>
+                    <td>
+                        <div class="cell mono">
+                            @table
+                            @if (meta?.IsUserAdded == true)
+                            {
+                                <span class="kind-badge calc" style="margin-left:6px">@(Lang.IsFrench ? "ajoutée" : "custom")</span>
+                            }
+                        </div>
+                    </td>
+                    <td><div class="cell">@(meta?.LabelEn ?? "—") / @(meta?.LabelFr ?? "—")</div></td>
+                    <td><div class="cell">@(meta?.NavVisible == true ? "✓" : "—")</div></td>
+                    <td><div class="cell mono" style="font-size:12px">@(meta?.DisplayColumn ?? "—")</div></td>
+                    <td><div class="cell">@Catalog.GetForTable(table).Count(c => !c.IsCore)</div></td>
+                    <td>
+                        <div class="cell">
+                            <button class="add" type="button" @onclick="() => StartAddColumn(table)">+ @Lang.T("addColumn")</button>
+                        </div>
+                    </td>
+                </tr>
+                @if (_addColumnTable == table)
+                {
+                    <tr>
+                        <td colspan="6">
+                            <div style="padding:10px 12px">
+                                @ColumnEditor(_newColumn, Catalog.GetForTable(table))
+                                <div class="addbar" style="margin-top:10px">
+                                    <button class="ms-publish" type="button" @onclick="AddColumn">@Lang.T("save")</button>
+                                    <button class="add" type="button" @onclick="() => _addColumnTable = null">@(Lang.IsFrench ? "Annuler" : "Cancel")</button>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+<p class="muted" style="margin-top:12px;font-size:12px">
+    @(Lang.IsFrench
+        ? "Les changements de modèle sont publiés dans le dossier partagé : chaque poste les applique à son prochain rafraîchissement. La structure est additive — les tables et colonnes ne se suppriment pas. Les tables créées ici ne sont pas couvertes par l'outil d'import Excel."
+        : "Model changes are published to the shared folder: every workstation applies them on its next refresh. Structure is additive — tables and columns cannot be deleted. Tables created here are not covered by the Excel import tool.")
+</p>
+
+@code {
+    private RenderFragment ColumnEditor(ColumnDraft draft, IReadOnlyList<ColumnCatalogEntry> localColumns) => __builder =>
+    {
+        <div class="draftbar">
+            <input class="th-filter" style="max-width:160px" placeholder="@(Lang.IsFrench ? "nom_colonne" : "column_name")" @bind="draft.Name" />
+            <select class="th-filter" style="max-width:130px" @bind="draft.Kind">
+                <option value="@ColumnKind.Scalar">@(Lang.IsFrench ? "Scalaire" : "Scalar")</option>
+                <option value="@ColumnKind.Reference">@(Lang.IsFrench ? "Référence" : "Reference")</option>
+                <option value="@ColumnKind.Computed">@(Lang.IsFrench ? "Calculée (lookup)" : "Computed (lookup)")</option>
+            </select>
+            @if (draft.Kind == ColumnKind.Scalar)
+            {
+                <select class="th-filter" style="max-width:120px" @bind="draft.ValueType">
+                    @foreach (CatalogValueType t in Enum.GetValues<CatalogValueType>())
+                    {
+                        <option value="@t">@t</option>
+                    }
+                </select>
+                <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-2)">
+                    <input type="checkbox" @bind="draft.Required" />@(Lang.IsFrench ? "Requis" : "Required")
+                </label>
+            }
+            else if (draft.Kind == ColumnKind.Reference)
+            {
+                <select class="th-filter" style="max-width:170px" @bind="draft.ReferenceTarget">
+                    <option value="">@(Lang.IsFrench ? "table cible" : "target table")</option>
+                    @foreach (string t in Catalog.GetTables())
+                    {
+                        <option value="@t">@t</option>
+                    }
+                </select>
+            }
+        </div>
+        @if (draft.Kind == ColumnKind.Computed)
+        {
+            <FormulaBuilder LocalColumns="localColumns" @bind-Value="draft.Formula" />
+        }
+    };
+
+    private bool _creating;
+    private string? _addColumnTable;
+    private TableDraft _newTable = new();
+    private ColumnDraft _newColumn = new();
+    private string? _message;
+    private bool _ok;
+
+    private sealed class TableDraft
+    {
+        public string Name { get; set; } = "";
+        public string? LabelEn { get; set; }
+        public string? LabelFr { get; set; }
+        public bool NavVisible { get; set; } = true;
+        public string DisplayColumn { get; set; } = "";
+        public List<ColumnDraft> Columns { get; } = [new ColumnDraft()];
+
+        public IReadOnlyList<ColumnCatalogEntry> CatalogDrafts()
+            => Columns.Where(c => !string.IsNullOrWhiteSpace(c.Name)).Select(c => c.ToEntry(Name)).ToList();
+    }
+
+    private sealed class ColumnDraft
+    {
+        public string Name { get; set; } = "";
+        public ColumnKind Kind { get; set; } = ColumnKind.Scalar;
+        public CatalogValueType ValueType { get; set; } = CatalogValueType.Text;
+        public bool Required { get; set; }
+        public string ReferenceTarget { get; set; } = "";
+        public string? Formula { get; set; }
+
+        public ColumnCatalogEntry ToEntry(string table, int order = 0) => new()
+        {
+            TableName = table,
+            ColumnName = Name.Trim(),
+            Kind = Kind,
+            ValueType = Kind == ColumnKind.Reference ? CatalogValueType.Uuid : ValueType,
+            IsRequired = Kind == ColumnKind.Scalar && Required,
+            ReferenceTarget = Kind == ColumnKind.Reference ? ReferenceTarget : null,
+            Formula = Kind == ColumnKind.Computed ? Formula : null,
+            LabelEn = Name.Trim(),
+            LabelFr = Name.Trim(),
+            IsUserAdded = true,
+            DisplayOrder = order,
+        };
+    }
+
+    private void ToggleCreate()
+    {
+        _creating = !_creating;
+        _newTable = new TableDraft();
+        _addColumnTable = null;
+    }
+
+    private void StartAddColumn(string table)
+    {
+        _addColumnTable = table;
+        _newColumn = new ColumnDraft();
+        _creating = false;
+    }
+
+    private void CreateTable() => Try(() =>
+    {
+        string name = _newTable.Name.Trim();
+        List<ColumnCatalogEntry> columns = _newTable.Columns
+            .Where(c => !string.IsNullOrWhiteSpace(c.Name))
+            .Select((c, i) => c.ToEntry(name, i + 1))
+            .ToList();
+
+        MetaModel.CreateTable(new TableCatalogEntry
+        {
+            TableName = name,
+            LabelEn = string.IsNullOrWhiteSpace(_newTable.LabelEn) ? name : _newTable.LabelEn,
+            LabelFr = string.IsNullOrWhiteSpace(_newTable.LabelFr) ? _newTable.LabelEn ?? name : _newTable.LabelFr,
+            NavVisible = _newTable.NavVisible,
+            NavOrder = 50, // after the built-ins
+            DisplayColumn = string.IsNullOrWhiteSpace(_newTable.DisplayColumn) ? null : _newTable.DisplayColumn,
+            IsUserAdded = true,
+        }, columns);
+
+        _creating = false;
+        _message = Lang.IsFrench ? $"Table « {name} » créée." : $"Table '{name}' created.";
+    });
+
+    private void AddColumn() => Try(() =>
+    {
+        string table = _addColumnTable!;
+        int order = Catalog.GetForTable(table).Count + 1;
+        ColumnCatalogEntry entry = _newColumn.ToEntry(table, order);
+
+        // Validate computed formulas against the live catalog before publishing.
+        if (entry.Kind == ColumnKind.Computed)
+        {
+            IReadOnlyList<string> errors = App.Application.References.ComputedFormula.Validate(table, entry.Formula, Catalog, Tables);
+            if (errors.Count > 0)
+            {
+                throw new ArgumentException(string.Join(" ", errors));
+            }
+        }
+
+        MetaModel.AddColumn(entry);
+        _addColumnTable = null;
+        _message = Lang.IsFrench ? $"Colonne « {entry.ColumnName} » ajoutée." : $"Column '{entry.ColumnName}' added.";
+    });
+
+    private void Try(Action op)
+    {
+        try
+        {
+            op();
+            _ok = true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException or IOException)
+        {
+            _ok = false;
+            _message = ex.Message;
+        }
+    }
+}

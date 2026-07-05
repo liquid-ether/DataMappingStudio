@@ -1,13 +1,15 @@
 @page "/"
 @inject LanguageState Lang
+@inject ITableCatalog Tables
+@using App.UI.Navigation
 
 <PageTitle>Mapping Studio</PageTitle>
 
 <h1 class="page-title">@Lang.T("brand")</h1>
 <p>@Lang.T("welcome")</p>
 <div class="addbar">
-    @foreach (EntityNav nav in DefaultCatalog.Navigation)
+    @foreach (NavItem item in EntityNavigation.EntityItems(Tables))
     {
-        <a class="add" href="t/@nav.Table">@Lang.T(nav.NavKey)</a>
+        <a class="add" href="@item.Href">@EntityNavigation.Label(item, Lang)</a>
     }
 </div>

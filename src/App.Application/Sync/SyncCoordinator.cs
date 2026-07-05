@@ -51,11 +51,14 @@ public sealed class SyncCoordinator(
     IRemoteStore remoteStore,
     IPublishService publishService,
     AutoRefreshPlanner planner,
-    RemoteFoldCache? foldCache = null) : ISyncCoordinator
+    RemoteFoldCache? foldCache = null,
+    CatalogSyncService? catalogSync = null,
+    ITableCatalog? tableCatalog = null) : ISyncCoordinator
 {
     private readonly object _gate = new();
     private long? _lastPublishedSeq;
     private string? _lastRemoteVersion;
+    private string? _lastCatalogVersion;
 
     // Loaded lazily from the working copy (and persisted on publish) so "pending" survives restarts.
     private long LastPublishedSeq => _lastPublishedSeq ??= audit.GetPublishCheckpoint();
@@ -106,6 +109,18 @@ public sealed class SyncCoordinator(
         FoldedState remote;
         try
         {
+            // Meta-model first (version-gated): a table/column another writer added must exist locally
+            // BEFORE its data cells fold in, or they'd be skipped as unknown.
+            if (catalogSync is not null && tableCatalog is not null)
+            {
+                string catalogVersion = catalogSync.Version();
+                if (catalogVersion != _lastCatalogVersion)
+                {
+                    catalogSync.ApplyTo(catalog, tableCatalog, localStore);
+                    _lastCatalogVersion = catalogVersion;
+                }
+            }
+
             // Skip the (full) fold when nothing changed remotely since the last successful refresh.
             string version = remoteStore.RemoteVersion();
             if (version == _lastRemoteVersion)
@@ -132,13 +147,18 @@ public sealed class SyncCoordinator(
 
         RefreshPlan plan = planner.Plan(pendingCells, localKnown, remote);
 
-        // Only adopt tables this catalog actually has: the shared folder may carry logs for tables this
-        // host/version doesn't know (or stale ones), and we must skip them rather than crash on a missing
-        // table. The applied count reflects only what was adopted.
+        // Only adopt tables AND columns this catalog actually has: the shared folder may carry logs for
+        // tables/columns this copy doesn't know yet (another writer's newer meta-model, or stale data),
+        // and we must skip them rather than crash mid-adopt. Skipped cells are re-offered on the next
+        // refresh after the catalog catches up. The applied count reflects only what was adopted.
         HashSet<string> known = catalog.GetTables().ToHashSet(StringComparer.Ordinal);
+        Dictionary<string, HashSet<string>> knownColumns = known.ToDictionary(
+            t => t,
+            t => catalog.GetForTable(t).Select(c => c.ColumnName).ToHashSet(StringComparer.Ordinal),
+            StringComparer.Ordinal);
         int applied = 0;
         foreach (IGrouping<(string Table, Guid Row), CellChange> group in plan.Applied
-            .Where(c => known.Contains(c.Cell.Table))
+            .Where(c => known.Contains(c.Cell.Table) && knownColumns[c.Cell.Table].Contains(c.Cell.Column))
             .GroupBy(c => (c.Cell.Table, c.Cell.RowId)))
         {
             Dictionary<string, string?> values = group.ToDictionary(c => c.Cell.Column, c => c.Value, StringComparer.Ordinal);

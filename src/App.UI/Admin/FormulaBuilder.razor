@@ -1,0 +1,116 @@
+@inject LanguageState Lang
+
+@* Guided builder for the evaluable computed-column formulas (see ComputedFormula). Dropdowns constrain
+   the parts so the generated formula is valid by construction; the result is emitted via ValueChanged
+   and previewed read-only. Columns of the OWNING table come in via LocalColumns (they may be drafts of a
+   table that doesn't exist yet); other tables' columns come from the catalog. *@
+<div class="draftbar" style="align-items:flex-start;flex-direction:column;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select class="th-filter" style="max-width:220px" value="@_kind" @onchange="OnKindChanged">
+            <option value="">@(Lang.IsFrench ? "— choisir un type de formule —" : "— choose a formula kind —")</option>
+            <option value="count">@(Lang.IsFrench ? "Compte d'enfants — count(...)" : "Count of children — count(...)")</option>
+            <option value="ref">@(Lang.IsFrench ? "Recherche via référence — lookup(réf.colonne)" : "Lookup via reference — lookup(ref.column)")</option>
+            <option value="key">@(Lang.IsFrench ? "Recherche par clé — lookup(clé, table, colonne)" : "Lookup by key — lookup(key, table, column)")</option>
+        </select>
+
+        @if (_kind == "count")
+        {
+            <select class="th-filter" style="max-width:180px" value="@_countTable" @onchange="e => { _countTable = (string)e.Value!; _countFk = string.Empty; Emit(); }">
+                <option value="">@(Lang.IsFrench ? "table enfant" : "child table")</option>
+                @foreach (string t in AllTables) { <option value="@t">@t</option> }
+            </select>
+            <select class="th-filter" style="max-width:180px" value="@_countFk" @onchange="e => { _countFk = (string)e.Value!; Emit(); }">
+                <option value="">@(Lang.IsFrench ? "colonne FK" : "FK column")</option>
+                @foreach (string c in ColumnsOf(_countTable)) { <option value="@c">@c</option> }
+            </select>
+        }
+        else if (_kind == "ref")
+        {
+            <select class="th-filter" style="max-width:180px" value="@_refColumn" @onchange="e => { _refColumn = (string)e.Value!; _refTargetColumn = string.Empty; Emit(); }">
+                <option value="">@(Lang.IsFrench ? "colonne référence" : "reference column")</option>
+                @foreach (ColumnCatalogEntry c in ReferenceColumns) { <option value="@c.ColumnName">@c.ColumnName → @c.ReferenceTarget</option> }
+            </select>
+            <select class="th-filter" style="max-width:180px" value="@_refTargetColumn" @onchange="e => { _refTargetColumn = (string)e.Value!; Emit(); }">
+                <option value="">@(Lang.IsFrench ? "colonne cible" : "target column")</option>
+                @foreach (string c in ColumnsOf(ReferenceTargetOf(_refColumn))) { <option value="@c">@c</option> }
+            </select>
+        }
+        else if (_kind == "key")
+        {
+            <select class="th-filter" style="max-width:160px" value="@_keyColumn" @onchange="e => { _keyColumn = (string)e.Value!; Emit(); }">
+                <option value="">@(Lang.IsFrench ? "colonne clé (ici)" : "key column (here)")</option>
+                @foreach (ColumnCatalogEntry c in LocalColumns) { <option value="@c.ColumnName">@c.ColumnName</option> }
+            </select>
+            <select class="th-filter" style="max-width:160px" value="@_keyTable" @onchange="e => { _keyTable = (string)e.Value!; _keyMatch = string.Empty; _keyReturn = string.Empty; Emit(); }">
+                <option value="">@(Lang.IsFrench ? "table cible" : "target table")</option>
+                @foreach (string t in AllTables) { <option value="@t">@t</option> }
+            </select>
+            <select class="th-filter" style="max-width:170px" value="@_keyMatch" @onchange="e => { _keyMatch = (string)e.Value!; Emit(); }">
+                <option value="">@(Lang.IsFrench ? "correspondance: colonne d'affichage" : "match: display column")</option>
+                @foreach (string c in ColumnsOf(_keyTable)) { <option value="@c">@c</option> }
+            </select>
+            <select class="th-filter" style="max-width:160px" value="@_keyReturn" @onchange="e => { _keyReturn = (string)e.Value!; Emit(); }">
+                <option value="">@(Lang.IsFrench ? "colonne retournée" : "return column")</option>
+                @foreach (string c in ColumnsOf(_keyTable)) { <option value="@c">@c</option> }
+            </select>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(Value))
+    {
+        <div class="mono" style="font-size:12.5px;color:var(--accent-text)">@Value</div>
+    }
+</div>
+
+@code {
+    [Inject] public IServiceProvider Services { get; set; } = default!;
+
+    /// <summary>Columns of the owning table (may be drafts of a not-yet-created table).</summary>
+    [Parameter] public IReadOnlyList<ColumnCatalogEntry> LocalColumns { get; set; } = [];
+
+    [Parameter] public string? Value { get; set; }
+
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+
+    private ICatalog? Catalog => Services.GetService(typeof(ICatalog)) as ICatalog;
+
+    private string _kind = "";
+    private string _countTable = "", _countFk = "";
+    private string _refColumn = "", _refTargetColumn = "";
+    private string _keyColumn = "", _keyTable = "", _keyMatch = "", _keyReturn = "";
+
+    private IReadOnlyList<string> AllTables => Catalog?.GetTables() ?? [];
+
+    private IEnumerable<ColumnCatalogEntry> ReferenceColumns
+        => LocalColumns.Where(c => c.Kind == ColumnKind.Reference && c.ReferenceTarget is not null);
+
+    private string? ReferenceTargetOf(string refColumn)
+        => LocalColumns.FirstOrDefault(c => c.ColumnName == refColumn)?.ReferenceTarget;
+
+    private IReadOnlyList<string> ColumnsOf(string? table)
+        => string.IsNullOrEmpty(table) || Catalog is null
+            ? []
+            : Catalog.GetForTable(table).Where(c => !c.IsCore).Select(c => c.ColumnName).ToList();
+
+    private void OnKindChanged(ChangeEventArgs e)
+    {
+        _kind = (string)e.Value!;
+        _countTable = _countFk = _refColumn = _refTargetColumn = _keyColumn = _keyTable = _keyMatch = _keyReturn = "";
+        Emit();
+    }
+
+    private Task Emit()
+    {
+        string? formula = _kind switch
+        {
+            "count" when _countTable != "" && _countFk != "" => $"count({_countTable}.{_countFk})",
+            "ref" when _refColumn != "" && _refTargetColumn != "" => $"lookup({_refColumn}.{_refTargetColumn})",
+            "key" when _keyColumn != "" && _keyTable != "" && _keyReturn != "" =>
+                _keyMatch != "" ? $"lookup({_keyColumn}, {_keyTable}.{_keyMatch}, {_keyReturn})" : $"lookup({_keyColumn}, {_keyTable}, {_keyReturn})",
+            _ => null,
+        };
+
+        Value = formula;
+        return ValueChanged.InvokeAsync(formula);
+    }
+}

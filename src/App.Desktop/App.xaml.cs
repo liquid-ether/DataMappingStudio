@@ -61,11 +61,18 @@ public partial class DesktopApp : System.Windows.Application
                 .AddRemoteStore(remoteFolder)
                 .AddAppUi();
 
+            // Runtime settings: shared scope via the synced folder, local scope beside the working copy.
+            services.AddSingleton<App.Application.Abstractions.IRuntimeConfig>(sp =>
+                new App.Application.Configuration.RuntimeConfigService(
+                    sp.GetService<App.Application.Abstractions.ISharedSettingsStore>(),
+                    Path.Combine(dataDir, "app_config.local.json")));
+
             ServiceProvider provider = services.BuildServiceProvider();
             Resources.Add("services", provider);
 
             // Provision the local working copy.
             provider.GetRequiredService<ICatalog>().Seed(DefaultCatalog.Entries());
+            provider.GetRequiredService<ITableCatalog>().SeedTableMeta(DefaultCatalog.TableMeta());
             provider.GetRequiredService<ILocalStore>().EnsureSchema();
 
             // Seed the demo dataset only when explicitly requested (MAPPINGSTUDIO_SEED_SAMPLE=true) — a

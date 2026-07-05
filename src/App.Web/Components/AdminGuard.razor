@@ -5,7 +5,12 @@
    registered, so render a friendly notice instead of a DI error. (2) The plain RouteView doesn't enforce
    page-level [Authorize] policies on interactive (circuit) navigations — only hard HTTP requests hit the
    endpoint metadata — so the permission is re-checked here, server-side, before any admin UI renders. *@
-@if (!Config.GetValue("Auth:Require", false))
+@if (!Config.GetValue("Auth:Require", false) && AllowGuest)
+{
+    @* Meta-model + settings are meaningful without authentication — the guest is a full admin. *@
+    @ChildContent
+}
+else if (!Config.GetValue("Auth:Require", false))
 {
     <h1 class="page-title">Administration</h1>
     <p class="muted">
@@ -27,6 +32,12 @@ else
 @code {
     /// <summary>The permission required to render this admin page (re-checked on the circuit).</summary>
     [Parameter] public string? Permission { get; set; }
+
+    /// <summary>
+    /// Render the page in guest mode too (Auth:Require=false) — for admin areas like the meta-model and
+    /// settings that exist independently of the security store (unlike Users/Roles).
+    /// </summary>
+    [Parameter] public bool AllowGuest { get; set; }
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 }

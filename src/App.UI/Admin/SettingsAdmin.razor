@@ -1,0 +1,140 @@
+@using App.Application.Configuration
+@using App.Domain.Catalog
+@using Microsoft.Extensions.Configuration
+@inject IRuntimeConfig Config
+@inject ICurrentUser User
+@inject LanguageState Lang
+@inject IServiceProvider Services
+
+@* Runtime settings (the wired app_config model): the closed registry of operational knobs, editable at
+   run time — Shared scope converges across every host via the synced folder. Secrets and structural
+   configuration stay file-based and appear read-only below. *@
+<h1 class="page-title">@(Lang.IsFrench ? "Paramètres" : "Settings")</h1>
+
+@if (_message is not null)
+{
+    <p class="@(_ok ? null : "err")" role="alert">@_message</p>
+}
+
+<h2 class="page-title" style="font-size:14px">@(Lang.IsFrench ? "Partagés (tous les serveurs)" : "Shared (all hosts)")</h2>
+<p class="muted" style="font-size:12px;margin-top:-6px">
+    @(Lang.IsFrench
+        ? "Appliqués en direct, sans redémarrage. Dernier enregistrement gagnant en cas d'édition simultanée."
+        : "Applied live, no restart. Last save wins if two admins edit at once.")
+</p>
+<div class="gridbox" style="flex:none">
+    <table class="grid">
+        <thead>
+            <tr>
+                <th>@(Lang.IsFrench ? "Paramètre" : "Setting")</th>
+                <th>@(Lang.IsFrench ? "Description" : "Description")</th>
+                <th>@(Lang.IsFrench ? "Valeur" : "Value")</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (SettingDefinition def in SettingsRegistry.All.Where(d => d.Scope == ConfigScope.Shared))
+            {
+                <tr>
+                    <td><div class="cell mono" style="font-size:12px">@def.Key</div></td>
+                    <td><div class="cell muted" style="font-size:12px">@(Lang.IsFrench ? def.DescriptionFr : def.DescriptionEn)</div></td>
+                    <td>
+                        <div class="cell">
+                            @if (def.Type == SettingType.Language)
+                            {
+                                <select class="th-filter" style="max-width:110px" @bind="_edits[def.Key]">
+                                    <option value="en">EN</option>
+                                    <option value="fr">FR</option>
+                                </select>
+                            }
+                            else
+                            {
+                                <input class="th-filter" style="max-width:120px" @bind="_edits[def.Key]" />
+                            }
+                        </div>
+                    </td>
+                    <td>
+                        <div class="cell">
+                            <button class="add" type="button" @onclick="() => Save(def)">@Lang.T("save")</button>
+                            @if (def.LiveApply)
+                            {
+                                <span class="kind-badge join" style="margin-left:6px">@(Lang.IsFrench ? "direct" : "live")</span>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<h2 class="page-title" style="font-size:14px;margin-top:20px">@(Lang.IsFrench ? "Fichier de configuration (lecture seule)" : "File-based (read-only)")</h2>
+<p class="muted" style="font-size:12px;margin-top:-6px">
+    @(Lang.IsFrench
+        ? "Chemins, sécurité et secrets restent dans appsettings / variables d'environnement — redémarrage requis."
+        : "Paths, security and secrets stay in appsettings / environment variables — restart required to change.")
+</p>
+<div class="gridbox" style="flex:none">
+    <table class="grid">
+        <tbody>
+            @foreach ((string Label, string Value) row in FileSettings())
+            {
+                <tr>
+                    <td><div class="cell mono" style="font-size:12px">@row.Label</div></td>
+                    <td><div class="cell muted" style="font-size:12px">@row.Value</div></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private readonly Dictionary<string, string> _edits = new(StringComparer.OrdinalIgnoreCase);
+    private string? _message;
+    private bool _ok;
+
+    protected override void OnInitialized()
+    {
+        foreach (SettingDefinition def in SettingsRegistry.All)
+        {
+            _edits[def.Key] = Config.Get(def.Key);
+        }
+    }
+
+    private void Save(SettingDefinition def)
+    {
+        try
+        {
+            Config.Set(new AppConfigEntry { Key = def.Key, Value = _edits[def.Key]?.Trim(), Scope = def.Scope }, User);
+            _ok = true;
+            _message = Lang.IsFrench ? $"« {def.Key} » enregistré." : $"'{def.Key}' saved.";
+
+            // Best-effort security audit when the host runs with authentication.
+            if (Services.GetService(typeof(ISecurityAudit)) is ISecurityAudit audit)
+            {
+                _ = audit.RecordAsync("settings.changed", User.Name, true, $"{def.Key}={_edits[def.Key]}");
+            }
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException or IOException)
+        {
+            _ok = false;
+            _message = ex.Message;
+        }
+    }
+
+    private IEnumerable<(string, string)> FileSettings()
+    {
+        var configuration = Services.GetService(typeof(IConfiguration)) as IConfiguration;
+        string Show(string key, string? fallback = null) => configuration?[key] is { Length: > 0 } v ? v : fallback ?? "—";
+        string Secret(string key) => string.IsNullOrEmpty(configuration?[key]) ? (Lang.IsFrench ? "non défini" : "not set") : "••••••";
+
+        yield return ("RemoteFolder", Show("RemoteFolder", Lang.IsFrench ? "(défaut : App_Data/remote)" : "(default: App_Data/remote)"));
+        yield return ("DataDir", Show("DataDir", Lang.IsFrench ? "(défaut : App_Data)" : "(default: App_Data)"));
+        yield return ("Auth:Require", Show("Auth:Require", "false"));
+        yield return ("Auth:Store:Provider", Show("Auth:Store:Provider", "Sqlite"));
+        yield return ("Auth:Email:Host", Show("Auth:Email:Host", Lang.IsFrench ? "non défini" : "not set"));
+        yield return ("Auth:Email:Password", Secret("Auth:Email:Password"));
+        yield return ("Auth:BootstrapAdmin:Password", Secret("Auth:BootstrapAdmin:Password"));
+        yield return ("Proxy:Enabled", Show("Proxy:Enabled", "false"));
+    }
+}

@@ -59,6 +59,47 @@ public class ReferenceTests : AppTestContext
     }
 
     [Fact]
+    public void Key_lookup_matches_by_value_in_single_and_bulk_evaluation()
+    {
+        (FakeCatalog catalog, FakeLocalStore store) = Seeded();
+        store.Upsert(TableNames.Application, new Row(TableNames.Application, AppId) { ["app_code"] = "GDM1", ["description"] = "Core banking" }, "s", "t");
+        catalog.AddColumn(new App.Domain.Catalog.ColumnCatalogEntry
+        {
+            TableName = TableNames.DataSource,
+            ColumnName = "app_desc",
+            Kind = App.Domain.Catalog.ColumnKind.Computed,
+            Formula = "lookup(name_key, application.app_code, description)",
+        });
+        catalog.AddColumn(new App.Domain.Catalog.ColumnCatalogEntry
+        {
+            TableName = TableNames.DataSource,
+            ColumnName = "name_key",
+        });
+        Guid rowId = Guid.NewGuid();
+        store.Upsert(TableNames.DataSource, new Row(TableNames.DataSource, rowId) { ["name"] = "X", ["name_key"] = "GDM1" }, "s", "t");
+
+        ReferenceService svc = new(catalog, store);
+        Row row = store.GetById(TableNames.DataSource, rowId)!;
+
+        Assert.Equal("Core banking", svc.Evaluate(TableNames.DataSource, "app_desc", row));
+        IReadOnlyDictionary<Guid, string?> bulk = svc.EvaluateColumn(TableNames.DataSource, "app_desc", [row]);
+        Assert.Equal("Core banking", bulk[rowId]);
+    }
+
+    [Fact]
+    public void Display_column_from_table_metadata_overrides_the_built_in_map()
+    {
+        (FakeCatalog catalog, FakeLocalStore store) = Seeded();
+        store.Upsert(TableNames.Application, new Row(TableNames.Application, AppId) { ["app_code"] = "GDM1", ["description"] = "Core banking" }, "s", "t");
+        FakeTableCatalog tables = new([new App.Domain.Catalog.TableCatalogEntry { TableName = TableNames.Application, DisplayColumn = "description" }]);
+
+        ReferenceService svc = new(catalog, store, tables);
+
+        Assert.Equal("Core banking", svc.Display(TableNames.Application, AppId.ToString()));
+        Assert.Contains(svc.Options(TableNames.Application), o => o.Display == "Core banking");
+    }
+
+    [Fact]
     public void EvaluateColumn_counts_children_for_many_rows_in_one_pass()
     {
         (FakeCatalog catalog, FakeLocalStore store) = Seeded();

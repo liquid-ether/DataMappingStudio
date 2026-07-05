@@ -41,31 +41,41 @@
 @code {
     [Inject] public LanguageState Lang { get; set; } = default!;
 
-    // Entity destinations are data-driven from the catalog navigation, then the studio + tool views —
-    // mirroring the web host's MainLayout so both shells expose the same structure.
-    private static readonly IReadOnlyList<NavSection> _sections =
-    [
-        new NavSection("Data model", "Modèle de données",
-            [.. DefaultCatalog.Navigation.Select(n => ($"t/{n.Table}", n.NavKey))]),
-        new NavSection("Studio", "Studio",
-            [("mappings", "tabMappings"), ("lineage", "tabLineage")]),
-        new NavSection("Tools", "Outils",
-            [("import", "navImport"), ("history", "navHistory")]),
-    ];
+    [Inject] public IServiceProvider Services { get; set; } = default!;
+
+    // Entity destinations are data-driven: the default catalog navigation plus runtime-created tables
+    // (which arrive via catalog sync) — mirroring the web host's MainLayout so both shells expose the
+    // same structure. The table catalog is optional so test hosts without one degrade to the defaults.
+    private ITableCatalog? Tables => Services.GetService(typeof(ITableCatalog)) as ITableCatalog;
+
+    private IReadOnlyList<NavSection> _sections = [];
 
     private string _active = $"t/{DefaultCatalog.Navigation[0].Table}";
 
-    private void Select(string href) => _active = href;
+    private void Select(string href)
+    {
+        _active = href;
+        BuildSections(); // pick up tables that synced in since the last interaction
+    }
 
     private void ShowPublish() => _active = "publish";
 
-    private string TitleFor(string table)
-    {
-        EntityNav? nav = DefaultCatalog.Navigation.FirstOrDefault(n => n.Table == table);
-        return nav is null ? table : Lang.T(nav.NavKey);
-    }
+    private string TitleFor(string table) => App.UI.Navigation.EntityNavigation.TitleFor(table, Tables, Lang);
 
-    protected override void OnInitialized() => Lang.OnChange += StateHasChanged;
+    private void BuildSections() => _sections =
+    [
+        new NavSection("Data model", "Modèle de données", App.UI.Navigation.EntityNavigation.EntityItems(Tables)),
+        new NavSection("Studio", "Studio",
+            [new NavItem("mappings", "tabMappings"), new NavItem("lineage", "tabLineage")]),
+        new NavSection("Tools", "Outils",
+            [new NavItem("import", "navImport"), new NavItem("history", "navHistory")]),
+    ];
+
+    protected override void OnInitialized()
+    {
+        BuildSections();
+        Lang.OnChange += StateHasChanged;
+    }
 
     public void Dispose() => Lang.OnChange -= StateHasChanged;
 }

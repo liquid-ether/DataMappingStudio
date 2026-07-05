@@ -23,7 +23,9 @@ public static class DependencyInjection
         }
 
         services.TryAddSingleton(_ => new LocalDatabase($"Data Source={databasePath}"));
-        services.TryAddSingleton<ICatalog, SqliteCatalog>();
+        services.TryAddSingleton<SqliteCatalog>();
+        services.TryAddSingleton<ICatalog>(sp => sp.GetRequiredService<SqliteCatalog>());
+        services.TryAddSingleton<ITableCatalog>(sp => sp.GetRequiredService<SqliteCatalog>()); // same instance serves both meta tables
         services.TryAddSingleton<IAuditLog, SqliteAuditLog>();
         services.TryAddSingleton<ILocalStore, SqliteLocalStore>();
         return services;

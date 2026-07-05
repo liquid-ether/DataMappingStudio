@@ -8,11 +8,14 @@ namespace App.Infrastructure.Local;
 /// <summary>
 /// SQLite-backed column catalog. Stored in the <c>column_catalog</c> meta table; folded like any other
 /// table (Architecture §4/§6a). <see cref="AddColumn"/> both records the column and applies the
-/// physical <c>ALTER TABLE … ADD COLUMN</c> so it appears in the editors with no code change.
+/// physical <c>ALTER TABLE … ADD COLUMN</c> so it appears in the editors with no code change. Also
+/// implements <see cref="ITableCatalog"/> over the sibling <c>table_catalog</c> meta table (labels,
+/// navigation placement, reference display column).
 /// </summary>
-public sealed class SqliteCatalog : ICatalog
+public sealed class SqliteCatalog : ICatalog, ITableCatalog
 {
     private const string Table = "column_catalog";
+    private const string MetaTable = "table_catalog";
     private readonly LocalDatabase _db;
 
     public SqliteCatalog(LocalDatabase db)
@@ -70,6 +73,74 @@ public sealed class SqliteCatalog : ICatalog
         }
     });
 
+    // ---------------- ITableCatalog (table_catalog) ----------------
+
+    public IReadOnlyList<TableCatalogEntry> GetTableMeta()
+        => _db.Locked(() => _db.Connection.Query(
+            $"{SelectMeta} FROM {MetaTable} ORDER BY nav_order, table_name", MapMeta));
+
+    public TableCatalogEntry? GetTableMeta(string table)
+        => _db.Locked(() => _db.Connection.Query(
+            $"{SelectMeta} FROM {MetaTable} WHERE table_name = $t", MapMeta, ("$t", table)).FirstOrDefault());
+
+    public void UpsertTableMeta(TableCatalogEntry entry) => _db.Locked(() =>
+    {
+        ValidateMeta(entry);
+        WriteMeta(entry, upsert: true);
+    });
+
+    public void SeedTableMeta(IEnumerable<TableCatalogEntry> entries) => _db.Locked(() =>
+    {
+        foreach (TableCatalogEntry entry in entries)
+        {
+            ValidateMeta(entry);
+            WriteMeta(entry, upsert: false); // INSERT OR IGNORE: seeding never overwrites runtime edits
+        }
+    });
+
+    private void WriteMeta(TableCatalogEntry e, bool upsert)
+    {
+        string sql = upsert
+            ? $"""
+              INSERT INTO {MetaTable} (table_name, label_en, label_fr, nav_visible, nav_order, display_column, is_user_added)
+              VALUES ($t, $len, $lfr, $nav, $ord, $disp, $usr)
+              ON CONFLICT(table_name) DO UPDATE SET
+                label_en = $len, label_fr = $lfr, nav_visible = $nav, nav_order = $ord,
+                display_column = $disp, is_user_added = $usr
+              """
+            : $"""
+              INSERT OR IGNORE INTO {MetaTable} (table_name, label_en, label_fr, nav_visible, nav_order, display_column, is_user_added)
+              VALUES ($t, $len, $lfr, $nav, $ord, $disp, $usr)
+              """;
+        _db.Connection.Execute(sql,
+            ("$t", e.TableName), ("$len", e.LabelEn), ("$lfr", e.LabelFr),
+            ("$nav", e.NavVisible ? 1L : 0L), ("$ord", (long)e.NavOrder),
+            ("$disp", e.DisplayColumn), ("$usr", e.IsUserAdded ? 1L : 0L));
+    }
+
+    private static void ValidateMeta(TableCatalogEntry entry)
+    {
+        IReadOnlyList<string> errors = entry.Validate();
+        if (errors.Count > 0)
+        {
+            throw new ArgumentException($"Invalid table metadata '{entry.TableName}': {string.Join("; ", errors)}");
+        }
+    }
+
+    private const string SelectMeta =
+        "SELECT table_name, label_en, label_fr, nav_visible, nav_order, display_column, is_user_added";
+
+    private static TableCatalogEntry MapMeta(SqliteDataReader r) => new()
+    {
+        TableName = r.GetString(0),
+        LabelEn = r.AsString(1),
+        LabelFr = r.AsString(2),
+        NavVisible = r.GetInt64(3) != 0,
+        NavOrder = (int)r.GetInt64(4),
+        DisplayColumn = r.AsString(5),
+        IsUserAdded = r.GetInt64(6) != 0,
+    };
+
     private void Insert(ColumnCatalogEntry e, bool ignoreIfExists)
     {
         string verb = ignoreIfExists ? "INSERT OR IGNORE" : "INSERT";
@@ -118,24 +189,40 @@ public sealed class SqliteCatalog : ICatalog
         DisplayOrder = (int)r.GetInt64(13),
     };
 
-    private void EnsureTable() => _db.Locked(() => _db.Connection.Execute(
-        $"""
-        CREATE TABLE IF NOT EXISTS {Table} (
-          table_name       TEXT NOT NULL,
-          column_name      TEXT NOT NULL,
-          kind             INTEGER NOT NULL,
-          value_type       INTEGER NOT NULL,
-          max_length       INTEGER,
-          label_en         TEXT,
-          label_fr         TEXT,
-          is_required      INTEGER NOT NULL DEFAULT 0,
-          is_core          INTEGER NOT NULL DEFAULT 0,
-          is_user_added    INTEGER NOT NULL DEFAULT 0,
-          reference_target TEXT,
-          formula          TEXT,
-          default_value    TEXT,
-          display_order    INTEGER NOT NULL DEFAULT 0,
-          PRIMARY KEY (table_name, column_name)
-        )
-        """));
+    private void EnsureTable() => _db.Locked(() =>
+    {
+        _db.Connection.Execute(
+            $"""
+            CREATE TABLE IF NOT EXISTS {Table} (
+              table_name       TEXT NOT NULL,
+              column_name      TEXT NOT NULL,
+              kind             INTEGER NOT NULL,
+              value_type       INTEGER NOT NULL,
+              max_length       INTEGER,
+              label_en         TEXT,
+              label_fr         TEXT,
+              is_required      INTEGER NOT NULL DEFAULT 0,
+              is_core          INTEGER NOT NULL DEFAULT 0,
+              is_user_added    INTEGER NOT NULL DEFAULT 0,
+              reference_target TEXT,
+              formula          TEXT,
+              default_value    TEXT,
+              display_order    INTEGER NOT NULL DEFAULT 0,
+              PRIMARY KEY (table_name, column_name)
+            )
+            """);
+        _db.Connection.Execute(
+            $"""
+            CREATE TABLE IF NOT EXISTS {MetaTable} (
+              table_name     TEXT PRIMARY KEY,
+              label_en       TEXT,
+              label_fr       TEXT,
+              nav_visible    INTEGER NOT NULL DEFAULT 0,
+              nav_order      INTEGER NOT NULL DEFAULT 0,
+              display_column TEXT,
+              is_user_added  INTEGER NOT NULL DEFAULT 0
+            )
+            """);
+        return true;
+    });
 }

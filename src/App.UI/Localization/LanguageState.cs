@@ -1,14 +1,33 @@
 using System.Globalization;
+using App.Application.Abstractions;
+using App.Application.Configuration;
 
 namespace App.UI.Localization;
 
 /// <summary>
 /// Holds the current UI language and raises a change event so components re-render instantly on
 /// toggle (matching the mockup's EN/FR switch). UI chrome strings are looked up here; catalog data
-/// labels are chosen with <see cref="Label"/> (label_en/label_fr). Scoped per Blazor circuit.
+/// labels are chosen with <see cref="Label"/> (label_en/label_fr). Scoped per Blazor circuit. New
+/// sessions start in the admin-configured default language (Ui.DefaultLanguage) when the host wires a
+/// runtime config.
 /// </summary>
 public sealed class LanguageState
 {
+    public LanguageState(IRuntimeConfig? config = null)
+    {
+        try
+        {
+            if (config?.Get(SettingsRegistry.DefaultLanguage) == "fr")
+            {
+                Current = "fr";
+            }
+        }
+        catch
+        {
+            // Settings unavailable — keep the built-in default.
+        }
+    }
+
     private static readonly Dictionary<string, (string En, string Fr)> Strings = new(StringComparer.Ordinal)
     {
         ["brand"] = ("Mapping Studio", "Studio de mappage"),

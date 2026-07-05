@@ -11,9 +11,9 @@
     @foreach (NavSection section in Sections)
     {
         <div class="sec">@(Lang.IsFrench ? section.TitleFr : section.TitleEn)</div>
-        @foreach ((string Href, string Key) item in section.Items)
+        @foreach (NavItem item in section.Items)
         {
-            string label = Lang.T(item.Key);
+            string label = App.UI.Navigation.EntityNavigation.Label(item, Lang);
             @if (OnSelect.HasDelegate)
             {
                 <button type="button" class="navitem" aria-selected="@(item.Href == ActiveHref ? "true" : "false")" title="@label"

@@ -1,0 +1,7 @@
+@page "/admin/settings"
+@attribute [Authorize(Policy = Permissions.AppConfigure)]
+
+<AdminGuard Permission="@Permissions.AppConfigure" AllowGuest="true">
+    <AdminNav />
+    <SettingsAdmin />
+</AdminGuard>

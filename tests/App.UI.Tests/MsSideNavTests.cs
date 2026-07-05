@@ -10,8 +10,9 @@ public class MsSideNavTests : AppTestContext
 {
     private static readonly IReadOnlyList<NavSection> Sections =
     [
-        new NavSection("Data model", "Modèle de données", [("t/application", "navApplications"), ("t/data_source", "navSources")]),
-        new NavSection("Tools", "Outils", [("history", "navHistory")]),
+        new NavSection("Data model", "Modèle de données",
+            [new NavItem("t/application", "navApplications"), new NavItem("t/data_source", "navSources")]),
+        new NavSection("Tools", "Outils", [new NavItem("history", "navHistory")]),
     ];
 
     public MsSideNavTests() => Services.AddSingleton<LanguageState>();

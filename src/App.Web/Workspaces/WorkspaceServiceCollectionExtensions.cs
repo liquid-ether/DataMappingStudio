@@ -27,7 +27,8 @@ public static class WorkspaceServiceCollectionExtensions
             sp.GetRequiredService<FieldMergeEngine>(),
             sp.GetRequiredService<IRemoteStore>(),
             sp.GetRequiredService<ISnapshotBuilder>(),
-            new RemoteFoldCache()))); // one fold per remote change for the whole host, not one per workspace
+            new RemoteFoldCache(), // one data fold per remote change for the whole host, not one per workspace
+            sp.GetRequiredService<CatalogSyncService>()))); // shared meta-model fold, same idea
 
         services.AddScoped<IWorkspaceAccessor, WorkspaceAccessor>();
 
@@ -38,9 +39,20 @@ public static class WorkspaceServiceCollectionExtensions
 
         // The per-user working copy: every DB-bound service resolves from the current user's workspace.
         services.AddScoped<ICatalog>(sp => sp.GetRequiredService<IWorkspaceAccessor>().Current.Catalog);
+        services.AddScoped<ITableCatalog>(sp => sp.GetRequiredService<IWorkspaceAccessor>().Current.TableCatalog);
         services.AddScoped<ILocalStore>(sp => sp.GetRequiredService<IWorkspaceAccessor>().Current.Store);
         services.AddScoped<IAuditLog>(sp => sp.GetRequiredService<IWorkspaceAccessor>().Current.Audit);
         services.AddScoped<ISyncCoordinator>(sp => sp.GetRequiredService<IWorkspaceAccessor>().Current.Coordinator);
+
+        // Meta-model writes: per-user catalog/store + the shared catalog sync (admin Model module +
+        // grid add-column both route through this).
+        services.AddScoped(sp => new App.Application.Catalog.MetaModelService(
+            sp.GetRequiredService<ICatalog>(),
+            sp.GetRequiredService<ITableCatalog>(),
+            sp.GetRequiredService<ILocalStore>(),
+            sp.GetRequiredService<App.Application.Abstractions.ICurrentUser>(),
+            sp.GetRequiredService<CatalogSyncService>(),
+            sp.GetRequiredService<ISyncCoordinator>()));
 
         // ImportEngine is registered as a singleton by AddApplication; per-user it must follow the store.
         services.RemoveAll<ImportEngine>();

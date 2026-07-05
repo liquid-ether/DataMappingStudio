@@ -37,6 +37,13 @@ public static class DependencyInjection
         services.TryAddSingleton<ISnapshotBuilder>(sp =>
             new SnapshotBuilder(canonicalFolder, sp.GetRequiredService<IRemoteFormatProvider>().Resolve(formatName)));
 
+        // Meta-model sync: per-writer catalog change logs under _meta/catalog (host-wide fold cache).
+        services.TryAddSingleton<ICatalogRemote>(_ => new FileCatalogRemote(canonicalFolder));
+        services.TryAddSingleton<CatalogSyncService>();
+
+        // Shared runtime settings document (_meta/settings.json); each host wires IRuntimeConfig over it.
+        services.TryAddSingleton<ISharedSettingsStore>(_ => new FileSettingsStore(canonicalFolder));
+
         // Per-user hosts (web) build a PublishService + SyncCoordinator per workspace instead of these
         // singletons, because both bind to a (per-user) catalog/store; the shared remote store + snapshot
         // builder above are still singletons over the one shared folder.
@@ -55,10 +62,24 @@ public static class DependencyInjection
             sp.GetRequiredService<IAuditLog>(),
             sp.GetRequiredService<IRemoteStore>(),
             sp.GetRequiredService<IPublishService>(),
-            sp.GetRequiredService<AutoRefreshPlanner>())
+            sp.GetRequiredService<AutoRefreshPlanner>(),
+            foldCache: null,
+            sp.GetRequiredService<CatalogSyncService>(),
+            sp.GetService<ITableCatalog>()) // meta-model changes arrive via refresh (desktop has no admin UI)
         {
             WriterId = EnvironmentCurrentUser.Sanitize(Environment.UserName),
         });
+
+        // The single write path for meta-model changes (grid add-column on the desktop routes through it
+        // so a locally added column reaches the team like any other change). OS-account identity, same
+        // as the coordinator's writer id — the desktop is single-user and fully privileged.
+        services.TryAddSingleton(sp => new App.Application.Catalog.MetaModelService(
+            sp.GetRequiredService<ICatalog>(),
+            sp.GetRequiredService<ITableCatalog>(),
+            sp.GetRequiredService<ILocalStore>(),
+            new EnvironmentCurrentUser(),
+            sp.GetRequiredService<CatalogSyncService>(),
+            sp.GetRequiredService<ISyncCoordinator>()));
 
         // Background auto-refresh (no-op-safe; flags conflicts rather than clobbering local edits).
         if (enableAutoRefresh)

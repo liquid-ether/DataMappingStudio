@@ -305,6 +305,15 @@ only if folder-level SharePoint permissions per Application become a requirement
   scheduled) can roll older entries (e.g. >90 days, configurable) out of the live `_changes/`
   files into dated archive files, since the table snapshot already reflects their net effect.
   Archives stay available for time-travel (§18a).
+- **The meta-model syncs the same way.** Runtime schema changes (admin-created tables/columns,
+  table metadata) are appended to per-writer logs under **`_meta/catalog/`** and folded
+  deterministically — additive-only (never delete), first-wins structure, last-writer-wins table
+  metadata. Every working copy applies the folded catalog **before** each data fold (and on
+  creation), so a new table/column always lands before its data cells; cells for still-unknown
+  columns are skipped and re-offered, never fatal. Table-level metadata (bilingual labels,
+  navigation, the reference-picker display column) lives in a **`table_catalog`** meta table beside
+  `column_catalog`. Runtime **operational settings** use a simpler shared document,
+  **`_meta/settings.json`** (whole-file last-writer-wins — writes are rare and admin-only).
 
 ### Pluggable remote format (`IRemoteFormat`)
 Both the per-writer logs and the materialized snapshots are written through the same format

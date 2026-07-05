@@ -3,12 +3,16 @@
 @inject IConfiguration Config
 @inject ICurrentUser User
 @inject LanguageState Lang
+@inject ITableCatalog Tables
+@using App.UI.Navigation
 
 <MsTopBar OnPublish="GoToPublish">
     <AccountArea>
         @if (_authOn)
         {
-            @if (User.HasPermission(Permissions.UsersManage) || User.HasPermission(Permissions.RolesManage) || User.HasPermission(Permissions.SecurityConfigure))
+            @if (User.HasPermission(Permissions.UsersManage) || User.HasPermission(Permissions.RolesManage)
+                || User.HasPermission(Permissions.SecurityConfigure) || User.HasPermission(Permissions.ModelManage)
+                || User.HasPermission(Permissions.AppConfigure))
             {
                 <a class="ms-tabs" style="text-decoration:none" href="admin">Admin</a>
             }
@@ -17,6 +21,11 @@
                 <AntiforgeryToken />
                 <button class="add" type="submit">@(Lang.IsFrench ? "Déconnexion" : "Sign out")</button>
             </form>
+        }
+        else
+        {
+            @* Guest mode: the single local user is a full admin — meta-model + settings stay reachable. *@
+            <a class="ms-tabs" style="text-decoration:none" href="admin/model">Admin</a>
         }
     </AccountArea>
 </MsTopBar>
@@ -37,19 +46,22 @@
 @code {
     private bool _authOn;
 
-    // Side-nav sections: the data-driven entity editors, then the studio + tool destinations —
-    // mirroring the desktop shell so both hosts expose the same structure.
-    private static readonly IReadOnlyList<NavSection> _sections =
-    [
-        new NavSection("Data model", "Modèle de données",
-            [.. DefaultCatalog.Navigation.Select(n => ($"t/{n.Table}", n.NavKey))]),
-        new NavSection("Studio", "Studio",
-            [("mappings", "tabMappings"), ("lineage", "tabLineage")]),
-        new NavSection("Tools", "Outils",
-            [("import", "navImport"), ("history", "navHistory")]),
-    ];
+    // Side-nav sections: the data-driven entity editors (defaults + runtime-created tables), then the
+    // studio + tool destinations — mirroring the desktop shell so both hosts expose the same structure.
+    // Rebuilt on every navigation (layouts persist; OnParametersSet fires per page), so a table created
+    // in the admin appears in the nav on the next navigation.
+    private IReadOnlyList<NavSection> _sections = [];
 
     protected override void OnInitialized() => _authOn = Config.GetValue("Auth:Require", false);
+
+    protected override void OnParametersSet() => _sections =
+    [
+        new NavSection("Data model", "Modèle de données", EntityNavigation.EntityItems(Tables)),
+        new NavSection("Studio", "Studio",
+            [new NavItem("mappings", "tabMappings"), new NavItem("lineage", "tabLineage")]),
+        new NavSection("Tools", "Outils",
+            [new NavItem("import", "navImport"), new NavItem("history", "navHistory")]),
+    ];
 
     private void GoToPublish() => Nav.NavigateTo("publish");
 }

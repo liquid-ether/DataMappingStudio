@@ -15,7 +15,8 @@ public sealed record WorkspaceDependencies(
     FieldMergeEngine Merge,
     IRemoteStore Remote,
     ISnapshotBuilder Snapshots,
-    RemoteFoldCache? FoldCache = null);
+    RemoteFoldCache? FoldCache = null,
+    CatalogSyncService? CatalogSync = null);
 
 /// <summary>
 /// One user's isolated working copy on the web host — its own SQLite <c>local.db</c>, catalog, audit log,
@@ -30,6 +31,7 @@ public sealed class Workspace : IDisposable
 
     public string WriterId { get; }
     public ICatalog Catalog { get; }
+    public ITableCatalog TableCatalog { get; }
     public IAuditLog Audit { get; }
     public ILocalStore Store { get; }
     public ISyncCoordinator Coordinator { get; }
@@ -44,15 +46,19 @@ public sealed class Workspace : IDisposable
         SqliteCatalog catalog = new(_db);
         SqliteAuditLog audit = new(_db);
         Catalog = catalog;
+        TableCatalog = catalog;
         Audit = audit;
         Store = new SqliteLocalStore(_db, catalog, audit, deps.Clock);
 
-        // Provision this user's working copy from the catalog, then pull the shared canonical state in.
+        // Provision this user's working copy: built-in defaults, then the team's runtime meta-model from
+        // the shared folder (durable across workspace rebuilds), then pull the canonical data in.
         catalog.Seed(DefaultCatalog.Entries());
+        catalog.SeedTableMeta(DefaultCatalog.TableMeta());
+        deps.CatalogSync?.ApplyTo(Catalog, TableCatalog, Store);
         Store.EnsureSchema();
 
         IPublishService publish = new PublishService(deps.Remote, deps.Snapshots, Catalog, deps.Merge, deps.Clock);
-        Coordinator = new SyncCoordinator(Catalog, Store, Audit, deps.Remote, publish, deps.Planner, deps.FoldCache) { WriterId = writerId };
+        Coordinator = new SyncCoordinator(Catalog, Store, Audit, deps.Remote, publish, deps.Planner, deps.FoldCache, deps.CatalogSync, TableCatalog) { WriterId = writerId };
         ImportEngine = new ImportEngine(Catalog, Store, deps.RuleBuilder);
 
         Coordinator.Refresh(); // build the local cache from the remote fold (no-op-safe if the remote is down)

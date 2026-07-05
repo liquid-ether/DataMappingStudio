@@ -7,6 +7,47 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-07-05
+
+### Added — meta-model admin, shared catalog sync, lookup columns, runtime settings
+- **Model admin (`/admin/model`).** Create **new tables** at runtime (name, bilingual labels, navigation
+  placement, reference display column, initial columns) and **add columns** to any table — **Scalar**,
+  **Reference** (pick a target table; renders as the usual picker) or **Computed lookup** with a guided
+  **formula builder**. Gated by a new `Model.Manage` permission (Administrator); available in guest mode
+  (the local user is a full admin). Structure is additive by design — no deletes.
+- **The meta-model now syncs.** Runtime tables/columns are published to per-writer change logs under
+  `_meta/catalog/` in the shared folder (same only-the-owner-writes design as the data logs) and folded
+  deterministically (additive, first-wins structure, last-writer-wins table metadata). Every workspace
+  and the desktop apply the catalog **before** each data fold and on workspace creation — so a table one
+  admin creates reaches every user, survives workspace rebuilds, and its data cells always find their
+  schema. Also fixes a latent crash: data cells for columns a copy doesn't know yet are now skipped
+  cleanly instead of failing the refresh.
+- **Lookup expressions.** The evaluable computed-column grammar gains
+  **`lookup(key_column, target_table, return_column)`** (match by the target's display column, or name
+  one explicitly with `target_table.match_column`) alongside `lookup(ref.column)` and
+  `count(child.fk)` — matching the `LOOKUP(key, table, column)` signature the expression help always
+  advertised. Formulas are parsed + validated (unknown tables/columns, non-reference columns) before
+  saving.
+- **Table metadata & navigation.** A new `table_catalog` meta table stores per-table labels, nav
+  visibility/order and the reference-picker **display column** (previously a hard-coded list). The side
+  navigation and page titles are now **data-driven** in both shells: runtime tables appear in the Data
+  model section with their bilingual labels.
+- **Runtime settings (`/admin/settings`).** The reserved `app_config` model is finally wired: a closed
+  registry of operational knobs editable at run time — auto-refresh interval, workspace idle/retention,
+  default language — stored in the shared folder (`_meta/settings.json`) so **all hosts converge, live,
+  no restart** (consumers read per tick). File-based configuration (paths, auth, proxy, secrets) is
+  listed read-only with secrets masked; changes audit to the security log when auth is on.
+
+### Notes
+- Tests: catalog fold (determinism, first-wins/LWW, replay), formula parse/validate, the full
+  **two-writer sync round-trip** (fresh copy receives table + metadata + columns + data; running copy
+  catches up before adopting new-column cells), settings round-trip across hosts + validation +
+  permissions, formula-builder and reference bUnit coverage, and two new browser E2E flows (create table
+  → nav → add row; change setting → persists). Suite: 288 tests, 21/21 browser E2E.
+- Known limits (documented in the admin UI): runtime tables aren't covered by the Excel importer's
+  default mapping; snapshot files are shaped by the publishing writer's catalog (change logs remain the
+  source of truth).
+
 ## [1.19.1] - 2026-07-04
 
 ### Fixed — published host runs correctly from any directory

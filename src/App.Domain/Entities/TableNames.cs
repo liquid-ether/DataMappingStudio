@@ -20,6 +20,7 @@ public static class TableNames
 
     // Meta tables (generic, folded like any other table).
     public const string ColumnCatalog = "column_catalog";
+    public const string TableCatalog = "table_catalog";
     public const string AuditLog = "audit_log";
     public const string AppConfig = "app_config";
 

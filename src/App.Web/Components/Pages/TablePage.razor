@@ -1,8 +1,10 @@
 @page "/t/{Table}"
 @inject LanguageState Lang
+@inject ITableCatalog Tables
+@using App.UI.Navigation
 
 @* Catalog-driven entity editor. The same page serves every entity (the schema comes from the
-   catalog), with a localized title for the known entities. *@
+   catalog), with a localized title for the known entities and table-meta labels for runtime tables. *@
 <PageTitle>@TitleFor(Table)</PageTitle>
 
 <MetadataGrid Table="@Table" Title="@TitleFor(Table)" />
@@ -10,9 +12,5 @@
 @code {
     [Parameter] public string Table { get; set; } = string.Empty;
 
-    private string TitleFor(string table)
-    {
-        EntityNav? nav = DefaultCatalog.Navigation.FirstOrDefault(n => n.Table == table);
-        return nav is null ? table : Lang.T(nav.NavKey);
-    }
+    private string TitleFor(string table) => EntityNavigation.TitleFor(table, Tables, Lang);
 }

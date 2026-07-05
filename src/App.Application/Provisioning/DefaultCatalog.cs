@@ -25,6 +25,24 @@ public static class DefaultCatalog
         new(TableNames.Rule, "navRules"),
     ];
 
+    /// <summary>
+    /// Default table-level metadata: navigation placement mirrors <see cref="Navigation"/> (whose i18n
+    /// keys stay authoritative for the default tables' labels — the literals here are fallbacks), and
+    /// the reference-picker display column per table. Seeded idempotently; runtime tables add their own.
+    /// </summary>
+    public static IReadOnlyList<TableCatalogEntry> TableMeta() =>
+    [
+        new() { TableName = TableNames.Application, LabelEn = "Applications", LabelFr = "Applications", NavVisible = true, NavOrder = 1, DisplayColumn = "app_code" },
+        new() { TableName = TableNames.DataSource, LabelEn = "Sources", LabelFr = "Sources", NavVisible = true, NavOrder = 2, DisplayColumn = "name" },
+        new() { TableName = TableNames.DictionaryEntry, LabelEn = "Dictionary", LabelFr = "Dictionnaire", NavVisible = true, NavOrder = 3, DisplayColumn = "column_name" },
+        new() { TableName = TableNames.LookupValue, LabelEn = "Config", LabelFr = "Config", NavVisible = true, NavOrder = 4, DisplayColumn = "value" },
+        new() { TableName = TableNames.Classification, LabelEn = "Classification", LabelFr = "Classification", NavVisible = true, NavOrder = 5, DisplayColumn = "prp" },
+        new() { TableName = TableNames.Rule, LabelEn = "Rules", LabelFr = "Règles", NavVisible = true, NavOrder = 6, DisplayColumn = "name" },
+        new() { TableName = TableNames.Mapping, LabelEn = "Mappings", LabelFr = "Mappages", NavVisible = false, NavOrder = 100 },
+        new() { TableName = TableNames.MappingTarget, LabelEn = "Mapping targets", LabelFr = "Cibles de mappage", NavVisible = false, NavOrder = 101 },
+        new() { TableName = TableNames.MappingSource, LabelEn = "Mapping sources", LabelFr = "Sources de mappage", NavVisible = false, NavOrder = 102 },
+    ];
+
     public static IReadOnlyList<ColumnCatalogEntry> Entries()
     {
         Builder b = new();

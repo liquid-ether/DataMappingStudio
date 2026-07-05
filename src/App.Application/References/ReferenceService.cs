@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using App.Application.Abstractions;
 using App.Domain.Catalog;
 using App.Domain.Data;
@@ -7,13 +6,15 @@ using App.Domain.Entities;
 namespace App.Application.References;
 
 /// <summary>
-/// Resolves reference columns (pickers + live display) and evaluates computed columns (count / lookup
-/// autofill) over the local store + catalog. Reference display values and computed values are derived
-/// on demand, never stored (Architecture §4, Phase 2).
+/// Resolves reference columns (pickers + live display) and evaluates computed columns
+/// (<see cref="ComputedFormula"/> autofill) over the local store + catalog. Reference display values and
+/// computed values are derived on demand, never stored (Architecture §4, Phase 2). The display column per
+/// table comes from the table catalog when present (so runtime-created tables render sensibly in
+/// pickers), falling back to the built-in map for the default entities, then the row id.
 /// </summary>
-public sealed partial class ReferenceService(ICatalog catalog, ILocalStore store) : IReferenceResolver, IComputedEvaluator
+public sealed class ReferenceService(ICatalog catalog, ILocalStore store, ITableCatalog? tables = null) : IReferenceResolver, IComputedEvaluator
 {
-    // The column shown when referencing each table (its natural-key / most identifying column).
+    // Built-in fallback: the column shown when referencing each default table (its natural key).
     private static readonly Dictionary<string, string> DisplayColumns = new(StringComparer.Ordinal)
     {
         [TableNames.Application] = "app_code",
@@ -23,6 +24,9 @@ public sealed partial class ReferenceService(ICatalog catalog, ILocalStore store
         [TableNames.Classification] = "prp",
         [TableNames.Rule] = "name",
     };
+
+    /// <summary>Whether a built-in display column exists for the table (used by formula validation).</summary>
+    public static bool HasDefaultDisplayColumn(string table) => DisplayColumns.ContainsKey(table);
 
     public IReadOnlyList<ReferenceOption> Options(string targetTable)
     {
@@ -47,32 +51,32 @@ public sealed partial class ReferenceService(ICatalog catalog, ILocalStore store
     public string? Evaluate(string table, string column, Row row)
     {
         ColumnCatalogEntry? entry = catalog.GetForTable(table).FirstOrDefault(e => e.ColumnName == column);
-        if (entry?.Formula is not { } formula)
+        switch (ComputedFormula.Parse(entry?.Formula))
         {
-            return null;
-        }
+            case ComputedFormula.Count(var childTable, var fk):
+                return store.GetAll(childTable).Count(r => r[fk] == row.Id.ToString()).ToString();
 
-        Match count = CountFormula().Match(formula);
-        if (count.Success)
-        {
-            string childTable = count.Groups["table"].Value;
-            string fk = count.Groups["col"].Value;
-            return store.GetAll(childTable).Count(r => r[fk] == row.Id.ToString()).ToString();
-        }
+            case ComputedFormula.RefLookup(var refColumn, var targetColumn):
+                ColumnCatalogEntry? refEntry = catalog.GetForTable(table).FirstOrDefault(e => e.ColumnName == refColumn);
+                if (refEntry?.ReferenceTarget is { } target && row[refColumn] is { } refId && Guid.TryParse(refId, out Guid guid))
+                {
+                    return store.GetById(target, guid)?[targetColumn];
+                }
 
-        Match lookup = LookupFormula().Match(formula);
-        if (lookup.Success)
-        {
-            string refColumn = lookup.Groups["ref"].Value;
-            string targetColumn = lookup.Groups["col"].Value;
-            ColumnCatalogEntry? refEntry = catalog.GetForTable(table).FirstOrDefault(e => e.ColumnName == refColumn);
-            if (refEntry?.ReferenceTarget is { } target && row[refColumn] is { } refId && Guid.TryParse(refId, out Guid guid))
-            {
-                return store.GetById(target, guid)?[targetColumn];
-            }
-        }
+                return null;
 
-        return null;
+            case ComputedFormula.KeyLookup(var keyColumn, var targetTable, var matchColumn, var returnColumn):
+                string match = matchColumn ?? DisplayColumn(targetTable);
+                if (row[keyColumn] is not { Length: > 0 } key)
+                {
+                    return null;
+                }
+
+                return store.GetAll(targetTable).FirstOrDefault(t => t[match] == key)?[returnColumn];
+
+            default:
+                return null;
+        }
     }
 
     public IReadOnlyDictionary<Guid, string?> EvaluateColumn(string table, string column, IReadOnlyList<Row> rows)
@@ -81,14 +85,10 @@ public sealed partial class ReferenceService(ICatalog catalog, ILocalStore store
         IReadOnlyList<ColumnCatalogEntry> entries = catalog.GetForTable(table);
         ColumnCatalogEntry? entry = entries.FirstOrDefault(e => e.ColumnName == column);
 
-        if (entry?.Formula is { } formula)
+        switch (ComputedFormula.Parse(entry?.Formula))
         {
-            Match count = CountFormula().Match(formula);
-            if (count.Success)
+            case ComputedFormula.Count(var childTable, var fk):
             {
-                string childTable = count.Groups["table"].Value;
-                string fk = count.Groups["col"].Value;
-
                 // Read the child table once and tally references by FK value, instead of re-scanning it
                 // for every parent row (the source of the grid's scroll lag).
                 Dictionary<string, int> counts = new(StringComparer.Ordinal);
@@ -108,30 +108,47 @@ public sealed partial class ReferenceService(ICatalog catalog, ILocalStore store
                 return result;
             }
 
-            Match lookup = LookupFormula().Match(formula);
-            if (lookup.Success)
+            case ComputedFormula.RefLookup(var refColumn, var targetColumn)
+                when entries.FirstOrDefault(e => e.ColumnName == refColumn)?.ReferenceTarget is { } target:
             {
-                string refColumn = lookup.Groups["ref"].Value;
-                string targetColumn = lookup.Groups["col"].Value;
-                ColumnCatalogEntry? refEntry = entries.FirstOrDefault(e => e.ColumnName == refColumn);
-                if (refEntry?.ReferenceTarget is { } target)
+                // Index the target table once, then resolve each row's referenced value from memory.
+                Dictionary<Guid, Row> byId = [];
+                foreach (Row t in store.GetAll(target))
                 {
-                    // Index the target table once, then resolve each row's referenced value from memory.
-                    Dictionary<Guid, Row> byId = [];
-                    foreach (Row t in store.GetAll(target))
-                    {
-                        byId[t.Id] = t;
-                    }
-
-                    foreach (Row row in rows)
-                    {
-                        result[row.Id] = row[refColumn] is { } refId && Guid.TryParse(refId, out Guid guid) && byId.TryGetValue(guid, out Row? targetRow)
-                            ? targetRow[targetColumn]
-                            : null;
-                    }
-
-                    return result;
+                    byId[t.Id] = t;
                 }
+
+                foreach (Row row in rows)
+                {
+                    result[row.Id] = row[refColumn] is { } refId && Guid.TryParse(refId, out Guid guid) && byId.TryGetValue(guid, out Row? targetRow)
+                        ? targetRow[targetColumn]
+                        : null;
+                }
+
+                return result;
+            }
+
+            case ComputedFormula.KeyLookup(var keyColumn, var targetTable, var matchColumn, var returnColumn):
+            {
+                // Index the target table by match value once (first row wins on duplicates).
+                string match = matchColumn ?? DisplayColumn(targetTable);
+                Dictionary<string, string?> byKey = new(StringComparer.Ordinal);
+                foreach (Row t in store.GetAll(targetTable))
+                {
+                    if (t[match] is { Length: > 0 } key)
+                    {
+                        byKey.TryAdd(key, t[returnColumn]);
+                    }
+                }
+
+                foreach (Row row in rows)
+                {
+                    result[row.Id] = row[keyColumn] is { Length: > 0 } key && byKey.TryGetValue(key, out string? value)
+                        ? value
+                        : null;
+                }
+
+                return result;
             }
         }
 
@@ -144,11 +161,6 @@ public sealed partial class ReferenceService(ICatalog catalog, ILocalStore store
     }
 
     private string DisplayColumn(string table)
-        => DisplayColumns.TryGetValue(table, out string? col) ? col : SyncColumns.Id;
-
-    [GeneratedRegex(@"^\s*count\(\s*(?<table>\w+)\.(?<col>\w+)\s*\)\s*$", RegexOptions.IgnoreCase)]
-    private static partial Regex CountFormula();
-
-    [GeneratedRegex(@"^\s*lookup\(\s*(?<ref>\w+)\.(?<col>\w+)\s*\)\s*$", RegexOptions.IgnoreCase)]
-    private static partial Regex LookupFormula();
+        => tables?.GetTableMeta(table)?.DisplayColumn
+            ?? (DisplayColumns.TryGetValue(table, out string? col) ? col : SyncColumns.Id);
 }

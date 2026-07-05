@@ -5,9 +5,11 @@
 @using App.Application.Importing
 @using Microsoft.AspNetCore.Components.Forms
 
-@* Data Import wizard — wired to the real local database. An uploaded .xlsx is parsed by the shared
-   workbook reader using the built-in mapping, validated against the column catalog (dry run), then
-   loaded through the same ImportEngine the CLI uses into the local store as one reviewable change set. *@
+@* Data Import wizard — wired to the real local database. Every worksheet of an uploaded .xlsx is parsed
+   by the shared workbook reader, mapped to catalog tables in the editable Mapping step (prefilled from
+   the built-in template, or from a saved mapping in the shared store), validated against the column
+   catalog (dry run), then loaded through the same ImportEngine the CLI uses into the local store as one
+   reviewable change set. Mappings saved here are the only ones the CLI can run. *@
 
 <style>
   @@keyframes dbi-spin{to{transform:rotate(360deg)}}
@@ -92,6 +94,9 @@
   .dbi-bar{height:10px;background:var(--surface-3);border-radius:6px;overflow:hidden}
   .dbi-bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .15s linear}
   .dbi-act.primary{border:none;background:var(--accent);color:#fff;padding:0 20px}
+  .dbi-sel{height:34px;padding:0 10px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12.5px;cursor:pointer;max-width:100%}
+  .dbi-in{height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12.5px;min-width:180px}
+  .dbi-tab:disabled{opacity:.5;cursor:not-allowed}
 </style>
 
 <div class="dbi">
@@ -193,10 +198,13 @@
               <div style="display:flex;gap:12px;flex-wrap:wrap">
                 @foreach (WorksheetVm ws in State.Worksheets())
                 {
-                  <div class="dbi-sheet">
+                  <div class="dbi-sheet" style="@(ws.Table.Length == 0 ? "border-color:var(--border);background:var(--surface)" : "")">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:6px">
-                      <span style="font-weight:600;font-size:13px">@ws.Name <span class="mono" style="font-weight:500;color:var(--accent-text)">@T("mappedTo") @ws.Table</span></span>
-                      <span class="dbi-sheet-chk">✓</span>
+                      <span style="font-weight:600;font-size:13px">@ws.Name
+                        @if (ws.Table.Length > 0) { <span class="mono" style="font-weight:500;color:var(--accent-text)">@T("mappedTo") @ws.Table</span> }
+                        else { <span style="font-weight:500;color:var(--text-3);font-style:italic;font-size:11.5px">@T("notImported")</span> }
+                      </span>
+                      @if (ws.Table.Length > 0) { <span class="dbi-sheet-chk">✓</span> }
                     </div>
                     <div class="mono" style="font-size:11px;color:var(--text-3)">
                       @($"{State.FmtInt(ws.Rows)} {T("rows")} · {ws.MappedColumns}/{ws.SourceColumns} {T("cols")}")
@@ -230,58 +238,129 @@
         </div>
       }
 
-      @* ---------- STEP 2: MAPPING ---------- *@
+      @* ---------- STEP 2: MAPPING (editable) ---------- *@
       else if (State.Step == 1)
       {
-        string sheet = ActiveMapSheet();
+        SheetMappingDraft? draft = ActiveDraft();
         <div class="dbi-fade">
           <div style="margin-bottom:18px">
             <h1 class="dbi-h1">@T("s2Title")</h1>
             <p class="dbi-sub">@T("s2Sub")</p>
           </div>
 
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-            @foreach (WorksheetVm ws in State.Worksheets())
+          @* Template toolbar: built-in prefill, saved mappings (shared with the CLI), save-as. *@
+          <div class="dbi-card" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="dbi-eyebrow">@T("templates")</span>
+            <button class="dbi-tab" @onclick="State.LoadBuiltInMapping">@T("builtin")</button>
+            @if (State.MappingStoreAvailable)
             {
-              string name = ws.Name;
-              <button class="dbi-tab @(name == sheet ? "on" : "")" @onclick="() => _mapSheet = name">@name <span class="mono" style="font-size:11px;opacity:.8">@ws.Table</span></button>
+              IReadOnlyList<SavedMappingInfo> saved = State.SavedMappings();
+              @if (saved.Count > 0)
+              {
+                <select class="dbi-sel" aria-label="@T("savedMappings")" @bind="_savedSelect">
+                  <option value="">@T("savedMappings")</option>
+                  @foreach (SavedMappingInfo m in saved)
+                  {
+                    <option value="@m.Name">@m.Name (@m.SavedBy)</option>
+                  }
+                </select>
+                <button class="dbi-tab" disabled="@(string.IsNullOrEmpty(_savedSelect))" @onclick="() => State.LoadSavedMapping(_savedSelect!)">@T("apply")</button>
+              }
+              <div style="flex:1"></div>
+              <input class="dbi-in" placeholder="@T("saveAs")" aria-label="@T("saveAs")" @bind="_saveName" @bind:event="oninput" />
+              <button class="dbi-tab" disabled="@(string.IsNullOrWhiteSpace(_saveName) || !State.MappingReady)" @onclick="() => State.SaveMapping(_saveName!)">💾 @T("save")</button>
+            }
+          </div>
+          @if (State.MappingMessage is not null)
+          {
+            <div class="dbi-status ok" role="status" style="margin-bottom:12px"><span>ⓘ</span>@State.MappingMessage</div>
+          }
+          @foreach (string err in State.MappingErrors())
+          {
+            <div class="dbi-status err" role="alert" style="margin-bottom:8px"><span>⚠</span>@err</div>
+          }
+
+          <div style="display:flex;align-items:center;gap:10px;margin:14px 0;flex-wrap:wrap">
+            @foreach (SheetMappingDraft d in State.Drafts)
+            {
+              SheetMappingDraft tab = d;
+              <button class="dbi-tab @(ReferenceEquals(tab, draft) ? "on" : "")" @onclick="() => _mapSheet = tab.Sheet">
+                @tab.Sheet
+                @if (tab.IsMapped) { <span class="mono" style="font-size:11px;opacity:.8">→ @tab.Table</span> }
+                else { <span style="font-size:11px;opacity:.7;font-style:italic">@T("notImported")</span> }
+              </button>
             }
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 30px 1fr;margin-bottom:8px;padding:0 4px">
-            <div class="dbi-colhead">◧ @T("source")</div><div></div><div class="dbi-colhead">◨ @T("targetCol")</div>
-          </div>
+          @if (draft is not null)
+          {
+            <div class="dbi-card" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <span class="dbi-colhead">@T("targetTable")</span>
+              <select class="dbi-sel" aria-label="@T("targetTable")" value="@draft.Table" @onchange="e => State.SetDraftTable(draft, (string?)e.Value ?? string.Empty)">
+                <option value="">@T("notImported")</option>
+                @foreach (string t in State.AvailableTables)
+                {
+                  <option value="@t">@t</option>
+                }
+              </select>
+              <span class="mono" style="font-size:11.5px;color:var(--text-3)">@State.FmtInt(draft.RowCount) @T("rows") · @draft.HeaderToColumn.Count/@draft.Headers.Count @T("cols")</span>
+              <div style="flex:1"></div>
+              @if (draft.Table.Length > 0)
+              {
+                <span style="font-size:11.5px;color:var(--text-3)">@T("keyHint")</span>
+              }
+            </div>
 
-          <div class="dbi-card" style="padding:0;overflow:hidden">
-            @foreach (MapRowVm r in State.MapRows(sheet))
+            @if (draft.Table.Length > 0)
             {
-              bool ignored = r.Target is null;
-              <div class="dbi-maprow" style="background:@(ignored ? "transparent" : "transparent")">
-                <div style="padding:11px 15px;min-width:0">
-                  <div class="dbi-ell" style="font-weight:600;font-size:13px;@(ignored ? "color:var(--text-3)" : "")">@r.Source</div>
-                  @if (!string.IsNullOrEmpty(r.Sample))
-                  {
-                    <div class="mono dbi-ell" style="font-size:11px;color:var(--text-3);margin-top:2px">@r.Sample</div>
-                  }
-                </div>
-                <div style="display:flex;align-items:center;justify-content:center;font-size:15px;color:@(ignored ? "var(--text-3)" : "var(--accent)")">→</div>
-                <div style="padding:11px 15px;display:flex;align-items:center;gap:8px;min-width:0">
-                  @if (ignored)
-                  {
-                    <span style="font-size:12.5px;color:var(--text-3);font-style:italic">@T("ignore")</span>
-                  }
-                  else
-                  {
-                    <span class="mono" style="font-weight:600;font-size:12.5px;color:var(--accent-text)">@r.Target</span>
-                    <span class="dbi-type mono">@r.TargetType</span>
-                    @if (r.Required) { <span class="dbi-fl" style="color:var(--err);background:var(--err-soft)">@T("required")</span> }
-                    @if (r.IsReference) { <span class="dbi-fl" style="color:var(--info);background:var(--info-soft)">@T("reference")</span> }
-                    @if (r.IsExpression) { <span class="dbi-fl" style="color:var(--accent-text);background:var(--accent-soft)">@T("expression")</span> }
-                  }
-                </div>
+              <div style="display:grid;grid-template-columns:1fr 30px 1fr;margin-bottom:8px;padding:0 4px">
+                <div class="dbi-colhead">◧ @T("source")</div><div></div><div class="dbi-colhead">◨ @T("targetCol")</div>
+              </div>
+
+              <div class="dbi-card" style="padding:0;overflow:hidden">
+                @foreach (string header in draft.Headers)
+                {
+                  string h = header;
+                  string target = draft.HeaderToColumn.GetValueOrDefault(h, "");
+                  ColumnCatalogEntry? entry = target.Length == 0 ? null : State.MappableColumns(draft.Table).FirstOrDefault(c => c.ColumnName == target);
+                  <div class="dbi-maprow">
+                    <div style="padding:11px 15px;min-width:0">
+                      <div class="dbi-ell" style="font-weight:600;font-size:13px;@(target.Length == 0 ? "color:var(--text-3)" : "")">@h</div>
+                      @if (SampleFor(draft.Sheet, h) is string sample)
+                      {
+                        <div class="mono dbi-ell" style="font-size:11px;color:var(--text-3);margin-top:2px">@sample</div>
+                      }
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:center;font-size:15px;color:@(target.Length == 0 ? "var(--text-3)" : "var(--accent)")">→</div>
+                    <div style="padding:11px 15px;display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap">
+                      <select class="dbi-sel mono" style="max-width:220px" aria-label="@($"{T("targetCol")} — {h}")" value="@target" @onchange="e => State.SetHeaderColumn(draft, h, (string?)e.Value ?? string.Empty)">
+                        <option value="">@T("ignore")</option>
+                        @foreach (ColumnCatalogEntry c in State.MappableColumns(draft.Table))
+                        {
+                          <option value="@c.ColumnName">@c.ColumnName@(c.IsRequired ? " *" : "")</option>
+                        }
+                      </select>
+                      @if (entry is not null)
+                      {
+                        <span class="dbi-type mono">@entry.ValueType.ToString().ToLowerInvariant()</span>
+                        @if (entry.IsRequired) { <span class="dbi-fl" style="color:var(--err);background:var(--err-soft)">@T("required")</span> }
+                        @if (draft.References.ContainsKey(entry.ColumnName)) { <span class="dbi-fl" style="color:var(--info);background:var(--info-soft)">@T("reference")</span> }
+                        @if (draft.ExpressionColumn == entry.ColumnName) { <span class="dbi-fl" style="color:var(--accent-text);background:var(--accent-soft)">@T("expression")</span> }
+                        <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--text-2);cursor:pointer;white-space:nowrap">
+                          <input type="checkbox" checked="@draft.NaturalKey.Contains(entry.ColumnName)" @onchange="() => State.ToggleNaturalKey(draft, entry.ColumnName)" />
+                          🔑 @T("key")
+                        </label>
+                      }
+                    </div>
+                  </div>
+                }
               </div>
             }
-          </div>
+            else
+            {
+              <div class="dbi-note"><span style="color:var(--info);font-size:14px">ⓘ</span><div>@T("pickTableNote")</div></div>
+            }
+          }
         </div>
       }
 
@@ -345,7 +424,7 @@
             <div class="dbi-card-h"><span style="color:var(--accent)">◎</span>@T("willHappen")</div>
             <div class="dbi-kv">
               <div class="dbi-kv-cell"><div style="font-size:11px;color:var(--text-3)">@T("rowsToLoad")</div><div class="mono" style="font-weight:600;margin-top:3px">@State.FmtInt(State.TotalRows)</div></div>
-              <div class="dbi-kv-cell"><div style="font-size:11px;color:var(--text-3)">@T("intoTables")</div><div class="mono dbi-ell" style="font-weight:600;margin-top:3px">@string.Join(", ", State.Worksheets().Select(w => w.Table))</div></div>
+              <div class="dbi-kv-cell"><div style="font-size:11px;color:var(--text-3)">@T("intoTables")</div><div class="mono dbi-ell" style="font-weight:600;margin-top:3px">@string.Join(", ", State.TargetTables)</div></div>
               <div class="dbi-kv-cell"><div style="font-size:11px;color:var(--text-3)">@T("target")</div><div style="font-weight:600;margin-top:3px">@T("targetDb")</div></div>
               <div class="dbi-kv-cell"><div style="font-size:11px;color:var(--text-3)">@T("changeSet")</div><div style="font-weight:600;margin-top:3px">Import</div></div>
             </div>
@@ -483,26 +562,29 @@
 
 @code {
     private string? _mapSheet;
+    private string? _saveName;
+    private string? _savedSelect;
 
     private string T(string k) => State.T(k);
 
     private string[] _labels => [T("stepSource"), T("stepMapping"), T("stepValidate"), T("stepLoad"), T("stepRecap")];
     private string[] _kickers => [T("kSource"), T("kMapping"), T("kValidate"), T("kLoad"), T("kRecap")];
 
-    private string ActiveMapSheet()
+    private SheetMappingDraft? ActiveDraft()
     {
-        IReadOnlyList<WorksheetVm> sheets = State.Worksheets();
-        if (_mapSheet is null || sheets.All(s => s.Name != _mapSheet))
-        {
-            _mapSheet = sheets.FirstOrDefault()?.Name;
-        }
-
-        return _mapSheet ?? string.Empty;
+        SheetMappingDraft? draft = State.Drafts.FirstOrDefault(d => d.Sheet == _mapSheet) ?? State.Drafts.FirstOrDefault();
+        _mapSheet = draft?.Sheet;
+        return draft;
     }
+
+    /// <summary>First non-empty value of a header (first 20 rows only — keeps large sheets render-cheap).</summary>
+    private string? SampleFor(string sheet, string header)
+        => State.SheetFor(sheet)?.Rows.Take(20).Select(r => r.GetValueOrDefault(header)).FirstOrDefault(v => !string.IsNullOrEmpty(v));
 
     private bool NextDisabled() => State.Step switch
     {
         0 => !State.HasFile,
+        1 => !State.MappingReady,
         3 => true, // the Load step advances via the import button, not Next
         _ => false,
     };

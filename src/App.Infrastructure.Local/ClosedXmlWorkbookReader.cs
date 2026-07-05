@@ -26,6 +26,12 @@ public sealed class ClosedXmlWorkbookReader : IWorkbookReader
         return result;
     }
 
+    public IReadOnlyList<WorksheetData> ReadAll(Stream workbook)
+    {
+        using XLWorkbook xl = new(workbook);
+        return xl.Worksheets.Select(sheet => new WorksheetData(sheet.Name, ReadRows(sheet))).ToList();
+    }
+
     private static IReadOnlyList<IReadOnlyDictionary<string, string?>> ReadRows(IXLWorksheet sheet)
     {
         List<IXLRangeRow> used = sheet.RangeUsed()?.RowsUsed().ToList() ?? [];

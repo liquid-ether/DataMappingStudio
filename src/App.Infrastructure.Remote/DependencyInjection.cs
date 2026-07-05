@@ -44,6 +44,9 @@ public static class DependencyInjection
         // Shared runtime settings document (_meta/settings.json); each host wires IRuntimeConfig over it.
         services.TryAddSingleton<ISharedSettingsStore>(_ => new FileSettingsStore(canonicalFolder));
 
+        // Named import mappings (_meta/import-mappings) — authored in the wizard, consumed by wizard + CLI.
+        services.TryAddSingleton<App.Application.Importing.IImportMappingStore>(_ => new FileImportMappingStore(canonicalFolder));
+
         // Per-user hosts (web) build a PublishService + SyncCoordinator per workspace instead of these
         // singletons, because both bind to a (per-user) catalog/store; the shared remote store + snapshot
         // builder above are still singletons over the one shared folder.

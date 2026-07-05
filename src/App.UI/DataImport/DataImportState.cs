@@ -9,21 +9,51 @@ using Microsoft.Extensions.Logging;
 
 namespace App.UI.DataImport;
 
-/// <summary>One source column and where the mapping sends it (or that it is ignored).</summary>
-public sealed record MapRowVm(string Source, string? Target, string TargetType, bool Required, bool IsReference, bool IsExpression, string? Sample);
-
 /// <summary>A worksheet's import summary for the source/mapping steps.</summary>
 public sealed record WorksheetVm(string Name, string Table, bool Present, int Rows, int MappedColumns, int SourceColumns, IReadOnlyList<string> UnmappedHeaders);
+
+/// <summary>
+/// The editable mapping for one uploaded worksheet: which table it feeds (empty = not imported), which
+/// header goes to which column, and the natural-key columns rows upsert by. The wizard's Mapping step
+/// edits these; the effective <see cref="ImportMapping"/> is built from them.
+/// </summary>
+public sealed class SheetMappingDraft
+{
+    public required string Sheet { get; init; }
+
+    public required IReadOnlyList<string> Headers { get; init; }
+
+    public int RowCount { get; init; }
+
+    /// <summary>Target table, or empty when this worksheet is not imported.</summary>
+    public string Table { get; set; } = "";
+
+    /// <summary>Source header → target column (headers absent from the map are ignored).</summary>
+    public Dictionary<string, string> HeaderToColumn { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Columns rows upsert by (must all be mapped).</summary>
+    public HashSet<string> NaturalKey { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>FK-by-natural-key resolutions, carried over when a saved mapping declares them.</summary>
+    public IReadOnlyDictionary<string, ColumnReference> References { get; set; } = new Dictionary<string, ColumnReference>();
+
+    /// <summary>The expression-bearing column, carried over from a saved mapping.</summary>
+    public string? ExpressionColumn { get; set; }
+
+    public bool IsMapped => Table.Length > 0 && HeaderToColumn.Count > 0;
+}
 
 /// <summary>A worksheet's dry-run validation outcome (computed without writing anything).</summary>
 public sealed record ValidationVm(string Worksheet, string Table, int Rows, int WouldImport, int WouldSkip, IReadOnlyList<string> MissingRequired, IReadOnlyList<string> UnmappedHeaders);
 
 /// <summary>
-/// Orchestrates the in-app Data Import wizard against the <b>real</b> local database: an uploaded
-/// workbook is parsed by <see cref="IWorkbookReader"/> using the built-in
-/// <see cref="DefaultImportMapping"/>, previewed and dry-run validated against the column catalog, then
-/// loaded through the shared <see cref="ImportEngine"/> into <see cref="ILocalStore"/> as one reviewable
-/// Import change set. The same engine the CLI uses — no mock data. Scoped per Blazor circuit.
+/// Orchestrates the in-app Data Import wizard against the <b>real</b> local database: every worksheet of
+/// an uploaded workbook is parsed by <see cref="IWorkbookReader"/>, mapped to catalog tables in the
+/// editable Mapping step (prefilled from the built-in <see cref="DefaultImportMapping"/> template, or
+/// from a mapping saved to the shared <see cref="IImportMappingStore"/>), dry-run validated against the
+/// column catalog, then loaded through the shared <see cref="ImportEngine"/> into
+/// <see cref="ILocalStore"/> as one reviewable Import change set. The same engine and mapping store the
+/// CLI uses — the CLI can only run mappings saved here. Scoped per Blazor circuit.
 /// </summary>
 public sealed class DataImportState
 {
@@ -32,15 +62,17 @@ public sealed class DataImportState
     private readonly ImportEngine _engine;
     private readonly IWorkbookReader _reader;
     private readonly ICurrentUser _user;
+    private readonly IImportMappingStore? _mappings;
     private readonly ILogger<DataImportState>? _logger;
 
-    public DataImportState(LanguageState lang, ICatalog catalog, ImportEngine engine, IWorkbookReader reader, ICurrentUser user, ILogger<DataImportState>? logger = null)
+    public DataImportState(LanguageState lang, ICatalog catalog, ImportEngine engine, IWorkbookReader reader, ICurrentUser user, ILogger<DataImportState>? logger = null, IImportMappingStore? mappings = null)
     {
         _lang = lang;
         _catalog = catalog;
         _engine = engine;
         _reader = reader;
         _user = user;
+        _mappings = mappings;
         _logger = logger;
     }
 
@@ -50,8 +82,29 @@ public sealed class DataImportState
 
     public bool IsFrench => _lang.IsFrench;
 
-    /// <summary>The worksheet→table mapping that drives the import (the team workbook layout).</summary>
-    public ImportMapping Mapping { get; } = DefaultImportMapping.Mapping;
+    /// <summary>
+    /// The effective worksheet→table mapping, built from the editable per-sheet drafts. Starts prefilled
+    /// from the built-in team-workbook template; the Mapping step edits it, and it can be loaded from /
+    /// saved to the shared mapping store — the same store the CLI importer consumes.
+    /// </summary>
+    public ImportMapping Mapping => new()
+    {
+        Worksheets = Drafts
+            .Where(d => d.IsMapped)
+            .Select(d => new WorksheetMapping
+            {
+                Worksheet = d.Sheet,
+                Table = d.Table,
+                NaturalKey = [.. d.NaturalKey.Where(k => d.HeaderToColumn.ContainsValue(k))],
+                Columns = new Dictionary<string, string>(d.HeaderToColumn, StringComparer.Ordinal),
+                References = d.References,
+                ExpressionColumn = d.ExpressionColumn,
+            })
+            .ToList(),
+    };
+
+    /// <summary>The editable per-sheet mappings (one per worksheet found in the uploaded file).</summary>
+    public IReadOnlyList<SheetMappingDraft> Drafts { get; private set; } = [];
 
     public int Step { get; private set; }
     public int MaxStep { get; private set; }
@@ -82,9 +135,242 @@ public sealed class DataImportState
     public IEnumerable<WorksheetData> PopulatedSheets =>
         Parsed?.Where(s => s.Rows.Count > 0) ?? [];
 
-    public int TotalRows => PopulatedSheets.Sum(s => s.Rows.Count);
+    /// <summary>Rows that will actually be imported (mapped worksheets only).</summary>
+    public int TotalRows => Drafts.Where(d => d.IsMapped).Sum(d => d.RowCount);
 
     public IReadOnlyList<string> TargetTables => Mapping.Worksheets.Select(w => w.Table).Distinct().ToList();
+
+    // ---------------- mapping editor ----------------
+
+    /// <summary>Tables a worksheet may target (every catalog table, meta tables excluded by the catalog).</summary>
+    public IReadOnlyList<string> AvailableTables => _catalog.GetTables();
+
+    /// <summary>Mappable columns of a table (no core/computed columns — computed values are derived).</summary>
+    public IReadOnlyList<ColumnCatalogEntry> MappableColumns(string table)
+        => TableColumns(table).Where(c => !c.IsCore && c.Kind != ColumnKind.Computed).ToList();
+
+    /// <summary>Selects (or clears) a worksheet's target table and auto-maps headers to columns by name.</summary>
+    public void SetDraftTable(SheetMappingDraft draft, string table)
+    {
+        draft.Table = table;
+        draft.HeaderToColumn.Clear();
+        draft.NaturalKey.Clear();
+        draft.References = new Dictionary<string, ColumnReference>();
+        draft.ExpressionColumn = null;
+        if (table.Length == 0)
+        {
+            Notify();
+            return;
+        }
+
+        // Auto-map: header matches column name or a bilingual label (case/space/underscore-insensitive).
+        IReadOnlyList<ColumnCatalogEntry> columns = MappableColumns(table);
+        foreach (string header in draft.Headers)
+        {
+            ColumnCatalogEntry? match = columns.FirstOrDefault(c =>
+                Normalized(header) == Normalized(c.ColumnName)
+                || Normalized(header) == Normalized(c.LabelEn ?? "")
+                || Normalized(header) == Normalized(c.LabelFr ?? ""));
+            if (match is not null && !draft.HeaderToColumn.ContainsValue(match.ColumnName))
+            {
+                draft.HeaderToColumn[header] = match.ColumnName;
+            }
+        }
+
+        // Natural-key default: the mapped required columns, else the first mapped column.
+        foreach (ColumnCatalogEntry required in columns.Where(c => c.IsRequired && draft.HeaderToColumn.ContainsValue(c.ColumnName)))
+        {
+            draft.NaturalKey.Add(required.ColumnName);
+        }
+
+        if (draft.NaturalKey.Count == 0 && draft.HeaderToColumn.Count > 0)
+        {
+            draft.NaturalKey.Add(draft.HeaderToColumn.Values.First());
+        }
+
+        Notify();
+    }
+
+    /// <summary>Maps (or unmaps, with an empty column) one source header.</summary>
+    public void SetHeaderColumn(SheetMappingDraft draft, string header, string column)
+    {
+        string? previous = draft.HeaderToColumn.GetValueOrDefault(header);
+        if (column.Length == 0)
+        {
+            draft.HeaderToColumn.Remove(header);
+        }
+        else
+        {
+            // A column can only be fed by one header: steal it from any other header.
+            foreach (string other in draft.HeaderToColumn.Where(kv => kv.Value == column).Select(kv => kv.Key).ToList())
+            {
+                draft.HeaderToColumn.Remove(other);
+            }
+
+            draft.HeaderToColumn[header] = column;
+        }
+
+        if (previous is not null && !draft.HeaderToColumn.ContainsValue(previous))
+        {
+            draft.NaturalKey.Remove(previous);
+        }
+
+        Notify();
+    }
+
+    public void ToggleNaturalKey(SheetMappingDraft draft, string column)
+    {
+        if (!draft.NaturalKey.Remove(column))
+        {
+            draft.NaturalKey.Add(column);
+        }
+
+        Notify();
+    }
+
+    /// <summary>Human-readable problems that must be fixed before validating/loading.</summary>
+    public IReadOnlyList<string> MappingErrors()
+    {
+        List<string> errors = [];
+        if (!Drafts.Any(d => d.IsMapped))
+        {
+            errors.Add(IsFrench ? "Aucune feuille n'est associée à une table." : "No worksheet is mapped to a table.");
+        }
+
+        foreach (SheetMappingDraft draft in Drafts.Where(d => d.Table.Length > 0))
+        {
+            if (draft.HeaderToColumn.Count == 0)
+            {
+                errors.Add(IsFrench ? $"« {draft.Sheet} » : aucune colonne associée." : $"'{draft.Sheet}': no columns mapped.");
+                continue;
+            }
+
+            if (draft.NaturalKey.Count == 0 || !draft.NaturalKey.All(k => draft.HeaderToColumn.ContainsValue(k)))
+            {
+                errors.Add(IsFrench
+                    ? $"« {draft.Sheet} » : choisissez au moins une colonne clé (associée) pour l'upsert."
+                    : $"'{draft.Sheet}': pick at least one (mapped) key column for the upsert.");
+            }
+        }
+
+        return errors;
+    }
+
+    /// <summary>Prefills the drafts from a mapping (sheet names matched case-insensitively).</summary>
+    public void ApplyTemplate(ImportMapping template)
+    {
+        foreach (SheetMappingDraft draft in Drafts)
+        {
+            WorksheetMapping? ws = template.Worksheets.FirstOrDefault(w => string.Equals(w.Worksheet, draft.Sheet, StringComparison.OrdinalIgnoreCase));
+            if (ws is null)
+            {
+                continue;
+            }
+
+            draft.Table = ws.Table;
+            draft.HeaderToColumn.Clear();
+            foreach ((string header, string column) in ws.Columns)
+            {
+                if (draft.Headers.Contains(header, StringComparer.Ordinal))
+                {
+                    draft.HeaderToColumn[header] = column;
+                }
+            }
+
+            draft.NaturalKey.Clear();
+            foreach (string key in ws.NaturalKey)
+            {
+                draft.NaturalKey.Add(key);
+            }
+
+            draft.References = ws.References;
+            draft.ExpressionColumn = ws.ExpressionColumn;
+        }
+
+        Notify();
+    }
+
+    // ---------------- saved mappings (shared with the CLI importer) ----------------
+
+    public bool MappingStoreAvailable => _mappings is not null;
+
+    public IReadOnlyList<SavedMappingInfo> SavedMappings()
+    {
+        try
+        {
+            return _mappings?.List() ?? [];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    public string? MappingMessage { get; private set; }
+
+    public void LoadBuiltInMapping()
+    {
+        ApplyTemplate(DefaultImportMapping.Mapping);
+        MappingMessage = IsFrench ? "Modèle intégré appliqué." : "Built-in template applied.";
+        Notify();
+    }
+
+    public void LoadSavedMapping(string name)
+    {
+        try
+        {
+            ImportMapping? saved = _mappings?.Get(name);
+            MappingMessage = saved is null
+                ? (IsFrench ? $"Association « {name} » introuvable." : $"Mapping '{name}' not found.")
+                : (IsFrench ? $"Association « {name} » appliquée." : $"Mapping '{name}' applied.");
+            if (saved is not null)
+            {
+                ApplyTemplate(saved);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
+        {
+            MappingMessage = ex.Message;
+        }
+
+        Notify();
+    }
+
+    /// <summary>Saves the current effective mapping under a name — this is what the CLI can then run.</summary>
+    public void SaveMapping(string name)
+    {
+        if (_mappings is null)
+        {
+            MappingMessage = IsFrench ? "Aucun dossier partagé configuré." : "No shared folder is configured.";
+            Notify();
+            return;
+        }
+
+        try
+        {
+            IReadOnlyList<string> errors = MappingErrors();
+            if (errors.Count > 0)
+            {
+                MappingMessage = errors[0];
+            }
+            else
+            {
+                _mappings.Save(name, Mapping, _user.Name);
+                MappingMessage = IsFrench
+                    ? $"Association « {name.Trim()} » enregistrée — utilisable par l'outil ligne de commande."
+                    : $"Mapping '{name.Trim()}' saved — usable from the command-line importer.";
+            }
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            MappingMessage = ex.Message;
+        }
+
+        Notify();
+    }
+
+    private static string Normalized(string value)
+        => new([.. value.Where(c => !char.IsWhiteSpace(c) && c != '_' && c != '-').Select(char.ToLowerInvariant)]);
 
     // ---------------- file load ----------------
     public async Task LoadFileAsync(string name, long size, Stream content)
@@ -107,30 +393,47 @@ public sealed class DataImportState
             await content.CopyToAsync(buffer);
             buffer.Position = 0;
 
-            IReadOnlyList<WorksheetData> parsed = _reader.Read(buffer, Mapping);
+            IReadOnlyList<WorksheetData> parsed = _reader.ReadAll(buffer);
             if (parsed.All(s => s.Rows.Count == 0))
             {
                 ParseError = IsFrench
-                    ? "Aucune feuille reconnue. Vérifiez que le classeur suit la structure attendue (Apps, Source, Dictionnary…)."
-                    : "No recognized worksheets. Check that the workbook follows the expected layout (Apps, Source, Dictionnary…).";
+                    ? "Le classeur ne contient aucune ligne de données."
+                    : "The workbook contains no data rows.";
                 Parsed = null;
+                Drafts = [];
             }
             else if (parsed.Where(s => s.Rows.Count > 0).Sum(s => s.Rows.Count) > MaxRows)
             {
                 ParseError = T("tooManyRows");
                 Parsed = null;
+                Drafts = [];
             }
             else
             {
                 Parsed = parsed;
                 FileName = name;
                 FileSize = size;
+
+                // One editable draft per populated worksheet, prefilled from the built-in team-workbook
+                // template so a standard workbook flows through unchanged.
+                Drafts = parsed
+                    .Where(s => s.Rows.Count > 0)
+                    .Select(s => new SheetMappingDraft
+                    {
+                        Sheet = s.Worksheet,
+                        Headers = OrderedHeaders(s),
+                        RowCount = s.Rows.Count,
+                    })
+                    .ToList();
+                MappingMessage = null;
+                ApplyTemplate(DefaultImportMapping.Mapping);
             }
         }
         catch (Exception ex)
         {
             ParseError = (IsFrench ? "Échec de lecture du classeur : " : "Could not read the workbook: ") + ex.Message;
             Parsed = null;
+            Drafts = [];
         }
         finally
         {
@@ -150,6 +453,7 @@ public sealed class DataImportState
     public void ClearFile()
     {
         Parsed = null; FileName = null; FileSize = 0; ParseError = null;
+        Drafts = []; MappingMessage = null;
         Step = 0; MaxStep = 0; Loading = false; Done = false; Cancelled = false;
         Progress = 0; RowsDone = 0; Report = null; LoadError = null;
         Notify();
@@ -165,10 +469,14 @@ public sealed class DataImportState
         }
     }
 
+    /// <summary>Whether the Mapping step lets the user continue (something mapped, nothing broken).</summary>
+    public bool MappingReady => Drafts.Any(d => d.IsMapped) && MappingErrors().Count == 0;
+
     public void GoNext()
     {
         if (Step >= StepCount - 1) { return; }
         if (Step == 0 && !HasFile) { return; }
+        if (Step == 1 && !MappingReady) { return; }
         Step++;
         MaxStep = Math.Max(MaxStep, Step);
         Notify();
@@ -278,62 +586,19 @@ public sealed class DataImportState
     // ---------------- catalog-driven derivations ----------------
     private IReadOnlyList<ColumnCatalogEntry> TableColumns(string table) => _catalog.GetForTable(table);
 
-    private ColumnCatalogEntry? Col(string table, string column)
-        => TableColumns(table).FirstOrDefault(c => c.ColumnName == column);
-
     public WorksheetData? SheetFor(string worksheet) => Parsed?.FirstOrDefault(s => s.Worksheet == worksheet);
 
-    /// <summary>Summary card per worksheet for the Source step (only worksheets present in the file).</summary>
-    public IReadOnlyList<WorksheetVm> Worksheets()
-    {
-        List<WorksheetVm> list = [];
-        foreach (WorksheetMapping ws in Mapping.Worksheets)
-        {
-            WorksheetData? sheet = SheetFor(ws.Worksheet);
-            if (sheet is null || sheet.Rows.Count == 0)
-            {
-                continue;
-            }
-
-            HashSet<string> headers = SheetHeaders(sheet);
-            int mapped = ws.Columns.Keys.Count(headers.Contains);
-            List<string> unmapped = headers.Where(h => !ws.Columns.ContainsKey(h)).OrderBy(h => h, StringComparer.Ordinal).ToList();
-            list.Add(new WorksheetVm(ws.Worksheet, ws.Table, true, sheet.Rows.Count, mapped, headers.Count, unmapped));
-        }
-
-        return list;
-    }
-
-    /// <summary>The column-by-column mapping rows for one worksheet (source header → target column).</summary>
-    public IReadOnlyList<MapRowVm> MapRows(string worksheet)
-    {
-        WorksheetMapping? ws = Mapping.Worksheets.FirstOrDefault(w => w.Worksheet == worksheet);
-        WorksheetData? sheet = SheetFor(worksheet);
-        if (ws is null || sheet is null)
-        {
-            return [];
-        }
-
-        List<MapRowVm> rows = [];
-        foreach (string header in SheetHeaders(sheet))
-        {
-            ws.Columns.TryGetValue(header, out string? target);
-            ColumnCatalogEntry? entry = target is null ? null : Col(ws.Table, target);
-            bool isRef = target is not null && ws.References.ContainsKey(target);
-            bool isExpr = target is not null && ws.ExpressionColumn == target;
-            string? sample = sheet.Rows.Select(r => r.GetValueOrDefault(header)).FirstOrDefault(v => !string.IsNullOrEmpty(v));
-            rows.Add(new MapRowVm(
-                header,
-                target,
-                entry?.ValueType.ToString().ToLowerInvariant() ?? string.Empty,
-                entry?.IsRequired ?? false,
-                isRef,
-                isExpr,
-                sample));
-        }
-
-        return rows;
-    }
+    /// <summary>Summary card per worksheet for the Source/Mapping steps (every populated sheet, mapped or not).</summary>
+    public IReadOnlyList<WorksheetVm> Worksheets() => Drafts
+        .Select(d => new WorksheetVm(
+            d.Sheet,
+            d.Table,
+            true,
+            d.RowCount,
+            d.HeaderToColumn.Count,
+            d.Headers.Count,
+            d.Headers.Where(h => !d.HeaderToColumn.ContainsKey(h)).OrderBy(h => h, StringComparer.Ordinal).ToList()))
+        .ToList();
 
     /// <summary>Dry-run validation per worksheet: how many rows would import vs. be skipped, and why.</summary>
     public IReadOnlyList<ValidationVm> Validate()
@@ -397,6 +662,25 @@ public sealed class DataImportState
         return headers;
     }
 
+    /// <summary>Headers in worksheet column order (the reader emits every header on every row).</summary>
+    private static List<string> OrderedHeaders(WorksheetData sheet)
+    {
+        List<string> ordered = [];
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        foreach (IReadOnlyDictionary<string, string?> row in sheet.Rows)
+        {
+            foreach (string key in row.Keys)
+            {
+                if (seen.Add(key))
+                {
+                    ordered.Add(key);
+                }
+            }
+        }
+
+        return ordered;
+    }
+
     public string FmtInt(int n) => n.ToString("N0", _lang.IsFrench ? System.Globalization.CultureInfo.GetCultureInfo("fr-FR") : System.Globalization.CultureInfo.GetCultureInfo("en-US"));
 
     public static string FmtSize(long bytes) => bytes switch
@@ -428,8 +712,15 @@ public sealed class DataImportState
         ["mappedTo"] = ("→", "→"), ["preview"] = ("Live preview", "Aperçu"),
         ["unmappedCols"] = ("ignored column(s)", "colonne(s) ignorée(s)"),
         ["s2Title"] = ("Column mapping", "Correspondance des colonnes"),
-        ["s2Sub"] = ("Each worksheet maps to a target table. Listed columns import; everything else is ignored (derived/computed columns).", "Chaque feuille correspond à une table cible. Les colonnes listées sont importées ; le reste est ignoré (colonnes dérivées/calculées)."),
+        ["s2Sub"] = ("Map each worksheet to a table and its columns, and pick the key column(s) rows upsert by. Save the mapping to reuse it — the command-line importer runs saved mappings.", "Associez chaque feuille à une table et ses colonnes, puis choisissez la ou les colonnes clés pour la fusion. Enregistrez la correspondance pour la réutiliser — l'outil ligne de commande exécute les correspondances enregistrées."),
         ["source"] = ("Source column", "Colonne source"), ["targetCol"] = ("Target column", "Colonne cible"), ["ignore"] = ("— ignored —", "— ignorée —"),
+        ["templates"] = ("Mapping", "Correspondance"), ["builtin"] = ("Built-in template", "Modèle intégré"),
+        ["savedMappings"] = ("Saved mappings…", "Correspondances enregistrées…"), ["apply"] = ("Apply", "Appliquer"),
+        ["saveAs"] = ("Save mapping as…", "Enregistrer sous…"), ["save"] = ("Save", "Enregistrer"),
+        ["notImported"] = ("not imported", "non importée"), ["targetTable"] = ("Target table", "Table cible"),
+        ["key"] = ("key", "clé"),
+        ["keyHint"] = ("Key columns identify existing rows (re-running updates instead of duplicating).", "Les colonnes clés identifient les lignes existantes (relancer met à jour au lieu de dupliquer)."),
+        ["pickTableNote"] = ("Pick a target table to import this worksheet, or leave it unmapped to skip it.", "Choisissez une table cible pour importer cette feuille, ou laissez-la sans correspondance pour l'ignorer."),
         ["required"] = ("required", "requis"), ["reference"] = ("reference", "référence"), ["expression"] = ("expression", "expression"),
         ["s3Title"] = ("Validate (dry run)", "Validation (test à blanc)"),
         ["s3Sub"] = ("We check the workbook against the target schema. Nothing is written yet.", "Nous vérifions le classeur selon le schéma cible. Rien n'est encore écrit."),

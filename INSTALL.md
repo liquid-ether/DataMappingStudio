@@ -225,23 +225,33 @@ are the deployment knobs the rollout owner sets.
 To load the team's current workbook into a local copy (one-time or repeatedly during the transition).
 The importer reads the `.xlsx` **natively** — no extra PowerShell module needed.
 
-1. Run the importer (it reads each worksheet, then validates/loads it as a reviewable change set).
-   With no `-DbPath` it imports into the app's own database by default
-   (`%LOCALAPPDATA%\MappingStudio\local.db`):
+Mappings are **authored in the app**, not in files: open **Data Import** in the web or desktop app,
+upload the workbook, and on the **Mapping** step map each worksheet to a table (a standard team
+workbook is prefilled automatically; any other sheet can be pointed at any table — including tables
+created at runtime in Admin → Model — with headers auto-matched by name). Then **save the mapping
+under a name** — it's stored in the shared folder (`_meta/import-mappings/`) so the whole team and the
+CLI can use it.
+
+1. In the app: Data Import → upload → Mapping step → adjust if needed → **Save mapping as…** (e.g.
+   `Team workbook`) → continue through Validate → Load for the first import.
+
+2. For repeat/scripted runs, use the CLI with the saved mapping's **name** (the CLI only runs mappings
+   saved from the wizard). With no `-DbPath` it imports into the app's own database
+   (`%LOCALAPPDATA%\MappingStudio\local.db`); the shared folder comes from
+   `src/App.Importer/appsettings.json` (`Importer:RemoteFolder`) or `DMS_Importer__RemoteFolder`:
 
    ```powershell
-   ./build/import.ps1 -Workbook .\TheTeamsWorkbook.xlsx
+   ./build/import.ps1 -Workbook .\TheTeamsWorkbook.xlsx -Mapping 'Team workbook'
    ```
 
-   Or call the CLI directly (same defaults, configurable via `src/App.Importer/appsettings.json` or
-   `DMS_Importer__*` environment variables):
+   Or call the CLI directly:
 
    ```powershell
-   dotnet run --project src/App.Importer -- import-excel .\TheTeamsWorkbook.xlsx
+   dotnet run --project src/App.Importer -- list-mappings
+   dotnet run --project src/App.Importer -- import-excel .\TheTeamsWorkbook.xlsx "Team workbook"
    ```
 
-2. Open the desktop app, review the imported rows, then **Publish**. Which columns map to which fields
-   is controlled by [`build/import-mapping.json`](build/import-mapping.json) — edit it as headers change.
+3. Open the app, review the imported rows, then **Publish**.
 
 ---
 
@@ -298,5 +308,5 @@ If the app opens but a screen is blank with an error bar, check the per-launch l
 | SmartScreen warns about an unknown publisher | Click **More info → Run anyway** (the file isn't code-signed). Ask IT to sign it for wide distribution. |
 | Edits aren't shared with colleagues | Confirm `MAPPINGSTUDIO_REMOTE` points at the **OneDrive-synced** folder and that OneDrive shows it as "up to date". Restart the app after changing the variable. |
 | Web host: "address already in use" | Choose another port, e.g. `--urls "http://localhost:5050"`. |
-| Importer can't find the mapping/workbook | Pass `-DbPath`/`-Mapping` explicitly, or set `DMS_Importer__DbPath` / `DMS_Importer__MappingPath`; the workbook path is relative to your current directory. |
+| Importer: "Mapping '…' not found" | Save the mapping from the app's Data Import wizard first (Mapping step → Save mapping as…), and point the importer at the same shared folder (`Importer:RemoteFolder` / `DMS_Importer__RemoteFolder`). `list-mappings` shows what's available. |
 | `dotnet` not recognized (building from source) | Install the .NET 10 SDK and reopen the terminal. |

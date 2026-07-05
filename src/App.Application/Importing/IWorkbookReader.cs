@@ -10,4 +10,10 @@ public interface IWorkbookReader
 {
     /// <summary>Reads the worksheets named in <paramref name="mapping"/> from the workbook stream.</summary>
     IReadOnlyList<WorksheetData> Read(Stream workbook, ImportMapping mapping);
+
+    /// <summary>
+    /// Reads EVERY worksheet in the workbook — the wizard's mapping editor needs the sheets no mapping
+    /// covers yet, so the user can map them to tables.
+    /// </summary>
+    IReadOnlyList<WorksheetData> ReadAll(Stream workbook);
 }

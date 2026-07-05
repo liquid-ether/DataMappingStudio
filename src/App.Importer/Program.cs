@@ -1,4 +1,3 @@
-using System.Text.Json;
 using App.Application;
 using App.Application.Abstractions;
 using App.Application.Importing;
@@ -13,10 +12,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 // Excel → SQLite importer + build tooling CLI (Architecture §10/§14). Verbs:
 //   provision <remoteFolder>
-//   import-excel <workbook.xlsx> [dbPath] [mapping.json] [report.json]   (paths default from appsettings.json)
-//   import    <dbPath> <dataDir> <mapping.json> [report.json]
+//   import-excel <workbook.xlsx> <mappingName> [dbPath] [report.json]
+//   list-mappings [remoteFolder]
 //   rebuild-snapshots <dbPath> <remoteFolder> [format]
 //   convert-format <remoteFolder> <fromFormat> <toFormat>
+// Imports run ONLY mappings previously saved from the app's Data Import wizard (shared folder,
+// _meta/import-mappings) — the wizard is where mappings are authored and validated.
 if (args.Length == 0)
 {
     Usage();
@@ -27,10 +28,10 @@ switch (args[0])
 {
     case "provision" when args.Length >= 2:
         return Provision(args[1]);
-    case "import-excel" when args.Length >= 2:
-        return ImportExcel(args[1], Arg(args, 2), Arg(args, 3), Arg(args, 4));
-    case "import" when args.Length >= 4:
-        return Import(args[1], args[2], args[3], args.Length >= 5 ? args[4] : Path.Combine(args[2], "import-report.json"));
+    case "import-excel" when args.Length >= 3:
+        return ImportExcel(args[1], args[2], Arg(args, 3), Arg(args, 4));
+    case "list-mappings":
+        return ListMappings(Arg(args, 1));
     case "rebuild-snapshots" when args.Length >= 3:
         return RebuildSnapshots(args[1], args[2], args.Length >= 4 ? args[3] : "parquet");
     case "convert-format" when args.Length >= 4:
@@ -54,32 +55,14 @@ static int Provision(string remoteFolder)
     return 0;
 }
 
-static int Import(string dbPath, string dataDir, string mappingPath, string reportPath)
-{
-    using ServiceProvider provider = BuildProvider(dbPath, remoteFolder: Path.Combine(dataDir, "_remote"));
-    ICatalog catalog = provider.GetRequiredService<ICatalog>();
-    catalog.Seed(DefaultCatalog.Entries());
-    ILocalStore store = provider.GetRequiredService<ILocalStore>();
-    store.EnsureSchema();
-
-    ImportMapping mapping = ImportMapping.FromJson(File.ReadAllText(mappingPath));
-    List<WorksheetData> data = mapping.Worksheets.Select(ws => ReadWorksheet(dataDir, ws.Worksheet)).ToList();
-
-    ImportReport report = provider.GetRequiredService<ImportEngine>().Run(mapping, data, changedBy: "import");
-
-    File.WriteAllText(reportPath, report.ToJson());
-    Console.WriteLine($"Import complete: {report.TotalCreated} created, {report.TotalUpdated} updated, {report.TotalSkipped} skipped. Report: {reportPath}");
-    return 0;
-}
-
 // Reads a real .xlsx directly (no PowerShell/ImportExcel needed) and imports it into the local SQLite
-// working copy. The db / mapping / report paths default from appsettings.json (or DMS_Importer__* env
-// vars) when omitted, so `import-excel <workbook.xlsx>` targets the app's database out of the box.
-static int ImportExcel(string workbookPath, string? dbArg, string? mappingArg, string? reportArg)
+// working copy, using a mapping previously saved from the app's Data Import wizard — the CLI never
+// defines mappings itself. The db path defaults from appsettings.json (or DMS_Importer__* env vars).
+static int ImportExcel(string workbookPath, string mappingName, string? dbArg, string? reportArg)
 {
     ImporterConfig config = LoadConfig();
     string dbPath = config.ResolveDbPath(dbArg);
-    string mappingPath = config.ResolveMappingPath(mappingArg);
+    string remoteFolder = config.ResolveRemoteFolder(null, dbPath);
 
     if (!File.Exists(workbookPath))
     {
@@ -87,28 +70,56 @@ static int ImportExcel(string workbookPath, string? dbArg, string? mappingArg, s
         return 1;
     }
 
-    if (!File.Exists(mappingPath))
+    string reportPath = reportArg ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath))!, "import-report.json");
+
+    using ServiceProvider provider = BuildProvider(dbPath, remoteFolder);
+    IImportMappingStore mappings = provider.GetRequiredService<IImportMappingStore>();
+    ImportMapping? mapping = mappings.Get(mappingName);
+    if (mapping is null)
     {
-        Console.Error.WriteLine($"Mapping not found: {mappingPath} (set Importer:MappingPath or pass it as an argument).");
+        Console.Error.WriteLine($"Mapping '{mappingName}' not found in {remoteFolder}.");
+        Console.Error.WriteLine("Save a mapping from the app's Data Import wizard first. Available mappings:");
+        foreach (SavedMappingInfo info in mappings.List())
+        {
+            Console.Error.WriteLine($"  {info.Name}  (saved by {info.SavedBy}, {info.SavedAtUtc:yyyy-MM-dd HH:mm} UTC)");
+        }
+
         return 1;
     }
 
-    string reportPath = reportArg ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath))!, "import-report.json");
-
-    using ServiceProvider provider = BuildProvider(dbPath, config.ResolveRemoteFolder(null, dbPath));
     ICatalog catalog = provider.GetRequiredService<ICatalog>();
     catalog.Seed(DefaultCatalog.Entries());
     ILocalStore store = provider.GetRequiredService<ILocalStore>();
     store.EnsureSchema();
 
-    ImportMapping mapping = ImportMapping.FromJson(File.ReadAllText(mappingPath));
     using FileStream workbookStream = File.OpenRead(workbookPath);
     IReadOnlyList<WorksheetData> data = provider.GetRequiredService<IWorkbookReader>().Read(workbookStream, mapping);
 
     ImportReport report = provider.GetRequiredService<ImportEngine>().Run(mapping, data, config.ChangedBy);
 
     File.WriteAllText(reportPath, report.ToJson());
-    Console.WriteLine($"Imported '{Path.GetFileName(workbookPath)}' into {dbPath}: {report.TotalCreated} created, {report.TotalUpdated} updated, {report.TotalSkipped} skipped. Report: {reportPath}");
+    Console.WriteLine($"Imported '{Path.GetFileName(workbookPath)}' into {dbPath} using mapping '{mappingName}': {report.TotalCreated} created, {report.TotalUpdated} updated, {report.TotalSkipped} skipped. Report: {reportPath}");
+    return 0;
+}
+
+// Lists the mappings saved from the app's Data Import wizard (the only ones import-excel can run).
+static int ListMappings(string? remoteArg)
+{
+    ImporterConfig config = LoadConfig();
+    string remoteFolder = config.ResolveRemoteFolder(remoteArg, config.ResolveDbPath(null));
+    IReadOnlyList<SavedMappingInfo> saved = new FileImportMappingStore(remoteFolder).List();
+    if (saved.Count == 0)
+    {
+        Console.WriteLine($"No saved mappings in {remoteFolder}. Save one from the app's Data Import wizard (Mapping step).");
+        return 0;
+    }
+
+    Console.WriteLine($"Saved mappings in {remoteFolder}:");
+    foreach (SavedMappingInfo info in saved)
+    {
+        Console.WriteLine($"  {info.Name}  (saved by {info.SavedBy}, {info.SavedAtUtc:yyyy-MM-dd HH:mm} UTC)");
+    }
+
     return 0;
 }
 
@@ -200,35 +211,6 @@ static int Compact(string remoteFolder, int olderThanDays, string format)
     return 0;
 }
 
-static WorksheetData ReadWorksheet(string dataDir, string worksheet)
-{
-    string path = Path.Combine(dataDir, worksheet + ".json");
-    if (!File.Exists(path))
-    {
-        return new WorksheetData(worksheet, []);
-    }
-
-    using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
-    List<IReadOnlyDictionary<string, string?>> rows = [];
-    foreach (JsonElement element in doc.RootElement.EnumerateArray())
-    {
-        Dictionary<string, string?> row = new(StringComparer.Ordinal);
-        foreach (JsonProperty prop in element.EnumerateObject())
-        {
-            row[prop.Name] = prop.Value.ValueKind switch
-            {
-                JsonValueKind.Null => null,
-                JsonValueKind.String => prop.Value.GetString(),
-                _ => prop.Value.ToString(),
-            };
-        }
-
-        rows.Add(row);
-    }
-
-    return new WorksheetData(worksheet, rows);
-}
-
 static ServiceProvider BuildProvider(string dbPath, string remoteFolder, string format = "parquet")
 {
     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(dbPath))!);
@@ -256,8 +238,8 @@ static string? Arg(string[] args, int i) => i < args.Length ? args[i] : null;
 static void Usage() => Console.WriteLine(
     "Usage:\n" +
     "  provision <remoteFolder>\n" +
-    "  import-excel <workbook.xlsx> [dbPath] [mapping.json] [report.json]   (paths default from appsettings.json)\n" +
-    "  import <dbPath> <dataDir> <mapping.json> [report.json]\n" +
+    "  import-excel <workbook.xlsx> <mappingName> [dbPath] [report.json]   (mapping = saved from the app's Data Import wizard)\n" +
+    "  list-mappings [remoteFolder]\n" +
     "  rebuild-snapshots <dbPath> <remoteFolder> [format]\n" +
     "  convert-format <remoteFolder> <fromFormat> <toFormat>\n" +
     "  report <dbPath> <remoteFolder> [format]\n" +

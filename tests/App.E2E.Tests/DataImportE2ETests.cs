@@ -38,8 +38,14 @@ public sealed class DataImportE2ETests(WebHostFixture host) : IClassFixture<WebH
 
             await Assertions.Expect(summary).ToBeVisibleAsync();
 
-            // Walk Source → Mapping → Validate → Load (Next auto-waits until each step is actionable).
+            // Walk Source → Mapping (prefilled from the built-in template for a team-shaped workbook).
             await page.Locator("button.dbi-next").ClickAsync(); // → Mapping
+
+            // Save the mapping to the shared store — this is what the CLI importer runs by name.
+            await page.GetByPlaceholder("Save mapping as").FillAsync("E2E Mapping");
+            await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Save", Exact = false }).ClickAsync();
+            await Assertions.Expect(page.GetByText("'E2E Mapping' saved")).ToBeVisibleAsync();
+
             await page.Locator("button.dbi-next").ClickAsync(); // → Validate
             await page.Locator("button.dbi-next").ClickAsync(); // → Load
 

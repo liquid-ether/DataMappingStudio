@@ -10,7 +10,6 @@ namespace App.Importer;
 public sealed class ImporterConfig
 {
     public string? DbPath { get; set; }
-    public string? MappingPath { get; set; }
     public string? RemoteFolder { get; set; }
     public string ChangedBy { get; set; } = "import";
 
@@ -22,22 +21,9 @@ public sealed class ImporterConfig
         => Expand(arg ?? DbPath ?? Path.Combine(AppDataDir, "local.db"));
 
     /// <summary>
-    /// The worksheet→table mapping. An explicit command-line argument is taken relative to the caller's
-    /// working directory; the configured/default mapping resolves next to the importer executable (where
-    /// the bundled <c>import-mapping.json</c> ships), so the importer is self-contained with no argument.
+    /// The shared canonical folder — where saved import mappings (<c>_meta/import-mappings</c>) live and
+    /// where publishes go. Defaults next to the database, matching the app's standalone default.
     /// </summary>
-    public string ResolveMappingPath(string? arg)
-    {
-        if (arg is not null)
-        {
-            return Expand(arg);
-        }
-
-        string path = Expand(MappingPath ?? "import-mapping.json");
-        return Path.IsPathRooted(path) ? path : Path.Combine(AppContext.BaseDirectory, path);
-    }
-
-    /// <summary>The per-writer remote folder (needed to construct the store graph; not written by import).</summary>
     public string ResolveRemoteFolder(string? arg, string dbPath)
         => Expand(arg ?? RemoteFolder ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath))!, "remote"));
 

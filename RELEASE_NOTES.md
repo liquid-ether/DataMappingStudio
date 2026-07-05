@@ -7,6 +7,37 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-07-05
+
+### Changed — data-driven import wizard + one mapping pipeline for wizard & CLI
+- **The wizard's Mapping step is now an editor, not a report.** Every worksheet of the uploaded
+  workbook becomes an editable draft: pick a **target table** (any catalog table — including tables
+  created at runtime in Admin → Model), and headers **auto-map** to columns by name or bilingual label
+  (case/space/underscore-insensitive); remap or ignore any header (one feeder per column), and tick the
+  **key column(s)** rows upsert by (defaults to the mapped required columns). A standard team workbook
+  is still prefilled from the built-in template, so the zero-config flow is unchanged. Unmapped sheets
+  are simply skipped (and shown as such); *Next* is gated until every mapped sheet has columns and a
+  valid key.
+- **Named mappings, shared with the team.** Mappings save by name to the shared folder
+  (`_meta/import-mappings/<name>.json`, atomic writes, filename-safe names) via a new
+  `IImportMappingStore`; the Mapping step lists, applies and saves them. Saved mappings sync to every
+  machine like the rest of the canonical folder.
+- **The CLI now runs saved mappings only.** `import-excel` becomes
+  `import-excel <workbook.xlsx> <mappingName> [dbPath] [report.json]` — the mapping name must have been
+  saved from the wizard (author + validate in the UI, automate in the CLI). New `list-mappings` verb
+  shows what's available (name, author, when). Removed: the file-based `Importer:MappingPath` setting,
+  the bundled/`build/import-mapping.json` files, and the JSON-directory `import` verb.
+  `build/import.ps1` now takes `-Mapping <name>` (required). The built-in template still exists in code
+  (`DefaultImportMapping`) as the wizard prefill.
+- **Docs.** INSTALL §4 rewritten around the wizard-authored flow; README importer section and the
+  architecture doc's §10b updated.
+
+### Tests
+- `FileImportMappingStoreTests` (round-trip fidelity incl. references/expression column, overwrite,
+  unsafe-name rejection, malformed-file tolerance), `DataImportMappingEditorTests` (built-in prefill,
+  auto-map + key defaults, step gating, one-feeder-per-column remapping, save/load through the store,
+  error paths), and the import E2E now saves a mapping mid-flow. 318 tests, 21/21 browser E2E.
+
 ## [1.20.0] - 2026-07-05
 
 ### Added — meta-model admin, shared catalog sync, lookup columns, runtime settings

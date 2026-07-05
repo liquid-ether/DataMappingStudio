@@ -33,8 +33,10 @@ public sealed record ImportMapping
 {
     [JsonPropertyName("worksheets")] public IReadOnlyList<WorksheetMapping> Worksheets { get; init; } = [];
 
-    private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true, WriteIndented = true };
 
     public static ImportMapping FromJson(string json)
         => JsonSerializer.Deserialize<ImportMapping>(json, Options) ?? throw new FormatException("Import mapping JSON deserialized to null.");
+
+    public string ToJson() => JsonSerializer.Serialize(this, Options);
 }

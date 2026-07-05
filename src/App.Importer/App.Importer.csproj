@@ -13,10 +13,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Ship the importer's config and the canonical worksheet→table mapping next to the executable so
-         it runs self-contained (the mapping is the editable build/import-mapping.json). -->
+    <!-- Ship the importer's config next to the executable so it runs self-contained. Mappings are not
+         files anymore: import-excel runs mappings saved from the app's Data Import wizard, read from
+         the shared folder's _meta/import-mappings. -->
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\build\import-mapping.json" Link="import-mapping.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

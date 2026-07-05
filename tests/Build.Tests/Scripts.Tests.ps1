@@ -10,26 +10,12 @@ Describe 'provision.ps1' {
     }
 }
 
-Describe 'import-mapping.json' {
-    BeforeAll {
-        $script:map = Get-Content (Join-Path $buildDir 'import-mapping.json') -Raw | ConvertFrom-Json
-    }
+# Mapping files are gone: the CLI runs mappings saved from the app's Data Import wizard
+# (shared folder _meta/import-mappings); the built-in template lives in DefaultImportMapping.cs.
 
-    It 'is valid JSON with a worksheets array' {
-        $map.worksheets | Should -Not -BeNullOrEmpty
-    }
-
-    It 'maps the core entity tables' {
-        $tables = $map.worksheets.table
-        $tables | Should -Contain 'application'
-        $tables | Should -Contain 'data_source'
-        $tables | Should -Contain 'mapping'
-    }
-
-    It 'resolves the data_source -> application reference by app_code' {
-        $source = $map.worksheets | Where-Object { $_.table -eq 'data_source' }
-        $source.references.application_id.table | Should -Be 'application'
-        $source.references.application_id.by | Should -Be 'app_code'
+Describe 'import.ps1' {
+    It 'requires a saved-mapping name' {
+        (Get-Command (Join-Path $buildDir 'import.ps1')).Parameters['Mapping'].Attributes.Mandatory | Should -Contain $true
     }
 }
 

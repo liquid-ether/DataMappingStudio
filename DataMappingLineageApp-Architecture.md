@@ -471,8 +471,11 @@ Working workbook ──> Import-Excel (per worksheet) ──> raw CSV/JSON per w
 
 ### 10b. Worksheet → table mapping config
 
-A small editable JSON file (`build/import-mapping.json`) drives steps 2–3, kept separate from
-code so the team can adjust it as the working workbook's column headers drift, without a rebuild:
+A per-worksheet mapping document drives steps 2–3. Mappings are **authored in the app's Data Import
+wizard** (Mapping step) and **saved by name to the shared folder** (`_meta/import-mappings/<name>.json`)
+so the team can adjust them as the working workbook's column headers drift, without a rebuild — and the
+CLI importer runs the same saved mappings by name (it has no mapping files of its own). The document
+shape:
 
 ```json
 {

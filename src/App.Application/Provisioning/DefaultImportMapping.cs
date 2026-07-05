@@ -4,10 +4,11 @@ using App.Domain.Entities;
 namespace App.Application.Provisioning;
 
 /// <summary>
-/// The built-in worksheet→table mapping for the team's workbook, mirroring
-/// <c>build/import-mapping.json</c>. The in-app Data Import wizard uses this so it can import the
-/// standard workbook with no external mapping file; the CLI can still be pointed at an edited
-/// <c>import-mapping.json</c>. Only listed columns import; derived/computed columns are omitted.
+/// The built-in worksheet→table mapping for the team's standard workbook. The Data Import wizard's
+/// Mapping step prefills its editable drafts from this (and offers it as the "built-in template"), so
+/// the standard workbook imports with zero configuration; edited mappings are saved by name to the
+/// shared <see cref="Importing.IImportMappingStore"/>, which is the only place the CLI importer reads
+/// mappings from. Only listed columns import; derived/computed columns are omitted.
 /// </summary>
 public static class DefaultImportMapping
 {

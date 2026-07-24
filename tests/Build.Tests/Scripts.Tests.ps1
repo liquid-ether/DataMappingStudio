@@ -1,5 +1,9 @@
 # Pester tests for the PowerShell build scripts (Architecture §14). Run: Invoke-Pester tests/Build.Tests
-$buildDir = Join-Path $PSScriptRoot '..\..\build'
+# Requires Pester 5+. Setup lives in BeforeAll: top-level script code runs only during Pester's
+# DISCOVERY phase, so a plain top-level variable would be null when the tests actually execute.
+BeforeAll {
+    $script:buildDir = Join-Path $PSScriptRoot '..\..\build'
+}
 
 Describe 'provision.ps1' {
     It 'creates the _changes and _meta folders' {

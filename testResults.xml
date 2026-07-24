@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<test-results xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="nunit_schema_2.5.xsd" name="Pester" total="3" errors="0" failures="0" not-run="0" inconclusive="0" ignored="0" skipped="0" invalid="0" date="2026-07-23" time="22:21:17">
+  <environment os-version="10.0.26200" clr-version="10.0.9" nunit-version="2.5.8.0" user-domain="DEV2025" cwd="C:\dev\DataMappingStudio" platform="Microsoft Windows 11 Enterprise|C:\WINDOWS|\Device\Harddisk0\Partition3" machine-name="DEV2025" user="mathieu" />
+  <culture-info current-culture="en-CA" current-uiculture="en-US" />
+  <test-suite type="TestFixture" name="Pester" executed="True" result="Success" success="True" time="0.5435" asserts="0" description="Pester">
+    <results>
+      <test-suite type="TestFixture" name="C:\dev\DataMappingStudio\tests\Build.Tests\Scripts.Tests.ps1" executed="True" result="Success" success="True" time="0.5435" asserts="0" description="C:\dev\DataMappingStudio\tests\Build.Tests\Scripts.Tests.ps1">
+        <results>
+          <test-suite type="TestFixture" name="provision.ps1" executed="True" result="Success" success="True" time="0.1285" asserts="0" description="provision.ps1">
+            <results>
+              <test-case description="creates the _changes and _meta folders" name="provision.ps1.creates the _changes and _meta folders" time="0.092" asserts="0" success="True" result="Success" executed="True" />
+            </results>
+          </test-suite>
+          <test-suite type="TestFixture" name="import.ps1" executed="True" result="Success" success="True" time="0.146" asserts="0" description="import.ps1">
+            <results>
+              <test-case description="requires a saved-mapping name" name="import.ps1.requires a saved-mapping name" time="0.0141" asserts="0" success="True" result="Success" executed="True" />
+            </results>
+          </test-suite>
+          <test-suite type="TestFixture" name="build scripts" executed="True" result="Success" success="True" time="0.1549" asserts="0" description="build scripts">
+            <results>
+              <test-case description="all expected scripts exist" name="build scripts.all expected scripts exist" time="0.0053" asserts="0" success="True" result="Success" executed="True" />
+            </results>
+          </test-suite>
+        </results>
+      </test-suite>
+    </results>
+  </test-suite>
+</test-results>

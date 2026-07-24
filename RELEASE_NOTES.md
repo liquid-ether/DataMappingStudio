@@ -15,6 +15,9 @@ All notable changes to Mapping Studio are documented here. The format follows
   serves under `/admin/model` and `/admin/settings`. The desktop is single-user and fully privileged,
   so no sign-in is involved; identity administration (users, roles, providers, audit) remains web-only
   because the desktop has no security store.
+- The **reference display column** is now editable after table creation: Admin → Model → **Edit labels**
+  exposes a display-column picker alongside the table labels and nav visibility (previously set only at
+  creation and shown read-only). Changes sync team-wide via the existing `TableMetaUpdated` path.
 
 ## [1.22.0] - 2026-07-05
 

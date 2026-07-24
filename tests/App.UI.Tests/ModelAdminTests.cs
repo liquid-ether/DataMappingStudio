@@ -91,6 +91,18 @@ public class ModelAdminTests : AppTestContext
     }
 
     [Fact]
+    public void Editing_a_table_changes_its_display_column()
+    {
+        var cut = RenderAdmin();
+
+        ClickButton(cut, "Edit labels");
+        cut.Find("select.th-filter").Change("name"); // the only display-column select in the row
+        ClickButton(cut, "Save");
+
+        Assert.Equal("name", _tables.GetTableMeta("widget")!.DisplayColumn);
+    }
+
+    [Fact]
     public void Creating_a_table_carries_column_labels()
     {
         var cut = RenderAdmin();

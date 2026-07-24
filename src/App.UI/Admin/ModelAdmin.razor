@@ -106,6 +106,14 @@
                                     <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-2)">
                                         <input type="checkbox" @bind="_labelsDraft.NavVisible" />@(Lang.IsFrench ? "Dans le menu" : "In the menu")
                                     </label>
+                                    <span class="lab">@(Lang.IsFrench ? "Colonne d'affichage :" : "Display column:")</span>
+                                    <select class="th-filter" style="max-width:170px" @bind="_labelsDraft.DisplayColumn">
+                                        <option value="">—</option>
+                                        @foreach (ColumnCatalogEntry c in Catalog.GetForTable(table).Where(c => !c.IsCore))
+                                        {
+                                            <option value="@c.ColumnName">@c.ColumnName</option>
+                                        }
+                                    </select>
                                 </div>
                                 @foreach ((string column, ColumnLabelDraft draft) in _labelsDraft.Columns)
                                 {
@@ -209,6 +217,7 @@
         public string TableEn { get; set; } = "";
         public string TableFr { get; set; } = "";
         public bool NavVisible { get; set; }
+        public string DisplayColumn { get; set; } = "";
         public Dictionary<string, ColumnLabelDraft> Columns { get; } = new(StringComparer.Ordinal);
     }
 
@@ -282,6 +291,7 @@
             TableEn = meta?.LabelEn ?? "",
             TableFr = meta?.LabelFr ?? "",
             NavVisible = meta?.NavVisible ?? false,
+            DisplayColumn = meta?.DisplayColumn ?? "",
         };
         foreach (ColumnCatalogEntry c in Catalog.GetForTable(table).Where(c => !c.IsCore))
         {
@@ -301,6 +311,7 @@
             LabelEn = string.IsNullOrWhiteSpace(draft.TableEn) ? table : draft.TableEn.Trim(),
             LabelFr = string.IsNullOrWhiteSpace(draft.TableFr) ? (string.IsNullOrWhiteSpace(draft.TableEn) ? table : draft.TableEn.Trim()) : draft.TableFr.Trim(),
             NavVisible = draft.NavVisible,
+            DisplayColumn = string.IsNullOrWhiteSpace(draft.DisplayColumn) ? null : draft.DisplayColumn,
         };
         if (updated != meta)
         {

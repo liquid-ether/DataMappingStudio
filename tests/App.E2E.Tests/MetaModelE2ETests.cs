@@ -25,8 +25,9 @@ public sealed class MetaModelE2ETests(WebHostFixture host) : IClassFixture<WebHo
         // Create a "vendor" table with one required text column, nav-visible.
         await page.Locator("button.add", new() { HasTextString = "New table" }).ClickAsync();
         await page.GetByPlaceholder("table_name").FillAsync("vendor");
-        await page.GetByPlaceholder("Label (EN)").FillAsync("Vendors");
-        await page.GetByPlaceholder("Label (FR)").FillAsync("Fournisseurs");
+        // First Label inputs = the TABLE labels; the column editor below has its own pair.
+        await page.GetByPlaceholder("Label (EN)").First.FillAsync("Vendors");
+        await page.GetByPlaceholder("Label (FR)").First.FillAsync("Fournisseurs");
         await page.GetByPlaceholder("column_name").FillAsync("code");
         await page.Locator("button.ms-publish", new() { HasTextString = "Create table" }).ClickAsync();
         await Assertions.Expect(page.GetByText("Table 'vendor' created.")).ToBeVisibleAsync();

@@ -7,6 +7,59 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-07-05
+
+### Fixed — the import wizard is truly linked to the dynamic model
+- **Runtime columns/tables reach an open wizard, live.** The wizard now subscribes to meta-model
+  publishes (any circuit on the host) and re-applies the shared catalog + re-auto-maps unmapped headers
+  on its own dispatcher; entering the Mapping step and uploading a file also pull the current shared
+  model first (version-gated), so cross-host changes don't wait for the next auto-refresh tick.
+- **Template/saved-mapping application auto-maps unknown headers** against the live catalog — a header
+  matching a column added after the template was authored maps automatically; a per-sheet
+  **⚡ Auto-map new columns** button re-runs matching on demand (manual picks are never clobbered).
+- **`GetTables` now unions `table_catalog`**, so a table known only to table metadata (columns not yet
+  synced) still appears in the wizard's table picker and the Model admin list.
+- **Publish-race fix:** with publish-first sync, a live subscriber could fold the author's own new
+  column back into the catalog before the author's local apply, crashing the admin circuit with a
+  UNIQUE violation. The local apply is now idempotent (duplicate-name errors are checked before the
+  publish), and a failing `Changed` subscriber (e.g. a disconnected-but-undisposed circuit) can no
+  longer fail the publisher.
+- **Stale saved mappings are flagged, not imported blind:** applying a mapping that references a table
+  or column missing from the current model produces explicit Mapping-step errors (and gates *Next*).
+- Stale Model-admin note removed ("tables created here are not covered by the Excel import tool" — they
+  import like any other table since v1.21.0). The saved-mapping toolbar no longer re-reads the shared
+  folder on every render (cached, refreshed on entry/save/delete).
+
+### Added — bilingual labels for the meta-model
+- **EN/FR labels at add time**: both add-column forms (Model admin and the grid's quick-add) take
+  Label (EN) / Label (FR); blank fields fall back EN → column name and FR → EN → name. Grid headers
+  already render labels — added columns now show their label instead of the db column name.
+- **Labels editable later**: per-table **✎ Edit labels** in Admin → Model edits the table's labels/nav
+  visibility and every non-core column's EN/FR labels. Column-label edits sync team-wide via a new
+  `ColumnMetaUpdated` catalog change (last-writer-wins, additive; running copies update in place).
+- **The wizard's target-column dropdown is bilingual**: options render "Label (column_name)" with a
+  required marker, in the UI language; stored mappings still use the raw column name.
+- **Saved-mapping delete**: 🗑 in the wizard's mapping toolbar and a `delete-mapping <name>` CLI verb
+  (rename = save under a new name + delete).
+- **Desktop auto-refresh actually runs**: the WPF shell now starts registered hosted services at
+  startup (and stops them on exit), so cross-host model/data changes reach the desktop on the
+  auto-refresh cadence instead of only via manual Refresh.
+
+### Security
+- Bumped all `10.0.9` Microsoft servicing packages to **10.0.10**, closing the five High advisories on
+  `System.Security.Cryptography.Xml` (transitive via DataProtection.EntityFrameworkCore) and the two
+  High advisories on `Microsoft.AspNetCore.Authentication.Negotiate`. Pinned **AngleSharp 1.5.2** in
+  the UI test project (bunit pulled the vulnerable 1.4.0, Moderate). `dotnet list package --vulnerable
+  --include-transitive` is clean across all 19 projects.
+
+### Tests
+- New: `ModelAdminTests` (labels at add time, fallbacks, edit-labels round-trip, create-table labels),
+  catalog `GetTables` union + `UpdateColumnMeta` round-trip, `ColumnMetaUpdated` fold LWW,
+  label edits reaching a running second stack, mapping-store delete, wizard editor coverage (column
+  added after upload, publish → notify → re-auto-map + unsubscribe on dispose, bilingual option text,
+  stale-mapping errors, delete refresh), and a browser E2E pinning the reported repro (admin adds a
+  labeled column → wizard offers and auto-maps it). 335 tests, 22/22 browser E2E.
+
 ## [1.21.0] - 2026-07-05
 
 ### Changed — data-driven import wizard + one mapping pipeline for wizard & CLI

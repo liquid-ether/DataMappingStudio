@@ -25,4 +25,10 @@ public interface ICatalog
     /// <c>ALTER TABLE … ADD COLUMN</c> so it appears automatically in the editors (Architecture §4, §12).
     /// </summary>
     void AddColumn(ColumnCatalogEntry entry);
+
+    /// <summary>
+    /// Updates a column's presentation metadata (labels). Never touches structure or the physical
+    /// schema; a no-op when the column is unknown.
+    /// </summary>
+    void UpdateColumnMeta(ColumnCatalogEntry entry);
 }

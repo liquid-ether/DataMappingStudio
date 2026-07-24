@@ -61,6 +61,7 @@ public class ComputedFormulaTests
         public IReadOnlyList<string> GetTables() => _entries.Select(e => e.TableName).Distinct().ToList();
         public void Seed(IEnumerable<ColumnCatalogEntry> entries) => throw new NotSupportedException();
         public void AddColumn(ColumnCatalogEntry entry) => throw new NotSupportedException();
+        public void UpdateColumnMeta(ColumnCatalogEntry entry) => throw new NotSupportedException();
     }
 
     [Theory]

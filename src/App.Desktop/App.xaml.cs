@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -10,6 +12,7 @@ using App.Infrastructure.Local;
 using App.Infrastructure.Remote;
 using App.UI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace App.Desktop;
@@ -22,6 +25,9 @@ namespace App.Desktop;
 /// </summary>
 public partial class DesktopApp : System.Windows.Application
 {
+    private ServiceProvider? _provider;
+    private readonly List<IHostedService> _hostedServices = [];
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -68,6 +74,7 @@ public partial class DesktopApp : System.Windows.Application
                     Path.Combine(dataDir, "app_config.local.json")));
 
             ServiceProvider provider = services.BuildServiceProvider();
+            _provider = provider;
             Resources.Add("services", provider);
 
             // Provision the local working copy.
@@ -82,6 +89,22 @@ public partial class DesktopApp : System.Windows.Application
             int seeded = seedSample ? new SampleDataSeeder(provider.GetRequiredService<LocalDatabase>()).SeedIfEmpty() : 0;
             logProvider.Append($"{DateTimeOffset.Now:O} [Information] Provisioned local store (seeded {seeded} sample rows, sampleData={seedSample}); opening window.");
 
+            // Start the registered hosted services (background auto-refresh, …). WPF has no generic
+            // host, so nothing starts them for us; each failure is logged and non-fatal — the app is
+            // fully usable without background refresh (manual Refresh still works).
+            foreach (IHostedService hosted in provider.GetServices<IHostedService>())
+            {
+                try
+                {
+                    hosted.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+                    _hostedServices.Add(hosted);
+                }
+                catch (Exception ex)
+                {
+                    logProvider.Append($"{DateTimeOffset.Now:O} [Error] Hosted service {hosted.GetType().Name} failed to start: {ex}");
+                }
+            }
+
             new MainWindow(provider).Show();
         }
         catch (Exception ex)
@@ -89,6 +112,26 @@ public partial class DesktopApp : System.Windows.Application
             logProvider.Append($"{DateTimeOffset.Now:O} [Critical] Startup failed: {ex}");
             throw;
         }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        // Stop background services with a short grace period, then dispose the container.
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(3));
+        foreach (IHostedService hosted in _hostedServices)
+        {
+            try
+            {
+                hosted.StopAsync(cts.Token).GetAwaiter().GetResult();
+            }
+            catch (Exception)
+            {
+                // Shutdown is best-effort; nothing to report to.
+            }
+        }
+
+        _provider?.Dispose();
+        base.OnExit(e);
     }
 
     private void InstallGlobalExceptionHandlers(FileLoggerProvider log)

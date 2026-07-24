@@ -265,6 +265,7 @@
                   }
                 </select>
                 <button class="dbi-tab" disabled="@(string.IsNullOrEmpty(_savedSelect))" @onclick="() => State.LoadSavedMapping(_savedSelect!)">@T("apply")</button>
+                <button class="dbi-tab" disabled="@(string.IsNullOrEmpty(_savedSelect))" @onclick="DeleteSelectedMapping">🗑 @T("deleteMapping")</button>
               }
               <div style="flex:1"></div>
               <input class="dbi-in" placeholder="@T("saveAs")" aria-label="@T("saveAs")" @bind="_saveName" @bind:event="oninput" />
@@ -304,6 +305,10 @@
                 }
               </select>
               <span class="mono" style="font-size:11.5px;color:var(--text-3)">@State.FmtInt(draft.RowCount) @T("rows") · @draft.HeaderToColumn.Count/@draft.Headers.Count @T("cols")</span>
+              @if (draft.Table.Length > 0)
+              {
+                <button class="dbi-tab" @onclick="() => State.AutoMapNewColumns(draft)">⚡ @T("autoMap")</button>
+              }
               <div style="flex:1"></div>
               @if (draft.Table.Length > 0)
               {
@@ -337,7 +342,7 @@
                         <option value="">@T("ignore")</option>
                         @foreach (ColumnCatalogEntry c in State.MappableColumns(draft.Table))
                         {
-                          <option value="@c.ColumnName">@c.ColumnName@(c.IsRequired ? " *" : "")</option>
+                          <option value="@c.ColumnName">@State.ColumnOptionLabel(c)</option>
                         }
                       </select>
                       @if (entry is not null)
@@ -617,14 +622,41 @@
     protected override void OnInitialized()
     {
         State.OnChange += OnStateChanged;
+        State.CatalogModelChanged += OnCatalogModelChanged;
         Lang.OnChange += OnStateChanged;
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);
 
+    // A meta-model publish (possibly from another circuit) — marshal onto this circuit's dispatcher
+    // before touching wizard state, then re-apply the model + auto-map (Notify triggers the render).
+    // This handler runs on the PUBLISHER's thread, potentially after this circuit disconnected but
+    // before its scoped services were disposed — it must never throw back into the publisher.
+    private void OnCatalogModelChanged()
+    {
+        try
+        {
+            _ = InvokeAsync(State.RefreshFromCatalog);
+        }
+        catch (Exception)
+        {
+            // Disposed/disconnected circuit; the state refreshes on next entry anyway.
+        }
+    }
+
+    private void DeleteSelectedMapping()
+    {
+        if (!string.IsNullOrEmpty(_savedSelect))
+        {
+            State.DeleteMapping(_savedSelect);
+            _savedSelect = null;
+        }
+    }
+
     public void Dispose()
     {
         State.OnChange -= OnStateChanged;
+        State.CatalogModelChanged -= OnCatalogModelChanged;
         Lang.OnChange -= OnStateChanged;
     }
 }

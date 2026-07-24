@@ -44,6 +44,18 @@ public sealed partial class FileImportMappingStore : IImportMappingStore
         RemoteIo.Retry(() => AtomicWrite.Write(path, temp => File.WriteAllText(temp, json)));
     }
 
+    public bool Delete(string name)
+    {
+        string path = PathFor(name); // validates the name
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        RemoteIo.Retry(() => File.Delete(path));
+        return true;
+    }
+
     private static Document? ReadDocument(string path)
     {
         try

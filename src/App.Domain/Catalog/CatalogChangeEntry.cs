@@ -11,6 +11,9 @@ public enum CatalogChangeKind
 
     /// <summary>Updated table metadata — labels / navigation / display column (last-writer-wins).</summary>
     TableMetaUpdated = 2,
+
+    /// <summary>Updated column presentation metadata — labels (last-writer-wins; rides in <see cref="CatalogChangeEntry.Column"/>).</summary>
+    ColumnMetaUpdated = 3,
 }
 
 /// <summary>

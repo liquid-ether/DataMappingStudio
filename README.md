@@ -86,7 +86,7 @@ and loads them into the **local SQLite working copy** (the same `local.db` the a
 **authored in the app's Data Import wizard** (Mapping step: map any worksheet to any catalog table —
 including runtime tables created in Admin → Model — with header auto-mapping and per-sheet natural
 keys) and **saved by name to the shared folder** (`_meta/import-mappings/`); the CLI **only runs saved
-mappings** (`import-excel <workbook.xlsx> <mappingName>`, `list-mappings`). Per-catalog normalization,
+mappings** (`import-excel <workbook.xlsx> <mappingName>`, `list-mappings`, `delete-mapping`). Per-catalog normalization,
 **FK resolution by natural key**, **expression field-reference resolution** to dictionary entries with
 free-text fallback, and idempotent **upsert** producing a reviewable `Import` change set +
 `import-report.json`. Importer **configuration** lives in

@@ -88,11 +88,41 @@
                     <td><div class="cell mono" style="font-size:12px">@(meta?.DisplayColumn ?? "—")</div></td>
                     <td><div class="cell">@Catalog.GetForTable(table).Count(c => !c.IsCore)</div></td>
                     <td>
-                        <div class="cell">
+                        <div class="cell" style="display:flex;gap:6px">
                             <button class="add" type="button" @onclick="() => StartAddColumn(table)">+ @Lang.T("addColumn")</button>
+                            <button class="add" type="button" @onclick="() => StartEditLabels(table)">✎ @Lang.T("editLabels")</button>
                         </div>
                     </td>
                 </tr>
+                @if (_editLabelsTable == table && _labelsDraft is not null)
+                {
+                    <tr>
+                        <td colspan="6">
+                            <div style="padding:10px 12px">
+                                <div class="draftbar">
+                                    <span class="lab">Table :</span>
+                                    <input class="th-filter" style="max-width:170px" placeholder="@Lang.T("labelEn")" @bind="_labelsDraft.TableEn" />
+                                    <input class="th-filter" style="max-width:170px" placeholder="@Lang.T("labelFr")" @bind="_labelsDraft.TableFr" />
+                                    <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-2)">
+                                        <input type="checkbox" @bind="_labelsDraft.NavVisible" />@(Lang.IsFrench ? "Dans le menu" : "In the menu")
+                                    </label>
+                                </div>
+                                @foreach ((string column, ColumnLabelDraft draft) in _labelsDraft.Columns)
+                                {
+                                    <div class="draftbar" style="border-top:1px solid var(--border);padding-top:6px;margin-top:6px">
+                                        <span class="lab mono" style="min-width:170px">@column</span>
+                                        <input class="th-filter" style="max-width:170px" placeholder="@Lang.T("labelEn")" @bind="draft.En" />
+                                        <input class="th-filter" style="max-width:170px" placeholder="@Lang.T("labelFr")" @bind="draft.Fr" />
+                                    </div>
+                                }
+                                <div class="addbar" style="margin-top:10px">
+                                    <button class="ms-publish" type="button" @onclick="SaveLabels">@Lang.T("save")</button>
+                                    <button class="add" type="button" @onclick="() => _editLabelsTable = null">@(Lang.IsFrench ? "Annuler" : "Cancel")</button>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                }
                 @if (_addColumnTable == table)
                 {
                     <tr>
@@ -114,8 +144,8 @@
 
 <p class="muted" style="margin-top:12px;font-size:12px">
     @(Lang.IsFrench
-        ? "Les changements de modèle sont publiés dans le dossier partagé : chaque poste les applique à son prochain rafraîchissement. La structure est additive — les tables et colonnes ne se suppriment pas. Les tables créées ici ne sont pas couvertes par l'outil d'import Excel."
-        : "Model changes are published to the shared folder: every workstation applies them on its next refresh. Structure is additive — tables and columns cannot be deleted. Tables created here are not covered by the Excel import tool.")
+        ? "Les changements de modèle sont publiés dans le dossier partagé : chaque poste les applique à son prochain rafraîchissement. La structure est additive — les tables et colonnes ne se suppriment pas. Les tables créées ici s'importent depuis l'assistant Importation de données comme toute autre table."
+        : "Model changes are published to the shared folder: every workstation applies them on its next refresh. Structure is additive — tables and columns cannot be deleted. Tables created here can be imported from the Data Import wizard like any other table.")
 </p>
 
 @code {
@@ -123,6 +153,8 @@
     {
         <div class="draftbar">
             <input class="th-filter" style="max-width:160px" placeholder="@(Lang.IsFrench ? "nom_colonne" : "column_name")" @bind="draft.Name" />
+            <input class="th-filter" style="max-width:150px" placeholder="@Lang.T("labelEn")" @bind="draft.LabelEn" />
+            <input class="th-filter" style="max-width:150px" placeholder="@Lang.T("labelFr")" @bind="draft.LabelFr" />
             <select class="th-filter" style="max-width:130px" @bind="draft.Kind">
                 <option value="@ColumnKind.Scalar">@(Lang.IsFrench ? "Scalaire" : "Scalar")</option>
                 <option value="@ColumnKind.Reference">@(Lang.IsFrench ? "Référence" : "Reference")</option>
@@ -159,10 +191,26 @@
 
     private bool _creating;
     private string? _addColumnTable;
+    private string? _editLabelsTable;
+    private TableLabelsDraft? _labelsDraft;
     private TableDraft _newTable = new();
     private ColumnDraft _newColumn = new();
     private string? _message;
     private bool _ok;
+
+    private sealed class ColumnLabelDraft
+    {
+        public string En { get; set; } = "";
+        public string Fr { get; set; } = "";
+    }
+
+    private sealed class TableLabelsDraft
+    {
+        public string TableEn { get; set; } = "";
+        public string TableFr { get; set; } = "";
+        public bool NavVisible { get; set; }
+        public Dictionary<string, ColumnLabelDraft> Columns { get; } = new(StringComparer.Ordinal);
+    }
 
     private sealed class TableDraft
     {
@@ -180,6 +228,8 @@
     private sealed class ColumnDraft
     {
         public string Name { get; set; } = "";
+        public string LabelEn { get; set; } = "";
+        public string LabelFr { get; set; } = "";
         public ColumnKind Kind { get; set; } = ColumnKind.Scalar;
         public CatalogValueType ValueType { get; set; } = CatalogValueType.Text;
         public bool Required { get; set; }
@@ -195,8 +245,11 @@
             IsRequired = Kind == ColumnKind.Scalar && Required,
             ReferenceTarget = Kind == ColumnKind.Reference ? ReferenceTarget : null,
             Formula = Kind == ColumnKind.Computed ? Formula : null,
-            LabelEn = Name.Trim(),
-            LabelFr = Name.Trim(),
+            // Same fallback ladder as table labels: blank EN -> column name, blank FR -> EN -> name.
+            LabelEn = string.IsNullOrWhiteSpace(LabelEn) ? Name.Trim() : LabelEn.Trim(),
+            LabelFr = string.IsNullOrWhiteSpace(LabelFr)
+                ? (string.IsNullOrWhiteSpace(LabelEn) ? Name.Trim() : LabelEn.Trim())
+                : LabelFr.Trim(),
             IsUserAdded = true,
             DisplayOrder = order,
         };
@@ -207,6 +260,7 @@
         _creating = !_creating;
         _newTable = new TableDraft();
         _addColumnTable = null;
+        _editLabelsTable = null;
     }
 
     private void StartAddColumn(string table)
@@ -214,7 +268,59 @@
         _addColumnTable = table;
         _newColumn = new ColumnDraft();
         _creating = false;
+        _editLabelsTable = null;
     }
+
+    private void StartEditLabels(string table)
+    {
+        _editLabelsTable = table;
+        _addColumnTable = null;
+        _creating = false;
+        TableCatalogEntry? meta = Tables.GetTableMeta(table);
+        _labelsDraft = new TableLabelsDraft
+        {
+            TableEn = meta?.LabelEn ?? "",
+            TableFr = meta?.LabelFr ?? "",
+            NavVisible = meta?.NavVisible ?? false,
+        };
+        foreach (ColumnCatalogEntry c in Catalog.GetForTable(table).Where(c => !c.IsCore))
+        {
+            _labelsDraft.Columns[c.ColumnName] = new ColumnLabelDraft { En = c.LabelEn ?? "", Fr = c.LabelFr ?? "" };
+        }
+    }
+
+    private void SaveLabels() => Try(() =>
+    {
+        string table = _editLabelsTable!;
+        TableLabelsDraft draft = _labelsDraft!;
+
+        // Table metadata (labels + nav) — only published when something actually changed.
+        TableCatalogEntry meta = Tables.GetTableMeta(table) ?? new TableCatalogEntry { TableName = table };
+        TableCatalogEntry updated = meta with
+        {
+            LabelEn = string.IsNullOrWhiteSpace(draft.TableEn) ? table : draft.TableEn.Trim(),
+            LabelFr = string.IsNullOrWhiteSpace(draft.TableFr) ? (string.IsNullOrWhiteSpace(draft.TableEn) ? table : draft.TableEn.Trim()) : draft.TableFr.Trim(),
+            NavVisible = draft.NavVisible,
+        };
+        if (updated != meta)
+        {
+            MetaModel.UpdateTableMeta(updated);
+        }
+
+        // Column labels — one synced change per column that actually changed.
+        Dictionary<string, ColumnCatalogEntry> columns = Catalog.GetForTable(table).ToDictionary(c => c.ColumnName, StringComparer.Ordinal);
+        foreach ((string column, ColumnLabelDraft labels) in draft.Columns)
+        {
+            if (columns.TryGetValue(column, out ColumnCatalogEntry? existing)
+                && ((existing.LabelEn ?? "") != labels.En.Trim() || (existing.LabelFr ?? "") != labels.Fr.Trim()))
+            {
+                MetaModel.UpdateColumnMeta(table, column, labels.En, labels.Fr);
+            }
+        }
+
+        _editLabelsTable = null;
+        _message = Lang.IsFrench ? $"Libellés de « {table} » mis à jour." : $"Labels for '{table}' updated.";
+    });
 
     private void CreateTable() => Try(() =>
     {

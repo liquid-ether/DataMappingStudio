@@ -18,7 +18,7 @@ public class DefaultCatalogTests
     [InlineData(TableNames.Mapping)]
     public void Every_core_entity_has_columns(string table)
     {
-        Assert.NotEmpty(Entries.Where(e => e.TableName == table));
+        Assert.Contains(Entries, e => e.TableName == table);
     }
 
     [Theory]

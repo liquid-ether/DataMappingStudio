@@ -40,6 +40,10 @@ public static class CatalogFold
                 case CatalogChangeKind.ColumnAdded when entry.Column is { } column:
                     columns.TryAdd((column.TableName, column.ColumnName), column); // first-wins
                     break;
+
+                case CatalogChangeKind.ColumnMetaUpdated when entry.Column is { } columnMeta:
+                    columns[(columnMeta.TableName, columnMeta.ColumnName)] = columnMeta; // last-writer-wins on presentation metadata
+                    break;
             }
         }
 

@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 //   provision <remoteFolder>
 //   import-excel <workbook.xlsx> <mappingName> [dbPath] [report.json]
 //   list-mappings [remoteFolder]
+//   delete-mapping <mappingName> [remoteFolder]
 //   rebuild-snapshots <dbPath> <remoteFolder> [format]
 //   convert-format <remoteFolder> <fromFormat> <toFormat>
 // Imports run ONLY mappings previously saved from the app's Data Import wizard (shared folder,
@@ -32,6 +33,8 @@ switch (args[0])
         return ImportExcel(args[1], args[2], Arg(args, 3), Arg(args, 4));
     case "list-mappings":
         return ListMappings(Arg(args, 1));
+    case "delete-mapping" when args.Length >= 2:
+        return DeleteMapping(args[1], Arg(args, 2));
     case "rebuild-snapshots" when args.Length >= 3:
         return RebuildSnapshots(args[1], args[2], args.Length >= 4 ? args[3] : "parquet");
     case "convert-format" when args.Length >= 4:
@@ -121,6 +124,21 @@ static int ListMappings(string? remoteArg)
     }
 
     return 0;
+}
+
+// Deletes a saved mapping from the shared folder (rename = save under a new name in the wizard, then delete).
+static int DeleteMapping(string name, string? remoteArg)
+{
+    ImporterConfig config = LoadConfig();
+    string remoteFolder = config.ResolveRemoteFolder(remoteArg, config.ResolveDbPath(null));
+    if (new FileImportMappingStore(remoteFolder).Delete(name))
+    {
+        Console.WriteLine($"Deleted mapping '{name}' from {remoteFolder}.");
+        return 0;
+    }
+
+    Console.Error.WriteLine($"Mapping '{name}' not found in {remoteFolder}.");
+    return 1;
 }
 
 static int RebuildSnapshots(string dbPath, string remoteFolder, string format)
@@ -240,6 +258,7 @@ static void Usage() => Console.WriteLine(
     "  provision <remoteFolder>\n" +
     "  import-excel <workbook.xlsx> <mappingName> [dbPath] [report.json]   (mapping = saved from the app's Data Import wizard)\n" +
     "  list-mappings [remoteFolder]\n" +
+    "  delete-mapping <mappingName> [remoteFolder]\n" +
     "  rebuild-snapshots <dbPath> <remoteFolder> [format]\n" +
     "  convert-format <remoteFolder> <fromFormat> <toFormat>\n" +
     "  report <dbPath> <remoteFolder> [format]\n" +

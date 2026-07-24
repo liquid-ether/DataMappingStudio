@@ -69,6 +69,13 @@ public sealed class MetaModelService(
             throw new ArgumentException($"Unknown table '{column.TableName}'.");
         }
 
+        // Duplicate check happens BEFORE the publish (the local apply is idempotent by design — with
+        // publish-first sync our own change may fold back in before we apply it locally).
+        if (catalog.GetForTable(column.TableName).Any(c => string.Equals(c.ColumnName, column.ColumnName, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new ArgumentException($"Column '{column.ColumnName}' already exists on '{column.TableName}'.");
+        }
+
         ValidateColumn(column, expectedTable: column.TableName);
         ColumnCatalogEntry stamped = column with { IsUserAdded = true };
 
@@ -82,6 +89,29 @@ public sealed class MetaModelService(
         ThrowIfInvalid(meta.Validate(), meta.TableName);
         PublishChanges([Change(CatalogChangeKind.TableMetaUpdated, table: meta)]);
         tables.UpsertTableMeta(meta);
+    }
+
+    /// <summary>Updates a column's bilingual labels (presentation only — structure is immutable).</summary>
+    public void UpdateColumnMeta(string table, string column, string? labelEn, string? labelFr)
+    {
+        RequirePermission();
+        ColumnCatalogEntry existing = catalog.GetForTable(table).FirstOrDefault(c => c.ColumnName == column)
+            ?? throw new ArgumentException($"Unknown column '{table}.{column}'.");
+        if (existing.IsCore)
+        {
+            throw new ArgumentException($"'{column}' is a core column and cannot be edited.");
+        }
+
+        // Same fallback ladder as add time: blank EN -> column name, blank FR -> EN -> name.
+        string en = string.IsNullOrWhiteSpace(labelEn) ? existing.ColumnName : labelEn.Trim();
+        ColumnCatalogEntry stamped = existing with
+        {
+            LabelEn = en,
+            LabelFr = string.IsNullOrWhiteSpace(labelFr) ? en : labelFr.Trim(),
+        };
+
+        PublishChanges([Change(CatalogChangeKind.ColumnMetaUpdated, column: stamped)]);
+        catalog.UpdateColumnMeta(stamped);
     }
 
     private void PublishChanges(List<CatalogChangeEntry> entries)

@@ -35,6 +35,8 @@ public sealed class FakeCatalog(IReadOnlyList<ColumnCatalogEntry> entries) : ICa
     public void Seed(IEnumerable<ColumnCatalogEntry> newEntries) => throw new NotSupportedException();
 
     public void AddColumn(ColumnCatalogEntry entry) => throw new NotSupportedException();
+
+    public void UpdateColumnMeta(ColumnCatalogEntry entry) => throw new NotSupportedException();
 }
 
 public static class RemoteTestData

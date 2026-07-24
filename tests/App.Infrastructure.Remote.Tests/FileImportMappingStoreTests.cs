@@ -73,6 +73,19 @@ public sealed class FileImportMappingStoreTests : IDisposable
     }
 
     [Fact]
+    public void Delete_removes_the_mapping_and_reports_absence()
+    {
+        FileImportMappingStore store = new(_dir);
+        store.Save("Doomed", SampleMapping(), "x");
+
+        Assert.True(store.Delete("Doomed"));
+        Assert.Null(store.Get("Doomed"));
+        Assert.Empty(store.List());
+        Assert.False(store.Delete("Doomed")); // already gone
+        Assert.Throws<ArgumentException>(() => store.Delete("../escape"));
+    }
+
+    [Fact]
     public void Unsafe_names_are_rejected_and_malformed_files_never_break_the_listing()
     {
         FileImportMappingStore store = new(_dir);

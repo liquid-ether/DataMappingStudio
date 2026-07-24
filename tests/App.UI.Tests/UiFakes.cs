@@ -18,6 +18,15 @@ public sealed class FakeCatalog(IEnumerable<ColumnCatalogEntry> seed) : ICatalog
     public void Seed(IEnumerable<ColumnCatalogEntry> entries) => _entries.AddRange(entries);
 
     public void AddColumn(ColumnCatalogEntry entry) => _entries.Add(entry);
+
+    public void UpdateColumnMeta(ColumnCatalogEntry entry)
+    {
+        int i = _entries.FindIndex(e => e.TableName == entry.TableName && e.ColumnName == entry.ColumnName);
+        if (i >= 0)
+        {
+            _entries[i] = _entries[i] with { LabelEn = entry.LabelEn, LabelFr = entry.LabelFr };
+        }
+    }
 }
 
 /// <summary>In-memory table catalog for component tests.</summary>
@@ -38,6 +47,30 @@ public sealed class FakeTableCatalog(IEnumerable<TableCatalogEntry>? seed = null
         {
             _entries.TryAdd(entry.TableName, entry);
         }
+    }
+}
+
+/// <summary>In-memory catalog-change remote for tests exercising the catalog sync loop.</summary>
+public sealed class FakeCatalogRemote : ICatalogRemote
+{
+    private readonly Dictionary<string, List<CatalogChangeEntry>> _logs = new(StringComparer.Ordinal);
+    private int _version;
+
+    public string CatalogVersion() => _version.ToString();
+
+    public IReadOnlyList<CatalogChangeEntry> ReadAll() => _logs.Values.SelectMany(e => e).ToList();
+
+    public IReadOnlyList<CatalogChangeEntry> ReadWriter(string writerId) => _logs.GetValueOrDefault(writerId) ?? [];
+
+    public void Append(string writerId, IReadOnlyList<CatalogChangeEntry> entries)
+    {
+        if (!_logs.TryGetValue(writerId, out List<CatalogChangeEntry>? log))
+        {
+            log = _logs[writerId] = [];
+        }
+
+        log.AddRange(entries);
+        _version++;
     }
 }
 

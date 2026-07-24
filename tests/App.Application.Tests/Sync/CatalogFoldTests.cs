@@ -79,6 +79,34 @@ public class CatalogFoldTests
     }
 
     [Fact]
+    public void Column_metadata_is_last_writer_wins_and_additive()
+    {
+        static CatalogChangeEntry Meta(string labelEn, string by, long seq, int atMinutes) => new()
+        {
+            ClientSeq = seq,
+            ChangedBy = by,
+            ChangedAtUtc = new DateTimeOffset(2026, 1, 1, 0, atMinutes, 0, TimeSpan.Zero),
+            Kind = CatalogChangeKind.ColumnMetaUpdated,
+            Column = new ColumnCatalogEntry { TableName = "vendor", ColumnName = "name", ValueType = CatalogValueType.Text, LabelEn = labelEn, LabelFr = labelEn, IsUserAdded = true },
+        };
+
+        FoldedCatalog folded = CatalogFold.Fold(
+        [
+            Table("vendor", "alice", 1, 1),
+            Column("vendor", "name", "alice", 2, 2),
+            Meta("Supplier name", "bob", 1, 9),   // latest -> wins
+            Meta("Vendor name", "carol", 1, 4),
+        ]);
+
+        ColumnCatalogEntry column = Assert.Single(folded.Columns);
+        Assert.Equal("Supplier name", column.LabelEn);
+
+        // A meta update for a column this copy never saw added still lands (additive, never deletes).
+        FoldedCatalog metaOnly = CatalogFold.Fold([Meta("Orphaned label", "bob", 1, 1)]);
+        Assert.Equal("Orphaned label", Assert.Single(metaOnly.Columns).LabelEn);
+    }
+
+    [Fact]
     public void Replaying_the_same_entries_twice_changes_nothing()
     {
         CatalogChangeEntry[] entries = [Table("vendor", "alice", 1, 1), Column("vendor", "name", "alice", 2, 2)];

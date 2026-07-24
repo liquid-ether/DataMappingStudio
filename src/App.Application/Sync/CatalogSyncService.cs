@@ -47,12 +47,24 @@ public sealed class CatalogSyncService(ICatalogRemote remote)
             }
         }
 
-        HashSet<(string, string)> knownColumns = catalog.GetAll()
-            .Select(c => (c.TableName, c.ColumnName))
-            .ToHashSet();
-        List<ColumnCatalogEntry> missing = folded.Columns
-            .Where(c => !knownColumns.Contains((c.TableName, c.ColumnName)))
-            .ToList();
+        Dictionary<(string, string), ColumnCatalogEntry> knownColumns = catalog.GetAll()
+            .ToDictionary(c => (c.TableName, c.ColumnName));
+        List<ColumnCatalogEntry> missing = [];
+        foreach (ColumnCatalogEntry column in folded.Columns)
+        {
+            if (!knownColumns.TryGetValue((column.TableName, column.ColumnName), out ColumnCatalogEntry? existing))
+            {
+                missing.Add(column);
+            }
+            else if (existing.LabelEn != column.LabelEn || existing.LabelFr != column.LabelFr)
+            {
+                // Label edits are LWW presentation metadata; only labels are compared so drift in
+                // structural defaults can never trigger rewrites.
+                catalog.UpdateColumnMeta(column);
+                applied = true;
+            }
+        }
+
         if (missing.Count > 0)
         {
             catalog.Seed(missing); // idempotent INSERT OR IGNORE
@@ -82,7 +94,30 @@ public sealed class CatalogSyncService(ICatalogRemote remote)
             _foldedVersion = null; // our own write changed the remote; force a refold
         }
 
-        Changed?.Invoke();
+        NotifyChanged();
+    }
+
+    // Handlers run synchronously on the publisher's thread and may belong to OTHER circuits (a
+    // disconnected-but-not-yet-disposed circuit's wizard, for instance) — a failing subscriber must
+    // never fail the publish or crash the publishing circuit.
+    private void NotifyChanged()
+    {
+        if (Changed is not { } changed)
+        {
+            return;
+        }
+
+        foreach (Action handler in changed.GetInvocationList().Cast<Action>())
+        {
+            try
+            {
+                handler();
+            }
+            catch (Exception)
+            {
+                // Stale subscriber — ignored; it will catch up via the version-gated ApplyTo.
+            }
+        }
     }
 
     private FoldedCatalog GetOrFold()

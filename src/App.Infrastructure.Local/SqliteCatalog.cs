@@ -34,7 +34,10 @@ public sealed class SqliteCatalog : ICatalog, ITableCatalog
             ("$t", table)));
 
     public IReadOnlyList<string> GetTables()
-        => _db.Locked(() => _db.Connection.Query($"SELECT DISTINCT table_name FROM {Table} ORDER BY table_name", static r => r.GetString(0)));
+        => _db.Locked(() => _db.Connection.Query(
+            // Union with table_catalog so a table is listed even before any of its columns have synced.
+            $"SELECT table_name FROM {Table} UNION SELECT table_name FROM {MetaTable} ORDER BY table_name",
+            static r => r.GetString(0)));
 
     public void Seed(IEnumerable<ColumnCatalogEntry> entries) => _db.Locked(() =>
     {
@@ -63,7 +66,10 @@ public sealed class SqliteCatalog : ICatalog, ITableCatalog
                 nameof(entry));
         }
 
-        Insert(entry, ignoreIfExists: false);
+        // OR IGNORE: with publish-first sync, a live subscriber may fold our own change into this very
+        // catalog between the publish and this local apply — the second write must be a no-op, not a
+        // UNIQUE violation. User-facing duplicate checks happen before the publish (MetaModelService).
+        Insert(entry, ignoreIfExists: true);
 
         // Apply the physical column if the table already exists and lacks it.
         SqliteConnection c = _db.Connection;
@@ -72,6 +78,12 @@ public sealed class SqliteCatalog : ICatalog, ITableCatalog
             c.Execute($"ALTER TABLE {SqlIdentifier.Quote(entry.TableName)} ADD COLUMN {SqlIdentifier.Quote(entry.ColumnName)} TEXT");
         }
     });
+
+    public void UpdateColumnMeta(ColumnCatalogEntry entry) => _db.Locked(() =>
+        _db.Connection.Execute(
+            $"UPDATE {Table} SET label_en = $len, label_fr = $lfr WHERE table_name = $t AND column_name = $c",
+            ("$len", entry.LabelEn), ("$lfr", entry.LabelFr),
+            ("$t", entry.TableName), ("$c", entry.ColumnName)));
 
     // ---------------- ITableCatalog (table_catalog) ----------------
 

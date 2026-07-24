@@ -148,6 +148,8 @@
         @if (_addingColumn)
         {
             <input class="ed-input" style="width:160px" placeholder="@Lang.T("columnName")" @bind="_newColumnName" />
+            <input class="ed-input" style="width:140px" placeholder="@Lang.T("labelEn")" @bind="_newColumnLabelEn" />
+            <input class="ed-input" style="width:140px" placeholder="@Lang.T("labelFr")" @bind="_newColumnLabelFr" />
             <select class="ed-select" style="width:120px" @bind="_newColumnType">
                 @foreach (CatalogValueType t in Enum.GetValues<CatalogValueType>())
                 {
@@ -206,6 +208,8 @@
     private string? _error;
     private bool _addingColumn;
     private string _newColumnName = string.Empty;
+    private string _newColumnLabelEn = string.Empty;
+    private string _newColumnLabelFr = string.Empty;
     private CatalogValueType _newColumnType = CatalogValueType.Text;
 
     // Optional: present in the hosts (reference pickers + computed-column autofill), absent in plain tests.
@@ -487,13 +491,15 @@
             return;
         }
 
+        // Same fallback ladder as table labels: blank EN -> column name, blank FR -> EN -> name.
+        string labelEn = string.IsNullOrWhiteSpace(_newColumnLabelEn) ? name : _newColumnLabelEn.Trim();
         ColumnCatalogEntry entry = new()
         {
             TableName = Table,
             ColumnName = name,
             ValueType = _newColumnType,
-            LabelEn = name,
-            LabelFr = name,
+            LabelEn = labelEn,
+            LabelFr = string.IsNullOrWhiteSpace(_newColumnLabelFr) ? labelEn : _newColumnLabelFr.Trim(),
             IsUserAdded = true,
             DisplayOrder = _columns.Count + 1,
         };
@@ -520,6 +526,8 @@
 
         _addingColumn = false;
         _newColumnName = string.Empty;
+        _newColumnLabelEn = string.Empty;
+        _newColumnLabelFr = string.Empty;
         Reload();
     }
 

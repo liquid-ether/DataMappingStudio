@@ -132,6 +132,42 @@ public sealed class CatalogSyncTests : IDisposable
     }
 
     [Fact]
+    public void Edited_column_labels_reach_an_already_running_copy()
+    {
+        CatalogSyncService syncA = new(new FileCatalogRemote(_remote));
+        CatalogSyncService syncB = new(new FileCatalogRemote(_remote));
+        Stack alice = BuildStack("alice", syncA);
+        Stack bob = BuildStack("bob", syncB); // both up BEFORE the change
+
+        alice.MetaModel.AddColumn(new ColumnCatalogEntry
+        {
+            TableName = "application",
+            ColumnName = "tier",
+            ValueType = CatalogValueType.Text,
+            LabelEn = "tier",
+            LabelFr = "tier",
+            IsUserAdded = true,
+        });
+        alice.MetaModel.UpdateColumnMeta("application", "tier", "Tier", "Niveau");
+
+        // Bob refreshes: the column arrives AND its labels are the edited ones (labels are LWW
+        // presentation metadata, updated in place on copies that already know the column).
+        bob.Sync.Refresh();
+        ColumnCatalogEntry tier = Assert.Single(bob.Catalog.GetForTable("application"), c => c.ColumnName == "tier");
+        Assert.Equal("Tier", tier.LabelEn);
+        Assert.Equal("Niveau", tier.LabelFr);
+
+        // A second edit reaches bob too — the update path, not just the initial seed.
+        alice.MetaModel.UpdateColumnMeta("application", "tier", "Service tier", "Niveau de service");
+        bob.Sync.Refresh();
+        Assert.Equal("Service tier", Assert.Single(bob.Catalog.GetForTable("application"), c => c.ColumnName == "tier").LabelEn);
+
+        // Core columns stay untouchable.
+        Assert.Throws<ArgumentException>(() => alice.MetaModel.UpdateColumnMeta("application", "id", "Id", "Id"));
+        Assert.Throws<ArgumentException>(() => alice.MetaModel.UpdateColumnMeta("application", "nope", "X", "X"));
+    }
+
+    [Fact]
     public void Meta_model_writes_without_permission_are_rejected()
     {
         CatalogSyncService sync = new(new FileCatalogRemote(_remote));

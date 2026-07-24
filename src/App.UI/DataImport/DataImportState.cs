@@ -2,6 +2,7 @@ using App.Application.Abstractions;
 using App.Application.Importing;
 using App.Application.Provisioning;
 using App.Application.Security;
+using App.Application.Sync;
 using App.Domain.Catalog;
 using App.Domain.Data;
 using App.UI.Localization;
@@ -55,7 +56,7 @@ public sealed record ValidationVm(string Worksheet, string Table, int Rows, int 
 /// <see cref="ILocalStore"/> as one reviewable Import change set. The same engine and mapping store the
 /// CLI uses — the CLI can only run mappings saved here. Scoped per Blazor circuit.
 /// </summary>
-public sealed class DataImportState
+public sealed class DataImportState : IDisposable
 {
     private readonly LanguageState _lang;
     private readonly ICatalog _catalog;
@@ -63,9 +64,13 @@ public sealed class DataImportState
     private readonly IWorkbookReader _reader;
     private readonly ICurrentUser _user;
     private readonly IImportMappingStore? _mappings;
+    private readonly ITableCatalog? _tables;
+    private readonly CatalogSyncService? _catalogSync;
+    private readonly ILocalStore? _store;
     private readonly ILogger<DataImportState>? _logger;
+    private string? _catalogVersion;
 
-    public DataImportState(LanguageState lang, ICatalog catalog, ImportEngine engine, IWorkbookReader reader, ICurrentUser user, ILogger<DataImportState>? logger = null, IImportMappingStore? mappings = null)
+    public DataImportState(LanguageState lang, ICatalog catalog, ImportEngine engine, IWorkbookReader reader, ICurrentUser user, ILogger<DataImportState>? logger = null, IImportMappingStore? mappings = null, ITableCatalog? tables = null, CatalogSyncService? catalogSync = null, ILocalStore? store = null)
     {
         _lang = lang;
         _catalog = catalog;
@@ -73,10 +78,74 @@ public sealed class DataImportState
         _reader = reader;
         _user = user;
         _mappings = mappings;
+        _tables = tables;
+        _catalogSync = catalogSync;
+        _store = store;
         _logger = logger;
+        if (_catalogSync is not null)
+        {
+            _catalogSync.Changed += OnCatalogPublished;
+        }
     }
 
     public event Action? OnChange;
+
+    /// <summary>
+    /// Raised when the shared meta-model changed (a column/table was published, possibly from another
+    /// circuit). The wizard handles it on its own dispatcher via <see cref="RefreshFromCatalog"/> —
+    /// state is never mutated on the publisher's thread.
+    /// </summary>
+    public event Action? CatalogModelChanged;
+
+    private void OnCatalogPublished() => CatalogModelChanged?.Invoke();
+
+    public void Dispose()
+    {
+        if (_catalogSync is not null)
+        {
+            _catalogSync.Changed -= OnCatalogPublished;
+        }
+    }
+
+    /// <summary>
+    /// Pulls the latest shared meta-model into this working copy (version-gated, so a no-op when
+    /// current) and auto-maps still-unmapped headers against any new columns. Call on the circuit's
+    /// dispatcher.
+    /// </summary>
+    public void RefreshFromCatalog()
+    {
+        EnsureCatalogCurrent();
+        foreach (SheetMappingDraft draft in Drafts.Where(d => d.Table.Length > 0))
+        {
+            AutoMapNewColumns(draft, notify: false);
+        }
+
+        Notify();
+    }
+
+    private void EnsureCatalogCurrent()
+    {
+        if (_catalogSync is null || _tables is null || _store is null)
+        {
+            return;
+        }
+
+        try
+        {
+            string version = _catalogSync.Version();
+            if (version == _catalogVersion)
+            {
+                return;
+            }
+
+            _catalogSync.ApplyTo(_catalog, _tables, _store);
+            _catalogVersion = version;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _logger?.LogWarning(ex, "Could not refresh the meta-model from the shared folder; the wizard keeps the local copy.");
+        }
+    }
 
     private void Notify() => OnChange?.Invoke();
 
@@ -165,17 +234,7 @@ public sealed class DataImportState
 
         // Auto-map: header matches column name or a bilingual label (case/space/underscore-insensitive).
         IReadOnlyList<ColumnCatalogEntry> columns = MappableColumns(table);
-        foreach (string header in draft.Headers)
-        {
-            ColumnCatalogEntry? match = columns.FirstOrDefault(c =>
-                Normalized(header) == Normalized(c.ColumnName)
-                || Normalized(header) == Normalized(c.LabelEn ?? "")
-                || Normalized(header) == Normalized(c.LabelFr ?? ""));
-            if (match is not null && !draft.HeaderToColumn.ContainsValue(match.ColumnName))
-            {
-                draft.HeaderToColumn[header] = match.ColumnName;
-            }
-        }
+        MapUnmappedHeaders(draft, columns);
 
         // Natural-key default: the mapped required columns, else the first mapped column.
         foreach (ColumnCatalogEntry required in columns.Where(c => c.IsRequired && draft.HeaderToColumn.ContainsValue(c.ColumnName)))
@@ -189,6 +248,54 @@ public sealed class DataImportState
         }
 
         Notify();
+    }
+
+    /// <summary>
+    /// Auto-maps still-unmapped headers to still-unused columns (manual choices are never clobbered).
+    /// The explicit "auto-map" action for columns added after the file was uploaded.
+    /// </summary>
+    public void AutoMapNewColumns(SheetMappingDraft draft, bool notify = true)
+    {
+        if (draft.Table.Length == 0)
+        {
+            return;
+        }
+
+        MapUnmappedHeaders(draft, MappableColumns(draft.Table));
+        if (draft.NaturalKey.Count == 0 && draft.HeaderToColumn.Count > 0)
+        {
+            draft.NaturalKey.Add(draft.HeaderToColumn.Values.First());
+        }
+
+        if (notify)
+        {
+            Notify();
+        }
+    }
+
+    private static void MapUnmappedHeaders(SheetMappingDraft draft, IReadOnlyList<ColumnCatalogEntry> columns)
+    {
+        foreach (string header in draft.Headers.Where(h => !draft.HeaderToColumn.ContainsKey(h)))
+        {
+            ColumnCatalogEntry? match = columns.FirstOrDefault(c =>
+                Normalized(header) == Normalized(c.ColumnName)
+                || Normalized(header) == Normalized(c.LabelEn ?? "")
+                || Normalized(header) == Normalized(c.LabelFr ?? ""));
+            if (match is not null && !draft.HeaderToColumn.ContainsValue(match.ColumnName))
+            {
+                draft.HeaderToColumn[header] = match.ColumnName;
+            }
+        }
+    }
+
+    /// <summary>Dropdown text for a mappable column: bilingual label, column name, required marker.</summary>
+    public string ColumnOptionLabel(ColumnCatalogEntry c)
+    {
+        string label = _lang.Label(c.LabelEn, c.LabelFr);
+        string display = label.Length == 0 || string.Equals(label, c.ColumnName, StringComparison.Ordinal)
+            ? c.ColumnName
+            : $"{label} ({c.ColumnName})";
+        return c.IsRequired ? display + " *" : display;
     }
 
     /// <summary>Maps (or unmaps, with an empty column) one source header.</summary>
@@ -239,6 +346,25 @@ public sealed class DataImportState
 
         foreach (SheetMappingDraft draft in Drafts.Where(d => d.Table.Length > 0))
         {
+            // A saved mapping can reference tables/columns the current model no longer has (or that
+            // haven't synced here yet) — surface that instead of failing at import time.
+            if (!AvailableTables.Contains(draft.Table, StringComparer.Ordinal))
+            {
+                errors.Add(IsFrench
+                    ? $"« {draft.Sheet} » : la table « {draft.Table} » n'existe pas dans le modèle actuel."
+                    : $"'{draft.Sheet}': table '{draft.Table}' does not exist in the current model.");
+                continue;
+            }
+
+            HashSet<string> known = MappableColumns(draft.Table).Select(c => c.ColumnName).ToHashSet(StringComparer.Ordinal);
+            List<string> unknown = draft.HeaderToColumn.Values.Where(c => !known.Contains(c)).Distinct().ToList();
+            if (unknown.Count > 0)
+            {
+                errors.Add(IsFrench
+                    ? $"« {draft.Sheet} » : colonne(s) inconnue(s) dans « {draft.Table} » : {string.Join(", ", unknown)}."
+                    : $"'{draft.Sheet}': column(s) not in '{draft.Table}': {string.Join(", ", unknown)}.");
+            }
+
             if (draft.HeaderToColumn.Count == 0)
             {
                 errors.Add(IsFrench ? $"« {draft.Sheet} » : aucune colonne associée." : $"'{draft.Sheet}': no columns mapped.");
@@ -285,6 +411,10 @@ public sealed class DataImportState
 
             draft.References = ws.References;
             draft.ExpressionColumn = ws.ExpressionColumn;
+
+            // Headers the template doesn't know (e.g. a column added to the model after the template
+            // was authored) still auto-map against the live catalog.
+            MapUnmappedHeaders(draft, MappableColumns(draft.Table));
         }
 
         Notify();
@@ -294,16 +424,47 @@ public sealed class DataImportState
 
     public bool MappingStoreAvailable => _mappings is not null;
 
-    public IReadOnlyList<SavedMappingInfo> SavedMappings()
+    private IReadOnlyList<SavedMappingInfo> _savedMappings = [];
+
+    /// <summary>The cached saved-mapping list (the toolbar renders this every frame — no file IO here).</summary>
+    public IReadOnlyList<SavedMappingInfo> SavedMappings() => _savedMappings;
+
+    /// <summary>Re-reads the saved-mapping list from the shared folder (upload, step entry, save/delete).</summary>
+    private void RefreshSavedMappings()
     {
         try
         {
-            return _mappings?.List() ?? [];
+            _savedMappings = _mappings?.List() ?? [];
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return [];
+            _savedMappings = [];
         }
+    }
+
+    /// <summary>Deletes a saved mapping from the shared store (rename = save under a new name + delete).</summary>
+    public void DeleteMapping(string name)
+    {
+        if (_mappings is null)
+        {
+            MappingMessage = IsFrench ? "Aucun dossier partagé configuré." : "No shared folder is configured.";
+            Notify();
+            return;
+        }
+
+        try
+        {
+            MappingMessage = _mappings.Delete(name)
+                ? (IsFrench ? $"Association « {name} » supprimée." : $"Mapping '{name}' deleted.")
+                : (IsFrench ? $"Association « {name} » introuvable." : $"Mapping '{name}' not found.");
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            MappingMessage = ex.Message;
+        }
+
+        RefreshSavedMappings();
+        Notify();
     }
 
     public string? MappingMessage { get; private set; }
@@ -366,6 +527,7 @@ public sealed class DataImportState
             MappingMessage = ex.Message;
         }
 
+        RefreshSavedMappings();
         Notify();
     }
 
@@ -388,6 +550,10 @@ public sealed class DataImportState
         Notify();
         try
         {
+            // Make sure the drafts (and their template prefill) see the current shared meta-model.
+            EnsureCatalogCurrent();
+            RefreshSavedMappings();
+
             // Copy to a seekable stream (InputFile streams are forward-only) and parse.
             using MemoryStream buffer = new();
             await content.CopyToAsync(buffer);
@@ -465,6 +631,7 @@ public sealed class DataImportState
         if (i >= 0 && i <= MaxStep)
         {
             Step = i;
+            if (Step == 1) { EnterMappingStep(); }
             Notify();
         }
     }
@@ -479,7 +646,15 @@ public sealed class DataImportState
         if (Step == 1 && !MappingReady) { return; }
         Step++;
         MaxStep = Math.Max(MaxStep, Step);
+        if (Step == 1) { EnterMappingStep(); }
         Notify();
+    }
+
+    /// <summary>The Mapping step always opens against the current shared model and mapping list.</summary>
+    private void EnterMappingStep()
+    {
+        EnsureCatalogCurrent();
+        RefreshSavedMappings();
     }
 
     public void GoBack()
@@ -721,6 +896,8 @@ public sealed class DataImportState
         ["key"] = ("key", "clé"),
         ["keyHint"] = ("Key columns identify existing rows (re-running updates instead of duplicating).", "Les colonnes clés identifient les lignes existantes (relancer met à jour au lieu de dupliquer)."),
         ["pickTableNote"] = ("Pick a target table to import this worksheet, or leave it unmapped to skip it.", "Choisissez une table cible pour importer cette feuille, ou laissez-la sans correspondance pour l'ignorer."),
+        ["autoMap"] = ("Auto-map new columns", "Associer les nouvelles colonnes"),
+        ["deleteMapping"] = ("Delete", "Supprimer"),
         ["required"] = ("required", "requis"), ["reference"] = ("reference", "référence"), ["expression"] = ("expression", "expression"),
         ["s3Title"] = ("Validate (dry run)", "Validation (test à blanc)"),
         ["s3Sub"] = ("We check the workbook against the target schema. Nothing is written yet.", "Nous vérifions le classeur selon le schéma cible. Rien n'est encore écrit."),

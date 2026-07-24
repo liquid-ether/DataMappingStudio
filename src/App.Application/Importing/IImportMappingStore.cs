@@ -16,4 +16,7 @@ public interface IImportMappingStore
     ImportMapping? Get(string name);
 
     void Save(string name, ImportMapping mapping, string savedBy);
+
+    /// <summary>Removes a saved mapping. Returns false when no mapping has that name.</summary>
+    bool Delete(string name);
 }

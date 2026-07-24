@@ -1,6 +1,8 @@
 using App.Application.Expressions;
 using App.Application.Importing;
 using App.Application.Provisioning;
+using App.Application.Sync;
+using App.Domain.Catalog;
 using App.Domain.Data;
 using App.Domain.Entities;
 using App.Infrastructure.Local;
@@ -27,14 +29,20 @@ public sealed class DataImportMappingEditorTests
         public ImportMapping? Get(string name) => _saved.TryGetValue(name, out (ImportMapping Mapping, string SavedBy) doc) ? doc.Mapping : null;
 
         public void Save(string name, ImportMapping mapping, string savedBy) => _saved[name] = (mapping, savedBy);
+
+        public bool Delete(string name) => _saved.Remove(name);
     }
 
-    private static DataImportState NewState(IImportMappingStore? mappings = null)
+    private static DataImportState NewState(out FakeCatalog catalog, IImportMappingStore? mappings = null, CatalogSyncService? catalogSync = null, LanguageState? lang = null)
     {
-        FakeCatalog catalog = new(DefaultCatalog.Entries());
+        catalog = new FakeCatalog(DefaultCatalog.Entries());
         FunctionLibrary functions = new();
-        ImportEngine engine = new(catalog, new FakeLocalStore(), new RuleExpressionBuilder(functions, new ExpressionClassifier(functions)));
-        return new DataImportState(new LanguageState(), catalog, engine, new ClosedXmlWorkbookReader(), new App.Application.Abstractions.EnvironmentCurrentUser(), mappings: mappings);
+        FakeLocalStore store = new();
+        ImportEngine engine = new(catalog, store, new RuleExpressionBuilder(functions, new ExpressionClassifier(functions)));
+        return new DataImportState(lang ?? new LanguageState(), catalog, engine, new ClosedXmlWorkbookReader(),
+            new App.Application.Abstractions.EnvironmentCurrentUser(), mappings: mappings,
+            tables: catalogSync is null ? null : new FakeTableCatalog(), catalogSync: catalogSync,
+            store: catalogSync is null ? null : store);
     }
 
     /// <summary>Apps (known to the built-in template) + Extra (unknown, with headers matching application columns).</summary>
@@ -61,11 +69,17 @@ public sealed class DataImportMappingEditorTests
 
     private static async Task<DataImportState> LoadedState(IImportMappingStore? mappings = null)
     {
-        DataImportState state = NewState(mappings);
+        (DataImportState state, _) = await LoadedState(mappings, catalogSync: null);
+        return state;
+    }
+
+    private static async Task<(DataImportState State, FakeCatalog Catalog)> LoadedState(IImportMappingStore? mappings, CatalogSyncService? catalogSync, LanguageState? lang = null)
+    {
+        DataImportState state = NewState(out FakeCatalog catalog, mappings, catalogSync, lang);
         using MemoryStream workbook = BuildWorkbook();
         await state.LoadFileAsync("workbook.xlsx", workbook.Length, workbook);
         Assert.Null(state.ParseError);
-        return state;
+        return (state, catalog);
     }
 
     [Fact]
@@ -170,6 +184,159 @@ public sealed class DataImportMappingEditorTests
 
         consumer.LoadSavedMapping("Nope");
         Assert.Contains("Nope", consumer.MappingMessage);
+    }
+
+    [Fact]
+    public async Task A_column_added_after_upload_is_offered_and_auto_mappable()
+    {
+        (DataImportState state, FakeCatalog catalog) = await LoadedState(null, catalogSync: null);
+        SheetMappingDraft extra = state.Drafts.Single(d => d.Sheet == "Extra");
+        state.SetDraftTable(extra, TableNames.Application);
+        Dictionary<string, string> manualPicks = new(extra.HeaderToColumn);
+
+        // The model grows AFTER the file was uploaded and the sheet mapped (the reported repro).
+        catalog.AddColumn(new ColumnCatalogEntry
+        {
+            TableName = TableNames.Application,
+            ColumnName = "mystery_col",
+            ValueType = CatalogValueType.Text,
+            LabelEn = "Mystery",
+            LabelFr = "Mystère",
+            IsUserAdded = true,
+        });
+
+        // The dropdown reads the live catalog, so the new column is immediately offered…
+        Assert.Contains(state.MappableColumns(TableNames.Application), c => c.ColumnName == "mystery_col");
+
+        // …and the explicit auto-map matches the header by label without touching earlier picks.
+        state.AutoMapNewColumns(extra);
+        Assert.Equal("mystery_col", extra.HeaderToColumn["Mystery"]);
+        foreach ((string header, string column) in manualPicks)
+        {
+            Assert.Equal(column, extra.HeaderToColumn[header]);
+        }
+    }
+
+    [Fact]
+    public async Task A_catalog_publish_notifies_the_wizard_and_refresh_re_automaps()
+    {
+        CatalogSyncService catalogSync = new(new FakeCatalogRemote());
+        (DataImportState state, FakeCatalog catalog) = await LoadedState(null, catalogSync);
+        SheetMappingDraft extra = state.Drafts.Single(d => d.Sheet == "Extra");
+        state.SetDraftTable(extra, TableNames.Application);
+
+        bool notified = false;
+        state.CatalogModelChanged += () => notified = true;
+
+        // Another circuit publishes a new column into the shared catalog log.
+        catalogSync.Publish("admin",
+        [
+            new CatalogChangeEntry
+            {
+                ClientSeq = 0,
+                ChangedBy = "admin",
+                ChangedAtUtc = DateTimeOffset.UtcNow,
+                Kind = CatalogChangeKind.ColumnAdded,
+                Column = new ColumnCatalogEntry
+                {
+                    TableName = TableNames.Application,
+                    ColumnName = "mystery_col",
+                    ValueType = CatalogValueType.Text,
+                    LabelEn = "Mystery",
+                    LabelFr = "Mystère",
+                    IsUserAdded = true,
+                },
+            },
+        ]);
+
+        Assert.True(notified); // the wizard would now marshal RefreshFromCatalog onto its dispatcher
+
+        state.RefreshFromCatalog();
+        Assert.Contains(catalog.GetForTable(TableNames.Application), c => c.ColumnName == "mystery_col"); // fold applied locally
+        Assert.Equal("mystery_col", extra.HeaderToColumn["Mystery"]); // and the header auto-mapped
+
+        // Dispose unsubscribes from the host-wide event (no leak across circuits).
+        state.Dispose();
+        notified = false;
+        catalogSync.Publish("admin", [new CatalogChangeEntry { ClientSeq = 0, ChangedBy = "admin", ChangedAtUtc = DateTimeOffset.UtcNow, Kind = CatalogChangeKind.TableMetaUpdated, Table = new TableCatalogEntry { TableName = TableNames.Application } }]);
+        Assert.False(notified);
+    }
+
+    [Fact]
+    public async Task Column_options_show_bilingual_labels_with_the_column_name()
+    {
+        LanguageState lang = new();
+        (DataImportState state, FakeCatalog catalog) = await LoadedState(null, catalogSync: null, lang);
+        catalog.AddColumn(new ColumnCatalogEntry
+        {
+            TableName = TableNames.Application,
+            ColumnName = "tier",
+            ValueType = CatalogValueType.Text,
+            LabelEn = "Tier",
+            LabelFr = "Niveau",
+            IsRequired = true,
+            IsUserAdded = true,
+        });
+        ColumnCatalogEntry entry = state.MappableColumns(TableNames.Application).Single(c => c.ColumnName == "tier");
+
+        Assert.Equal("Tier (tier) *", state.ColumnOptionLabel(entry));
+        lang.Set("fr");
+        Assert.Equal("Niveau (tier) *", state.ColumnOptionLabel(entry));
+
+        // Label == name (the default when none was entered): no redundant parenthesis.
+        ColumnCatalogEntry plain = entry with { LabelEn = "tier", LabelFr = "tier", IsRequired = false };
+        Assert.Equal("tier", state.ColumnOptionLabel(plain));
+    }
+
+    [Fact]
+    public async Task A_saved_mapping_that_no_longer_matches_the_model_is_flagged()
+    {
+        InMemoryMappingStore store = new();
+        store.Save("Stale", new ImportMapping
+        {
+            Worksheets =
+            [
+                new WorksheetMapping
+                {
+                    Worksheet = "Apps",
+                    Table = "ghost_table", // vanished (or never synced here)
+                    NaturalKey = ["app_code"],
+                    Columns = new Dictionary<string, string> { ["AppCode"] = "app_code" },
+                },
+                new WorksheetMapping
+                {
+                    Worksheet = "Extra",
+                    Table = TableNames.Application,
+                    NaturalKey = ["app_code"],
+                    Columns = new Dictionary<string, string> { ["app_code"] = "app_code", ["Name GDM"] = "no_such_col" },
+                },
+            ],
+        }, "x");
+        DataImportState state = await LoadedState(store);
+
+        state.LoadSavedMapping("Stale");
+
+        Assert.False(state.MappingReady); // gated instead of failing at import time
+        IReadOnlyList<string> errors = state.MappingErrors();
+        Assert.Contains(errors, e => e.Contains("ghost_table"));
+        Assert.Contains(errors, e => e.Contains("no_such_col"));
+    }
+
+    [Fact]
+    public async Task Deleting_a_saved_mapping_updates_the_cached_list()
+    {
+        InMemoryMappingStore store = new();
+        DataImportState state = await LoadedState(store);
+        state.SaveMapping("Doomed");
+        Assert.Single(state.SavedMappings());
+
+        state.DeleteMapping("Doomed");
+
+        Assert.Empty(state.SavedMappings());
+        Assert.Contains("Doomed", state.MappingMessage);
+
+        state.DeleteMapping("Never existed");
+        Assert.Contains("Never existed", state.MappingMessage);
     }
 
     [Fact]

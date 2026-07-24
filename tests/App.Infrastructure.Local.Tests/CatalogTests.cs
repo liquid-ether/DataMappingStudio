@@ -53,6 +53,33 @@ public class CatalogTests
     }
 
     [Fact]
+    public void GetTables_includes_tables_known_only_to_table_catalog()
+    {
+        using LocalStoreFixture fx = new();
+
+        // A table whose columns haven't synced yet exists only in table_catalog — it must still be
+        // listed (the wizard's table picker and the admin list both build on GetTables).
+        fx.Catalog.UpsertTableMeta(new TableCatalogEntry { TableName = "orphan", LabelEn = "Orphan", IsUserAdded = true });
+
+        Assert.Contains("orphan", fx.Catalog.GetTables());
+        Assert.Contains(LocalStoreFixture.Table, fx.Catalog.GetTables());
+    }
+
+    [Fact]
+    public void UpdateColumnMeta_changes_labels_only()
+    {
+        using LocalStoreFixture fx = new();
+        ColumnCatalogEntry name = fx.Catalog.GetForTable(LocalStoreFixture.Table).Single(e => e.ColumnName == "name");
+
+        fx.Catalog.UpdateColumnMeta(name with { LabelEn = "Widget name", LabelFr = "Nom du widget", IsRequired = !name.IsRequired });
+
+        ColumnCatalogEntry updated = fx.Catalog.GetForTable(LocalStoreFixture.Table).Single(e => e.ColumnName == "name");
+        Assert.Equal("Widget name", updated.LabelEn);
+        Assert.Equal("Nom du widget", updated.LabelFr);
+        Assert.Equal(name.IsRequired, updated.IsRequired); // presentation only — structure untouched
+    }
+
+    [Fact]
     public void Invalid_catalog_entry_is_rejected()
     {
         using LocalStoreFixture fx = new();

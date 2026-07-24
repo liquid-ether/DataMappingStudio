@@ -249,6 +249,7 @@ CLI can use it.
    ```powershell
    dotnet run --project src/App.Importer -- list-mappings
    dotnet run --project src/App.Importer -- import-excel .\TheTeamsWorkbook.xlsx "Team workbook"
+   dotnet run --project src/App.Importer -- delete-mapping "Team workbook"   # remove a saved mapping
    ```
 
 3. Open the app, review the imported rows, then **Publish**.

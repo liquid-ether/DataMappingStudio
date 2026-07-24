@@ -77,6 +77,37 @@ public class MetadataGridTests : AppTestContext
     }
 
     [Fact]
+    public void Add_column_saves_bilingual_labels()
+    {
+        var cut = RenderGrid();
+
+        ClickButton(cut, "Add column");
+        cut.FindAll("input.ed-input")[0].Change("color");    // column name
+        cut.FindAll("input.ed-input")[1].Change("Color");    // Label (EN)
+        cut.FindAll("input.ed-input")[2].Change("Couleur");  // Label (FR)
+        ClickButton(cut, "Save");
+
+        ColumnCatalogEntry added = _catalog.GetForTable("widget").Single(e => e.ColumnName == "color");
+        Assert.Equal("Color", added.LabelEn);
+        Assert.Equal("Couleur", added.LabelFr);
+        Assert.Contains("Color", cut.Markup); // the header renders the label, not the db name
+    }
+
+    [Fact]
+    public void Add_column_with_blank_labels_defaults_to_the_column_name()
+    {
+        var cut = RenderGrid();
+
+        ClickButton(cut, "Add column");
+        cut.FindAll("input.ed-input")[0].Change("color");
+        ClickButton(cut, "Save");
+
+        ColumnCatalogEntry added = _catalog.GetForTable("widget").Single(e => e.ColumnName == "color");
+        Assert.Equal("color", added.LabelEn);
+        Assert.Equal("color", added.LabelFr);
+    }
+
+    [Fact]
     public void Add_row_persists_a_valid_row()
     {
         var cut = RenderGrid();

@@ -7,6 +7,15 @@ All notable changes to Mapping Studio are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-07-05
+
+### Added — admin in the desktop shell
+- The desktop side navigation gains an **Administration** section with **Model** (create tables, add
+  columns, edit labels) and **Settings** (runtime settings) — the same shared components the web host
+  serves under `/admin/model` and `/admin/settings`. The desktop is single-user and fully privileged,
+  so no sign-in is involved; identity administration (users, roles, providers, audit) remains web-only
+  because the desktop has no security store.
+
 ## [1.22.0] - 2026-07-05
 
 ### Fixed — the import wizard is truly linked to the dynamic model

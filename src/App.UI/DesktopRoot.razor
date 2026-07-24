@@ -1,5 +1,6 @@
 @namespace App.UI
 @using App.Application.Provisioning
+@using App.UI.Admin
 @implements IDisposable
 
 @* Root component for the Blazor Hybrid desktop shell. Blazor Hybrid has no URL router, so this is a
@@ -29,6 +30,14 @@
         else if (_active == "publish")
         {
             <PublishPanel />
+        }
+        else if (_active == "admin/model")
+        {
+            <ModelAdmin />
+        }
+        else if (_active == "admin/settings")
+        {
+            <SettingsAdmin />
         }
         else if (_active.StartsWith("t/", StringComparison.Ordinal))
         {
@@ -69,6 +78,14 @@
             [new NavItem("mappings", "tabMappings"), new NavItem("lineage", "tabLineage")]),
         new NavSection("Tools", "Outils",
             [new NavItem("import", "navImport"), new NavItem("history", "navHistory")]),
+        // The desktop is single-user and fully privileged, so the meta-model and settings admin are
+        // always available; identity admin (users/roles/audit) stays web-only — the desktop has no
+        // security store.
+        new NavSection("Administration", "Administration",
+            [
+                new NavItem("admin/model", null, "Model", "Modèle"),
+                new NavItem("admin/settings", null, "Settings", "Paramètres"),
+            ]),
     ];
 
     protected override void OnInitialized()

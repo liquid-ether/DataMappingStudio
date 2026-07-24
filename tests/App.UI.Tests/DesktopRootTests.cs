@@ -134,6 +134,33 @@ public class DesktopRootTests : AppTestContext
     }
 
     [Fact]
+    public void Admin_tabs_open_the_model_and_settings_admin()
+    {
+        RegisterFullDesktopServices();
+        // The desktop host wires these singletons (AddLocalStore/AddRemoteStore/App.xaml.cs) — mirror them.
+        FakeCatalog catalog = new(DefaultCatalog.Entries());
+        FakeTableCatalog tables = new();
+        FakeLocalStore store = new();
+        Services.AddSingleton<ICatalog>(catalog); // last registration wins — the admin edits this instance
+        Services.AddSingleton<ITableCatalog>(tables);
+        Services.AddSingleton(new App.Application.Catalog.MetaModelService(catalog, tables, store, new EnvironmentCurrentUser()));
+        Services.AddSingleton<IRuntimeConfig>(new App.Application.Configuration.RuntimeConfigService());
+
+        var cut = Render<DesktopRoot>();
+
+        void ClickTab(string label) =>
+            cut.FindAll(".ms-nav button.navitem").First(b => b.GetAttribute("title") == label).Click();
+
+        ClickTab("Model");
+        Assert.Contains("page-title\">Data model</h1>", cut.Markup);
+        Assert.Contains("New table", cut.Markup);
+
+        ClickTab("Settings");
+        Assert.Contains("page-title\">Settings</h1>", cut.Markup);
+        Assert.Contains("Shared (all hosts)", cut.Markup);
+    }
+
+    [Fact]
     public void Language_toggle_switches_the_active_view_to_french()
     {
         Services.AddSingleton<ICatalog>(new FakeCatalog(DefaultCatalog.Entries()));
